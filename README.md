@@ -1,194 +1,280 @@
-# Trashendence
+# Trascendence
 
-A modern Pong web application integrating blockchain-backed scores, modular architecture, and scalable infrastructure.  
-Built for the **ft_transcendence (v18)** project.
+A modern Pong web application with blockchain-backed tournament scores, microservices architecture, and advanced 3D graphics.  
+**ft_transcendence (v18)** — 42 School Project
+
+---
+
+## Table of Contents
+
+- [Team](#team)
+- [Overview](#overview)
+- [Modules](#modules)
+  - [Major Modules](#major-modules-9)
+  - [Minor Modules](#minor-modules-4)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Development Setup](#development-setup)
+- [Project Structure](#project-structure)
+- [API Endpoints (Core)](#api-endpoints-core)
+- [Database Schema (Highlights)](#database-schema-highlights)
+- [Smart Contract (TournamentScores.sol)](#smart-contract-tournamentscoressol)
+- [Security](#security)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+## Team
+
+- **Andrea Falconi** — Backend architecture, authentication, user management, database
+- **Pietro Jairo Pezzullo** — Blockchain integration, backend framework, live chat
+- **Gabriele Rinella** — Frontend framework, 3D graphics, game development, live chat
+- **Eugenio Caruso** — 3D graphics, game development
+- **Ruggero** — Microservices design, infrastructure, logging & monitoring
 
 ---
 
 ## Overview
 
-Trashendence reimagines Pong as a modular, extensible web platform.  
-Players compete in tournaments, and their scores are permanently stored on a blockchain for transparency.  
-The project combines real-time gameplay, user management, and backend scalability through microservices and monitoring.
+Trascendence is a modular Pong platform featuring:
+- Real-time multiplayer gameplay with 3D graphics
+- Permanent tournament scores on Avalanche Fuji blockchain
+- Microservices backend with independent scalable services
+- Live chat with game invitations
+- OAuth2 authentication and comprehensive user management
 
 ---
 
-## Features
+## Modules
 
-* ✨ Real-time Pong gameplay (local and remote planned)
-* 🏆 Tournament system with nicknames
-* ⛓️ Blockchain-based score storage (Avalanche Fuji testnet)
-* 🔐 Secure authentication (standard + remote OAuth2)
-* ⚡ Modular backend using Fastify and SQLite
-* 🎮 3D visual upgrade (Babylon.js)
-* 💬 Live chat and matchmaking
-* 🐳 CI/CD with containerized deployment
-* 📊 Logging and monitoring infrastructure (ELK + Prometheus/Grafana)
+### Major Modules (9)
+
+#### 🏗️ Microservices Backend (Ruggero, Andrea)
+- **auth-service** — Registration, login, JWT/OAuth2
+- **user-service** — Profiles, avatars, friends, statistics
+- **game-service** — Matchmaking, matches, tournaments
+- **chat-service** — WebSocket messaging, invites, notifications
+- **blockchain-service** — Tournament score submission
+
+Each service has REST APIs, Docker containers, and independent deployment.
+
+#### ⛓️ Blockchain Tournament Scores (Pietro)
+- Solidity smart contracts deployed on **Avalanche Fuji testnet**
+- **Foundry** for compile, test, and deploy
+- Tournament data structure: `{ tournamentId, nicknameHash, score }`
+- Append-only, immutable leaderboard
+- Frontend reads directly from blockchain
+
+#### ⚡ Fastify Backend Framework (Andrea, Pietro)
+- **TypeScript + Node.js** with Fastify
+- **HTTPS/WSS** enforced for all communications
+- **JSON Schema validation** (AJV) on all inputs
+- **Pino logging** with correlation IDs
+- **Rate limiting** on auth and chat endpoints
+- **CORS** restricted to expected domains
+
+#### 🔐 Standard User Management (Andrea)
+- Secure registration/login with **JWT sessions**
+- **Unique display names** for tournaments
+- Editable profiles with **avatar upload** (default provided)
+- **Friend system** with presence tracking (online/offline)
+- **Match history** with wins/losses per user
+- Duplicate email/username handling
+
+#### 🌐 Remote OAuth2 Authentication (Andrea)
+- **Google Sign-In** with OpenID Connect
+- Authorization Code + **PKCE flow**
+- State + nonce for CSRF protection
+- **Account linking** for existing users
+- Federated identities table: `(user_id, provider, provider_user_id)`
+- Email verification and duplicate handling
+
+#### 🎮 Additional Game + Matchmaking (Gabriele, Eugenio)
+- **Second game** options: Breakout, Connect Four, or Snake
+- **User game history** with statistics per game
+- **Matchmaking system**: random or ELO-based pairing
+- Database tables: `games`, `matches`, `user_stats`
+- Integrated lobby for game selection
+
+#### 🎨 Advanced 3D Graphics (Gabriele, Eugenio)
+- **Babylon.js** 3D rendering engine
+- Realistic **lighting and shadows** (HemisphericLight + PointLight)
+- **Camera**: ArcRotateCamera for immersive view
+- **Physics**: Cannon.js integration for realistic ball behavior
+- **60fps target** performance
+- Tailwind UI overlay on 3D canvas
+
+#### 💬 Live Chat (Andrea, Pietro, Gabriele)
+- **WebSocket** real-time messaging (WSS)
+- **Direct messages** between users (1-on-1)
+- **User blocking** (blocker cannot be contacted)
+- **Game invitations** from chat → creates pending match
+- **Tournament notifications** (next match announcements)
+- **Profile access** directly from chat
+- Tables: `threads`, `messages`, `blocks`, `invitations`
+
+#### 📊 Log Management Infrastructure (Ruggero)
+- **ELK Stack**: Elasticsearch, Logstash, Kibana
+- Centralized structured JSON logging
+- Request/response logs with timing
+- Security event tracking
+- Error aggregation and alerting
 
 ---
 
-## Architecture
+### Minor Modules (4)
 
-### High-Level System Overview
+#### 🗄️ SQLite Database (Andrea)
+- **DB-per-service** architecture (each microservice has own DB)
+- Schema **migrations** versioned in `db/migrations/*.sql`
+- **WAL mode** (`PRAGMA journal_mode = WAL`) for concurrency
+- **Foreign keys enforced** (`PRAGMA foreign_keys = ON`)
+- **Indexes** on `user_id`, `created_at`, `thread_id`
+- Docker volume persistence
 
-```mermaid
-graph TB
-    subgraph Client["Client Layer"]
-        Browser[Web Browser]
-        CLI[CLI Client]
-    end
-    
-    subgraph Frontend["Frontend Layer"]
-        React[React SPA<br/>TypeScript + Tailwind]
-        Babylon[Babylon.js<br/>3D Graphics Engine]
-    end
-    
-    subgraph Backend["Backend Layer - Microservices"]
-        API[Fastify API Gateway]
-        Auth[Auth Service<br/>JWT + OAuth2]
-        Game[Game Service<br/>Matchmaking]
-        Chat[Chat Service<br/>WebSocket]
-        Score[Score Service<br/>Blockchain Bridge]
-    end
-    
-    subgraph Data["Data Layer"]
-        SQLite[(SQLite DB)]
-        Cache[Redis Cache]
-    end
-    
-    subgraph Blockchain["Blockchain Layer"]
-        Contract[TournamentScores.sol<br/>Solidity Smart Contract]
-        Fuji[Avalanche Fuji Testnet]
-    end
-    
-    subgraph DevOps["DevOps & Monitoring"]
-        ELK[ELK Stack<br/>Logging]
-        Prometheus[Prometheus<br/>Metrics]
-        Grafana[Grafana<br/>Dashboards]
-    end
-    
-    Browser --> React
-    CLI --> API
-    React --> Babylon
-    React --> API
-    API --> Auth
-    API --> Game
-    API --> Chat
-    API --> Score
-    Auth --> SQLite
-    Game --> SQLite
-    Chat --> Cache
-    Score --> SQLite
-    Score --> Contract
-    Contract --> Fuji
-    API -.-> ELK
-    API -.-> Prometheus
-    Prometheus --> Grafana
-    ELK --> Grafana
-```
+#### 🎨 Tailwind CSS Frontend (Gabriele)
+- **TypeScript SPA** (no vanilla JavaScript)
+- **Only Tailwind CSS** for styling (utility-first)
+- **History API** routing (browser back/forward support)
+- **Responsive design** (mobile-first approach)
+- **Firefox compatibility** guaranteed (+ modern browsers)
+- Components: Navbar, PongCanvas, ChatBox, Login, Tournament views
 
-### Data Flow: Score Submission
+#### ⚙️ Game Customization (Gabriele, Eugenio)
+- **Power-ups**: paddle extension, multi-ball
+- **Ball speed**: slow/normal/fast
+- **Maps**: classic, obstacles, dark mode
+- **Scoring rules**: configurable target (5, 10, 21 points)
+- **Classic mode** always available
+- Settings UI in lobby (pre-game configuration)
 
-```mermaid
-sequenceDiagram
-    participant Player
-    participant Frontend
-    participant Backend
-    participant Contract
-    participant Blockchain
-    
-    Player->>Frontend: Completes Tournament Match
-    Frontend->>Backend: POST /api/scores/submit<br/>{nickname, score, tournamentId}
-    Backend->>Backend: Validate Input<br/>Hash Nickname (lowercase)
-    Backend->>Contract: submitScore(tournamentId, nicknameHash, score)
-    Contract->>Contract: Check Duplicate<br/>Store Entry
-    Contract->>Blockchain: Commit Transaction
-    Blockchain-->>Contract: Transaction Hash
-    Contract-->>Backend: Success
-    Backend-->>Frontend: {txHash, confirmation}
-    Frontend-->>Player: Score Saved ✓<br/>View on Explorer
-```
-
-### Deployment Architecture
-
-```mermaid
-graph LR
-    subgraph Docker["Docker Compose Stack"]
-        Frontend_C[Frontend Container<br/>Nginx + React Build]
-        Backend_C[Backend Container<br/>Node.js + Fastify]
-        DB_C[Database Container<br/>SQLite Volume]
-        ELK_C[ELK Container<br/>Logging Stack]
-        Monitor_C[Monitoring Container<br/>Prometheus + Grafana]
-    end
-    
-    subgraph External["External Services"]
-        Fuji_RPC[Avalanche Fuji RPC]
-        OAuth[OAuth Provider<br/>42 Intra / GitHub]
-    end
-    
-    Frontend_C --> Backend_C
-    Backend_C --> DB_C
-    Backend_C --> Fuji_RPC
-    Backend_C --> OAuth
-    Backend_C --> ELK_C
-    Backend_C --> Monitor_C
-    
-    style Docker fill:#e1f5ff
-    style External fill:#fff4e1
-```
+#### 📈 Monitoring System (Ruggero)
+- **Prometheus** metrics collection
+- **Grafana** dashboards
+- Metrics tracked:
+  - API request duration and count
+  - Database query performance
+  - Blockchain transaction success rate
+  - WebSocket connection count
+  - Error rates by endpoint
 
 ---
 
 ## Tech Stack
 
-| Layer      | Technology                       | Purpose                            |
-|------------|----------------------------------|------------------------------------|
-| Frontend   | React, TypeScript, Tailwind      | SPA UI and leaderboards            |
-| Backend    | Fastify (Node.js)                | API, validation, blockchain writes |
-| Blockchain | Solidity + Foundry               | Tournament and score storage       |
-| Database   | SQLite                           | Persistent app data                |
-| DevOps     | Docker, ELK, Prometheus, Grafana | Deployment, logs, monitoring       |
-| 3D Engine  | Babylon.js                       | Enhanced Pong visuals              |
-| Auth       | OAuth2, JWT, 2FA                 | Secure user authentication         |
+| Layer          | Technology                | Owner                    |
+|----------------|---------------------------|--------------------------|
+| **Frontend**   | TypeScript, Tailwind CSS  | Gabriele                 |
+| **Backend**    | Fastify, Node.js, TS      | Andrea, Pietro, Ruggero  |
+| **Database**   | SQLite (WAL mode)         | Andrea                   |
+| **Blockchain** | Solidity, Foundry, Fuji   | Pietro                   |
+| **3D Engine**  | Babylon.js, Cannon.js     | Gabriele, Eugenio        |
+| **Auth**       | JWT, OAuth2 (Google)      | Andrea                   |
+| **DevOps**     | Docker, ELK, Prometheus   | Ruggero                  |
+
+---
+
+## Architecture
+
+### Microservices
+
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        Browser[Web Browser]
+    end
+    
+    subgraph API["API Layer"]
+        Gateway[API Gateway / Reverse Proxy]
+    end
+    
+    subgraph Services["Microservices"]
+        Auth[Auth Service<br/>JWT/OAuth2]
+        User[User Service<br/>Profiles/Friends]
+        Game[Game Service<br/>Matchmaking]
+        Chat[Chat Service<br/>WebSocket]
+        Blockchain[Blockchain Service<br/>Score Submission]
+    end
+    
+    subgraph Data["Data Layer"]
+        AuthDB[(SQLite<br/>Auth DB)]
+        UserDB[(SQLite<br/>User DB)]
+        GameDB[(SQLite<br/>Game DB)]
+        ChatDB[(SQLite<br/>Chat DB)]
+    end
+    
+    subgraph External["External"]
+        Fuji[Avalanche Fuji<br/>Testnet]
+    end
+    
+    Browser --> Gateway
+    Gateway --> Auth
+    Gateway --> User
+    Gateway --> Game
+    Gateway --> Chat
+    Gateway --> Blockchain
+    
+    Auth --> AuthDB
+    User --> UserDB
+    Game --> GameDB
+    Chat --> ChatDB
+    Blockchain --> Fuji
+    
+    style Services fill:#e1f5ff
+    style Data fill:#fff4e1
+    style External fill:#ffe1f5
+```
+
+### Data Flow: Score Submission
+
+1. Player completes tournament match
+2. Frontend → Backend `/scores/submit`
+3. Backend validates + signs transaction
+4. Smart contract on Fuji stores score (immutable)
+5. Frontend reads leaderboard directly from blockchain
+6. Anyone can verify on Snowtrace explorer
 
 ---
 
 ## Development Setup
 
 ```bash
-# Clone repo
-git clone https://github.com/ppezzull/42-Common-Core.git
-cd 42-Common-Core/Trash
+# Clone repository
+git clone https://github.com/ppezzull/Trascendence.git
+cd Trascendence
 
 # Install dependencies
 npm install
 
-# Setup environment
+# Environment setup
 cp .env.example .env
-# Edit .env with your private key and RPC URL
+# Edit .env with:
+# - FUJI_RPC_URL (Avalanche testnet RPC)
+# - PRIVATE_KEY (deployer wallet)
+# - GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+# - SESSION_SECRET (JWT signing key)
 
-# Compile smart contracts
+# Compile and test smart contracts
 cd foundry
 forge build
+forge test -vv
 
-# Run contract tests
-forge test
-
-# Deploy contract to Fuji testnet
+# Deploy to Fuji testnet
 forge create src/TournamentScores.sol:TournamentScores \
-  --rpc-url $FUJI_RPC \
-  --private-key $DEPLOYER_PK \
+  --rpc-url $FUJI_RPC_URL \
+  --private-key $PRIVATE_KEY \
   --verify
 
-# Save deployed contract data
+# Generate contract manifest
 npm run export:manifest
 
-# Return to root and start all services
+# Start all services
 cd ..
 docker compose up --build
 ```
 
-**Local Development URLs:**
+**Local URLs:**
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000
 - Grafana: http://localhost:3001
@@ -196,582 +282,385 @@ docker compose up --build
 
 ---
 
-## Deployment (Docker/CI)
-
-### Pipeline Steps
-
-1. **Deploy Contract** → Capture address + ABI
-2. **Generate Manifest** → `contracts.manifest.json`
-3. **Build Images** → Frontend + Backend Docker images
-4. **Compose Stack** → Single `docker compose up` command
-
-### Artifacts Structure
-
-```json
-// contracts.manifest.json
-{
-  "address": "0x...",
-  "chainId": 43113,
-  "abiPath": "TournamentScores.abi.json",
-  "deployedAt": "2025-10-15T12:00:00Z",
-  "network": "avalanche-fuji"
-}
-```
-
----
-
-## Modules and Roles
-
-| Module                                              | Type  | Assigned                                                |
-|-----------------------------------------------------|-------|---------------------------------------------------------|
-| Use a framework to build the backend (Fastify)      | Major | Andrea Falconi, Pietro Jairo Pezzullo                   |
-| Use a framework/toolkit for the frontend (Tailwind) | Minor | Gabriele Rinella                                        |
-| Use a database for the backend (SQLite)             | Minor | Andrea Falconi                                          |
-| Store tournament scores in the Blockchain           | Major | Pietro Jairo Pezzullo                                   |
-| Standard user management + authentication           | Major | Andrea Falconi                                          |
-| Implement remote authentication (OAuth2)            | Major | Andrea Falconi                                          |
-| Add another game with user history + matchmaking    | Major | Gabriele Rinella, Eugenio Caruso                        |
-| Game customization options                          | Minor | Gabriele Rinella, Eugenio Caruso                        |
-| Live chat                                           | Major | Andrea Falconi, Pietro Jairo Pezzullo, Gabriele Rinella |
-| Advanced 3D techniques (Babylon.js)                 | Major | Gabriele Rinella, Eugenio Caruso                        |
-| Infrastructure setup for log management (ELK)       | Major | Ruggero                                                 |
-| Monitoring system (Prometheus + Grafana)            | Minor | Ruggero                                                 |
-| Backend as microservices                            | Major | Ruggero, Andrea Falconi                                 |
-
-**Total:** 9 Major + 4 Minor = **11 Modules** (exceeds 7 major minimum ✓)
-
----
-
-## Expected File Tree
+## Project Structure
 
 ```
-trashendence/
-├── README.md
-├── en.subject.pdf
+Trascendence/
 ├── Makefile
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-│
-├── foundry/                        # Smart contracts
+├── en.subject.pdf
+├── docs/
+│   ├── subject.md
+│   └── Notion/
+│       └── Goals 25cd7ca1fabc80c98deddf0598a9bb6f/
+│           ├── Major module Designing the backend as microservice...md
+│           ├── Major module Store the score of a tournament in th...md
+│           ├── Major module Use a framework to build the backend...md
+│           ├── Major module Standard user management, authenticat...md
+│           ├── Major module Implementing a remote authentication...md
+│           ├── Major module Add another game with user history an...md
+│           ├── Major module Use advanced 3D techniques...md
+│           ├── Major module Live chat...md
+│           ├── Major module Infrastructure setup for log manageme...md
+│           ├── Minor module Use a database for the backend...md
+│           ├── Minor module Use a framework or a toolkit to build...md
+│           ├── Minor module Game customization options...md
+│           └── Minor module Monitoring system...md
+├── foundry/                                    # Pietro
+│   ├── foundry.toml
+│   ├── README.md
 │   ├── src/
 │   │   ├── TournamentScores.sol
-│   │   └── Counter.sol             # Example
+│   │   └── Counter.sol
 │   ├── test/
 │   │   ├── TournamentScores.t.sol
 │   │   └── Counter.t.sol
 │   ├── script/
 │   │   └── Deploy.s.sol
-│   ├── foundry.toml
-│   └── README.md
-│
-├── backend/                        # Fastify backend
-│   ├── src/
-│   │   ├── server.ts
-│   │   ├── routes/
-│   │   │   ├── auth.routes.ts
-│   │   │   ├── scores.routes.ts
-│   │   │   ├── chat.routes.ts
-│   │   │   └── game.routes.ts
-│   │   ├── services/
-│   │   │   ├── blockchain.service.ts
-│   │   │   ├── auth.service.ts
-│   │   │   └── db.service.ts
-│   │   └── middleware/
-│   │       ├── jwt.middleware.ts
-│   │       └── validation.middleware.ts
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example
-│
-├── frontend/                       # React frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Pong/
-│   │   │   ├── Leaderboard/
-│   │   │   ├── Chat/
-│   │   │   └── Auth/
-│   │   ├── pages/
-│   │   │   ├── Home.tsx
-│   │   │   ├── Tournament.tsx
-│   │   │   └── Profile.tsx
-│   │   ├── hooks/
-│   │   │   └── useBlockchain.ts
-│   │   ├── viem/
-│   │   │   └── config.ts
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── public/
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── tsconfig.json
-│
-├── devops/                         # Infrastructure
-│   ├── docker-compose.yml
-│   ├── monitoring/
-│   │   ├── prometheus/
-│   │   │   ├── prometheus.yml
-│   │   │   └── alerts/
-│   │   └── grafana/
-│   │       ├── dashboards/
-│   │       └── datasources/
-│   └── logging/
-│       ├── elasticsearch/
-│       │   └── elasticsearch.yml
-│       ├── logstash/
-│       │   └── logstash.conf
-│       └── kibana/
-│           └── kibana.yml
-│
-├── shared/                         # Shared artifacts
-│   ├── contracts.manifest.json
-│   └── types/
-│       └── contracts.types.ts
-│
-└── docs/                           # Documentation
-    ├── subject.md
-    ├── foundry.md
-    ├── API.md
-    └── DEPLOYMENT.md
+│   └── lib/
+│       └── forge-std/
+└── srcs/
+    ├── .env.example
+    ├── docker-compose.yml
+    └── requirements/
+        ├── backend/
+        │   ├── auth-service/                   # Andrea
+        │   │   ├── Dockerfile
+        │   │   ├── package.json
+        │   │   ├── tsconfig.json
+        │   │   ├── src/
+        │   │   │   ├── app.ts
+        │   │   │   ├── routes/
+        │   │   │   ├── services/
+        │   │   │   └── middleware/
+        │   │   └── migrations/
+        │   │       └── *.sql
+        │   ├── user-service/                   # Andrea
+        │   │   ├── Dockerfile
+        │   │   ├── package.json
+        │   │   ├── src/
+        │   │   └── migrations/
+        │   ├── game-service/                   # Gabriele, Eugenio
+        │   │   ├── Dockerfile
+        │   │   ├── package.json
+        │   │   ├── src/
+        │   │   └── migrations/
+        │   ├── chat-service/                   # Andrea, Pietro, Gabriele
+        │   │   ├── Dockerfile
+        │   │   ├── package.json
+        │   │   ├── src/
+        │   │   └── migrations/
+        │   └── blockchain-service/             # Pietro
+        │       ├── Dockerfile
+        │       ├── package.json
+        │       ├── src/
+        │       └── contracts.manifest.json
+        ├── frontend/                           # Gabriele, Eugenio
+        │   ├── Dockerfile
+        │   ├── package.json
+        │   ├── tsconfig.json
+        │   ├── tailwind.config.js
+        │   ├── postcss.config.js
+        │   ├── vite.config.ts
+        │   ├── src/
+        │   │   ├── main.ts
+        │   │   ├── App.tsx
+        │   │   ├── components/
+        │   │   │   ├── Navbar.tsx
+        │   │   │   ├── PongCanvas.tsx
+        │   │   │   └── ChatBox.tsx
+        │   │   ├── pages/
+        │   │   │   ├── Home.tsx
+        │   │   │   ├── Login.tsx
+        │   │   │   ├── Tournament.tsx
+        │   │   │   └── Profile.tsx
+        │   │   ├── graphics/
+        │   │   │   ├── scene.ts
+        │   │   │   ├── paddle.ts
+        │   │   │   ├── ball.ts
+        │   │   │   └── arena.ts
+        │   │   └── styles/
+        │   │       └── index.css
+        │   ├── public/
+        │   └── conf/
+        │       └── nginx.conf
+        └── infrastructure/                     # Ruggero
+            ├── elk/
+            │   ├── elasticsearch/
+            │   │   ├── Dockerfile
+            │   │   └── conf/
+            │   │       └── elasticsearch.yml
+            │   ├── logstash/
+            │   │   ├── Dockerfile
+            │   │   └── conf/
+            │   │       └── logstash.conf
+            │   └── kibana/
+            │       ├── Dockerfile
+            │       └── conf/
+            │           └── kibana.yml
+            └── monitoring/
+                ├── prometheus/
+                │   ├── Dockerfile
+                │   └── conf/
+                │       └── prometheus.yml
+                └── grafana/
+                    ├── Dockerfile
+                    └── conf/
+                        ├── datasources/
+                        └── dashboards/
 ```
 
 ---
 
-## Roadmap (06/10/2025 → 12/11/2025)
+## API Endpoints (Core)
 
-```mermaid
-gantt
-    title Trashendence Development Timeline
-    dateFormat  YYYY-MM-DD
-    
-    section Setup
-    Repo init & Docker baseline    :done, setup1, 2025-10-06, 3d
-    Foundry contract scaffold      :done, setup2, 2025-10-06, 3d
-    
-    section Blockchain
-    Smart contract development     :active, bc1, 2025-10-09, 5d
-    Contract testing & deployment  :bc2, 2025-10-14, 3d
-    Manifest pipeline              :bc3, 2025-10-17, 2d
-    
-    section Backend
-    Fastify routes & SQLite        :be1, 2025-10-14, 7d
-    Auth service (JWT + OAuth)     :be2, 2025-10-19, 5d
-    Blockchain bridge service      :be3, 2025-10-21, 4d
-    
-    section Frontend
-    React SPA baseline             :fe1, 2025-10-21, 5d
-    Leaderboard & API integration  :fe2, 2025-10-26, 4d
-    Babylon.js 3D Pong             :fe3, 2025-10-28, 7d
-    
-    section Features
-    Live chat implementation       :feat1, 2025-10-30, 5d
-    Extra game + matchmaking       :feat2, 2025-11-01, 6d
-    
-    section DevOps
-    ELK stack setup                :dev1, 2025-11-04, 4d
-    Prometheus & Grafana           :dev2, 2025-11-06, 3d
-    Microservices refactor         :dev3, 2025-11-08, 3d
-    
-    section QA
-    Integration testing            :qa1, 2025-11-09, 2d
-    Final polish & documentation   :qa2, 2025-11-11, 2d
+### Authentication
+```
+POST   /auth/register                 # Register with email/password
+POST   /auth/login                    # Login → JWT
+GET    /auth/google                   # OAuth2 redirect
+GET    /auth/google/callback          # OAuth2 callback
+POST   /auth/logout                   # Invalidate session
+GET    /auth/me                       # Current user profile
 ```
 
-| Week                   | Focus                | Deliverables                                 |
-|------------------------|----------------------|----------------------------------------------|
-| Week 1 (06–13 Oct)     | Setup & Planning     | Repo init, Docker baseline, Foundry contract |
-| Week 2 (14–20 Oct)     | Blockchain Module    | Contract deploy + manifest pipeline          |
-| Week 3 (21–27 Oct)     | Backend Core         | Fastify routes, SQLite setup                 |
-| Week 4 (28 Oct–03 Nov) | Frontend Integration | React leaderboard, API bridge                |
-| Week 5 (04–10 Nov)     | 3D Game & Live Chat  | Babylon.js visuals, chat MVP                 |
-| Week 6 (11–12 Nov)     | DevOps & QA          | Logging, monitoring, final polish            |
+### Users
+```
+GET    /users/:id                     # User profile
+PATCH  /users/:id                     # Update profile/avatar
+GET    /users/:id/stats               # Win/loss statistics
+GET    /users/:id/history             # Match history
+POST   /users/:id/friends             # Add friend
+DELETE /users/:id/friends/:friendId   # Remove friend
+```
+
+### Games & Matchmaking
+```
+GET    /games                         # List available games
+POST   /matchmaking/find              # Find opponent
+GET    /matches/:id                   # Match details
+POST   /matches/:id/options           # Set game customization
+```
+
+### Chat (WebSocket)
+```
+WSS    /chat/ws                       # WebSocket connection
+POST   /chat/messages                 # Send message
+GET    /chat/threads/:id/messages     # Message history
+POST   /chat/blocks                   # Block user
+POST   /chat/invitations              # Invite to game
+```
+
+### Blockchain
+```
+POST   /scores/submit                 # Submit to blockchain
+GET    /scores/:tournamentId          # Read leaderboard
+GET    /scores/verify/:txHash         # Verify transaction
+```
 
 ---
 
-## Smart Contract Details
+## Database Schema (Highlights)
 
-### TournamentScores.sol Structure
+### Users & Auth
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  display_name TEXT UNIQUE NOT NULL,
+  password_hash TEXT,
+  avatar_url TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE federated_identities (
+  user_id INTEGER NOT NULL,
+  provider TEXT NOT NULL,              -- 'google'
+  provider_user_id TEXT NOT NULL,      -- OAuth sub
+  email_verified INTEGER DEFAULT 0,
+  PRIMARY KEY (provider, provider_user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+### Games & Matches
+```sql
+CREATE TABLE games (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE            -- 'pong', 'breakout', etc.
+);
+
+CREATE TABLE matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id INTEGER NOT NULL,
+  player1_id INTEGER NOT NULL,
+  player2_id INTEGER NOT NULL,
+  score_p1 INTEGER,
+  score_p2 INTEGER,
+  played_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (game_id) REFERENCES games(id)
+);
+
+CREATE TABLE user_stats (
+  user_id INTEGER,
+  game_id INTEGER,
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  elo INTEGER DEFAULT 1000,
+  PRIMARY KEY (user_id, game_id)
+);
+```
+
+### Chat
+```sql
+CREATE TABLE threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  is_group INTEGER DEFAULT 0
+);
+
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id INTEGER NOT NULL,
+  sender_id INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (thread_id) REFERENCES threads(id)
+);
+
+CREATE TABLE blocks (
+  blocker_id INTEGER,
+  blocked_id INTEGER,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+```
+
+---
+
+## Smart Contract (TournamentScores.sol)
 
 ```solidity
 struct Entry {
     bytes32 nicknameHash;  // keccak256(lowercase(nickname))
-    uint32 score;          // Player score
+    uint32 score;
 }
 
 struct Tournament {
     bool exists;
     uint64 createdAt;
-    Entry[] entries;                   // Append-only score list
-    mapping(bytes32 => bool) seen;     // Prevent duplicate nicknames
+    Entry[] entries;
+    mapping(bytes32 => bool) seen;  // Prevent duplicates
 }
 
 mapping(bytes32 => Tournament) public tournaments;
+
+function createTournament(bytes32 tournamentId) external;
+function submitScore(bytes32 tournamentId, bytes32 nicknameHash, uint32 score) external;
+function getLeaderboard(bytes32 tournamentId) external view returns (Entry[] memory);
 ```
 
-**Key Functions:**
-- `createTournament(bytes32 tournamentId)` - Initialize new tournament
-- `submitScore(bytes32 tournamentId, bytes32 nicknameHash, uint32 score)` - Submit score
-- `getLeaderboard(bytes32 tournamentId)` - Retrieve all scores
-- `getTournamentInfo(bytes32 tournamentId)` - Get tournament metadata
-
-**Tournament ID Generation:**
-```
-tournamentId = keccak256(abi.encodePacked(season, bracket, date))
-```
+**Network**: Avalanche Fuji Testnet (Chain ID: 43113)  
+**Explorer**: https://testnet.snowtrace.io/
 
 ---
 
-## API Endpoints
+## Security
 
-### Authentication
-```
-POST   /api/auth/register        - Register new user
-POST   /api/auth/login           - Login with credentials
-POST   /api/auth/oauth/callback  - OAuth2 callback
-GET    /api/auth/me              - Get current user
-POST   /api/auth/2fa/enable      - Enable 2FA
-POST   /api/auth/2fa/verify      - Verify 2FA token
-```
-
-### Scores & Blockchain
-```
-POST   /api/scores/submit        - Submit score to blockchain
-GET    /api/scores/:tournamentId - Get tournament leaderboard
-GET    /api/scores/verify/:txHash - Verify transaction on chain
-```
-
-### Game & Matchmaking
-```
-POST   /api/tournaments/create   - Create new tournament
-GET    /api/tournaments/:id      - Get tournament details
-POST   /api/matchmaking/join     - Join matchmaking queue
-GET    /api/matchmaking/status   - Get queue status
-```
-
-### Chat
-```
-WebSocket /ws/chat               - Real-time chat connection
-POST   /api/chat/direct          - Send direct message
-GET    /api/chat/history/:userId - Get chat history
-POST   /api/chat/block/:userId   - Block user
-```
-
----
-
-## Environment Variables
-
-### Backend (.env)
-```bash
-# Server
-NODE_ENV=production
-PORT=4000
-HOST=0.0.0.0
-
-# Database
-DATABASE_URL=./data/app.db
-
-# Blockchain
-FUJI_RPC_URL=https://api.avax-test.network/ext/bc/C/rpc
-CHAIN_ID=43113
-DEPLOYER_PRIVATE_KEY=0x...
-CONTRACT_ADDRESS=0x...
-
-# Auth
-JWT_SECRET=your-super-secret-jwt-key
-JWT_EXPIRY=7d
-OAUTH_CLIENT_ID=your-oauth-client-id
-OAUTH_CLIENT_SECRET=your-oauth-secret
-OAUTH_CALLBACK_URL=http://localhost:4000/api/auth/oauth/callback
-
-# 2FA
-TOTP_SECRET_KEY=your-totp-secret
-
-# External Services
-REDIS_URL=redis://redis:6379
-```
-
-### Frontend (.env)
-```bash
-VITE_API_URL=http://localhost:4000
-VITE_WS_URL=ws://localhost:4000
-VITE_CONTRACT_ADDRESS=0x...
-VITE_CHAIN_ID=43113
-VITE_RPC_URL=https://api.avax-test.network/ext/bc/C/rpc
-```
+- ✅ **HTTPS/WSS** enforced in production
+- ✅ **Input validation** with JSON Schema (AJV)
+- ✅ **JWT** with HttpOnly cookies (SameSite=Strict)
+- ✅ **OAuth2 PKCE** flow for Google Sign-In
+- ✅ **Rate limiting** on auth/chat endpoints
+- ✅ **Password hashing** with bcrypt (cost 12)
+- ✅ **SQL injection** prevention (parameterized queries)
+- ✅ **XSS protection** (React DOM + CSP headers)
+- ✅ **Private keys** only in `.env` (gitignored)
+- ✅ **Foreign keys** enforced in SQLite
 
 ---
 
 ## Testing
 
-### Smart Contract Tests
 ```bash
+# Smart contracts
 cd foundry
-
-# Run all tests
-forge test
-
-# Run with verbosity
-forge test -vvv
-
-# Run specific test
-forge test --match-test testSubmitScore
-
-# Coverage report
+forge test -vv
 forge coverage
-```
 
-### Backend Tests
-```bash
+# Backend
 cd backend
-
-# Unit tests
 npm test
-
-# Integration tests
 npm run test:integration
 
-# E2E tests
-npm run test:e2e
-
-# Coverage
-npm run test:coverage
-```
-
-### Frontend Tests
-```bash
+# Frontend
 cd frontend
-
-# Unit tests
 npm test
-
-# Component tests
-npm run test:components
-
-# E2E with Playwright
 npm run test:e2e
 ```
 
 ---
 
-## Security Considerations
+## Deployment
 
-### Implemented Protections
-- ✅ Password hashing with bcrypt (cost factor 12)
-- ✅ JWT tokens with secure signing algorithm (HS256/RS256)
-- ✅ Input validation and sanitization (Zod schemas)
-- ✅ SQL injection protection (parameterized queries)
-- ✅ XSS protection (React DOM sanitization)
-- ✅ HTTPS/WSS enforcement in production
-- ✅ Rate limiting on API endpoints
-- ✅ CORS policy configuration
-- ✅ Content Security Policy headers
-- ✅ Private keys stored in .env (gitignored)
+### Docker Compose
 
-### Smart Contract Security
-- Reentrancy guards on state-changing functions
-- Access control for admin functions
-- Input validation for all parameters
-- Events emitted for transparency
-- Audited with Slither static analyzer
+```bash
+docker compose up --build
+```
+
+**Services:**
+- `frontend` — React + Tailwind (Nginx)
+- `backend-*` — Microservices (Fastify)
+- `elasticsearch` — Log storage
+- `logstash` — Log processing
+- `kibana` — Log visualization
+- `prometheus` — Metrics collection
+- `grafana` — Metrics visualization
+
+### CI/CD Pipeline
+
+1. Build smart contracts with Foundry
+2. Deploy to Avalanche Fuji
+3. Generate `contracts.manifest.json` (ABI + address)
+4. Build Docker images for all services
+5. Deploy with `docker compose up`
+
+---
+
+## Documentation
+
+Detailed module specifications in `docs/Notion/Goals 25cd7ca1fabc80c98deddf0598a9bb6f/`:
+
+- [Backend as Microservices](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Designing%20the%20backend%20as%20microservice%2025cd7ca1fabc8074b498d7920370b01a.md)
+- [Blockchain Tournament Scores](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Store%20the%20score%20of%20a%20tournament%20in%20th%2025cd7ca1fabc8030a15cd70cf4a1af32.md)
+- [Fastify Backend Framework](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Use%20a%20framework%20to%20build%20the%20backend%2025cd7ca1fabc80cab8bee3e212f98cab.md)
+- [Standard User Management](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Standard%20user%20management,%20authenticat%2025cd7ca1fabc80a393d8ca9aaeb3af53.md)
+- [Remote OAuth2 Authentication](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Implementing%20a%20remote%20authentication%2025cd7ca1fabc80cdb1f9cb0e67f75336.md)
+- [Additional Game + Matchmaking](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Add%20another%20game%20with%20user%20history%20an%2025cd7ca1fabc80f487c4c3a57b2fa36c.md)
+- [Advanced 3D Techniques](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Use%20advanced%203D%20techniques%2025cd7ca1fabc80fab1c5c77b334d87bc.md)
+- [Live Chat](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Major%20module%20Live%20chat%2025cd7ca1fabc808e9450db33cc2feb69.md)
+- [SQLite Database](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Minor%20module%20Use%20a%20database%20for%20the%20backend%2025cd7ca1fabc803589d8c9e38b3422bc.md)
+- [Tailwind CSS Frontend](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Minor%20module%20Use%20a%20framework%20or%20a%20toolkit%20to%20build%2025cd7ca1fabc80478737f145097f157b.md)
+- [Game Customization](docs/Notion/Goals%2025cd7ca1fabc80c98deddf0598a9bb6f/Minor%20module%20Game%20customization%20options%2025cd7ca1fabc8016889dee5504f07189.md)
 
 ---
 
 ## Contributing
 
-### Branch Naming Convention
+**Workflow:**
+1. Create feature branch from `main`
+2. Implement module per documentation
+3. Write tests (unit + integration)
+4. Test locally with Docker
+5. Open PR → code review by module owner
+6. Merge when approved + CI passes
 
-```
-feature/backend-fastify           - Backend framework setup
-feature/frontend-tailwind         - Frontend styling
-feature/blockchain-scores         - Smart contract & integration
-feature/user-auth                 - Standard authentication
-feature/remote-oauth              - OAuth2 implementation
-feature/extra-game                - Additional game module
-feature/customization             - Game options
-feature/livechat                  - Real-time chat
-feature/3d-graphics               - Babylon.js integration
-feature/logging-elk               - ELK stack setup
-feature/monitoring                - Prometheus & Grafana
-feature/microservices             - Backend refactoring
-```
-
-### Workflow
-
-1. **Create branch** from `main`
-   ```bash
-   git checkout -b feature/your-module
-   ```
-
-2. **Implement module**
-   - Follow project conventions
-   - Write tests
-   - Update documentation
-
-3. **Open Pull Request**
-   - Describe changes clearly
-   - Link related issues
-   - Request review from teammate
-
-4. **Review & Merge**
-   - At least 1 approval required
-   - All checks must pass
-   - Squash and merge to main
-
-### Code Style
-
-- **TypeScript/JavaScript:** ESLint + Prettier
-- **Solidity:** Foundry formatter
-- **Commit messages:** Conventional Commits format
-  ```
-  feat: add blockchain score submission
-  fix: resolve JWT token expiration bug
-  docs: update API documentation
-  test: add tournament creation tests
-  ```
+**Branch naming:**
+- `feature/backend-{service-name}`
+- `feature/frontend-{feature-name}`
+- `feature/blockchain-{contract-name}`
+- `feature/infra-{component}`
 
 ---
 
-## Monitoring & Observability
+## Built by:
+Andrea Falconi • Pietro Jairo Pezzullo • Gabriele Rinella • Eugenio Caruso • Ruggero
 
-### Metrics (Prometheus)
-- API request duration and count
-- Database query performance
-- Blockchain transaction success rate
-- WebSocket connection count
-- Error rates by endpoint
-
-### Logs (ELK Stack)
-- Structured JSON logging
-- Log levels: ERROR, WARN, INFO, DEBUG
-- Request/response logging
-- Blockchain transaction logs
-- Security event logs
-
-### Dashboards (Grafana)
-- System health overview
-- API performance metrics
-- Blockchain integration status
-- User activity analytics
-- Error tracking and alerts
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### Contract Deployment Fails
-```bash
-# Check RPC connection
-curl -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-  https://api.avax-test.network/ext/bc/C/rpc
-
-# Verify private key has AVAX
-cast balance $YOUR_ADDRESS --rpc-url $FUJI_RPC
-
-# Get testnet AVAX from faucet
-# https://faucet.avax.network/
-```
-
-#### Docker Container Won't Start
-```bash
-# Check logs
-docker compose logs backend
-
-# Rebuild without cache
-docker compose build --no-cache
-
-# Verify environment variables
-docker compose config
-```
-
-#### Database Connection Issues
-```bash
-# Check SQLite file permissions
-ls -la ./data/app.db
-
-# Reset database
-rm ./data/app.db
-npm run db:migrate
-```
-
-#### Frontend Can't Connect to Backend
-```bash
-# Check CORS configuration in backend
-# Verify API_URL in frontend .env
-
-# Test backend directly
-curl http://localhost:4000/health
-
-# Check Docker network
-docker network inspect trash_default
-```
-
-#### Blockchain Transaction Stuck
-```bash
-# Check transaction status
-cast tx $TX_HASH --rpc-url $FUJI_RPC
-
-# View on explorer
-# https://testnet.snowtrace.io/tx/$TX_HASH
-
-# Increase gas price if needed
-forge create --gas-price 30000000000 ...
-```
-
----
-
-## Resources
-
-### Documentation
-- [Avalanche Fuji Testnet](https://docs.avax.network/dapps/smart-contracts/get-funds-faucet)
-- [Foundry Book](https://book.getfoundry.sh/)
-- [Fastify Documentation](https://fastify.dev/)
-- [React + Viem](https://viem.sh/docs/getting-started.html)
-- [Babylon.js Documentation](https://doc.babylonjs.com/)
-
-### Tools
-- [Snowtrace Explorer (Fuji)](https://testnet.snowtrace.io/)
-- [Remix IDE](https://remix.ethereum.org/)
-- [Foundry Toolchain](https://getfoundry.sh/)
-
-### Team Communication
-- **Slack:** #trashendence
-- **Stand-ups:** Monday/Thursday 10:00 CET
-- **Sprint Reviews:** Fridays 16:00 CET
-
----
-
-## License
-
-This project is part of the 42 School curriculum and follows the school's academic policies.
-
----
-
-## Team
-
-| Name                    | Role                          | GitHub                                    |
-|-------------------------|-------------------------------|-------------------------------------------|
-| Andrea Falconi          | Backend Lead, Auth            | [@andreafalconi](https://github.com/...)  |
-| Pietro Jairo Pezzullo   | Blockchain Lead, Backend      | [@ppezzull](https://github.com/ppezzull)  |
-| Gabriele Rinella        | Frontend Lead, 3D Graphics    | [@grinella](https://github.com/...)       |
-| Eugenio Caruso          | Game Development, Frontend    | [@ecaruso](https://github.com/...)        |
-| Ruggero                 | DevOps Lead, Infrastructure   | [@ruggero](https://github.com/...)        |
-
----
-
-## Acknowledgments
-
-- 42 School for the project framework
-- OpenZeppelin for Solidity best practices
-- Avalanche team for testnet support
-- Open source community for amazing tools
-
----
-
-**Built with ❤️ by the Trashendence Team**
-
-*Last Updated: October 4, 2025*
