@@ -46,6 +46,43 @@ Trascendence is a modular Pong platform featuring:
 
 ---
 
+## Timeline
+
+Planned timeline: 06/10/2025 → 12/11/2025
+
+Assumption: dates are in DD/MM/YYYY format. If you meant MM/DD/YYYY (US), tell me and I'll adjust.
+
+- 06/10/2025 — 12/10/2025: Sprint 0 — Planning & infra
+  - Finalize requirements, owners and acceptance criteria
+  - Lock repository structure, .env example, Foundry base config
+  - Run initial scaffold (repo tree, placeholder services, CI stubs)
+
+- 13/10/2025 — 19/10/2025: Sprint 1 — Core infra & contracts
+  - Implement initial `TournamentScores.sol` contract + unit tests
+  - Add Foundry CI job and contract build pipeline
+  - Basic API gateway and reverse-proxy skeleton
+
+- 20/10/2025 — 26/10/2025: Sprint 2 — Auth & User services
+  - Deliver `auth-service` (email/password, JWT, Google OAuth stub)
+  - Deliver `user-service` (profiles, avatars, migrations)
+  - DB migrations and local dev scripts
+
+- 27/10/2025 — 02/11/2025: Sprint 3 — Game & Chat + Frontend skeleton
+  - `game-service` basic matchmaking and match records
+  - `chat-service` WebSocket skeleton and thread/messages storage
+  - Frontend skeleton with Vite, Tailwind, and 3D canvas placeholder
+
+- 03/11/2025 — 09/11/2025: Sprint 4 — Integration & E2E
+  - End-to-end score submission: frontend → backend → Fuji (testnet)
+  - Deploy contracts to Fuji testnet, generate `contracts.manifest.json`
+  - Basic monitoring + logging dashboards (Prometheus/Grafana + ELK)
+  - Integration tests and smoke tests
+
+- 10/11/2025 — 12/11/2025: Stabilization & Release Candidate
+  - Bug fixes, documentation polish, final contract verification
+  - Prepare demo, release candidate image builds, handoff notes
+
+
 ## Modules
 
 ### Major Modules (9)
@@ -228,12 +265,23 @@ graph TB
 
 ### Data Flow: Score Submission
 
-1. Player completes tournament match
-2. Frontend → Backend `/scores/submit`
-3. Backend validates + signs transaction
-4. Smart contract on Fuji stores score (immutable)
-5. Frontend reads leaderboard directly from blockchain
-6. Anyone can verify on Snowtrace explorer
+```mermaid
+sequenceDiagram
+  participant Player
+  participant Frontend
+  participant Backend
+  participant Fuji as Blockchain(Fuji)
+  participant Explorer as Snowtrace
+
+  Player->>Frontend: Finish match (score + meta)
+  Frontend->>Backend: POST /scores/submit { tournamentId, nicknameHash, score }
+  Backend->>Backend: Validate request, auth, anti-cheat checks
+  Backend->>Fuji: Sign & send transaction (submitScore)
+  Fuji-->>Backend: txHash / receipt
+  Backend-->>Frontend: txHash / submission status
+  Frontend->>Fuji: Read leaderboard (optional, read-only)
+  Note right of Explorer: Anyone can verify tx on Snowtrace explorer
+```
 
 ---
 
