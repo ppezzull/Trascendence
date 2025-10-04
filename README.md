@@ -48,39 +48,37 @@ Trascendence is a modular Pong platform featuring:
 
 ## Timeline
 
-Planned timeline: 06/10/2025 → 12/11/2025
+Planned timeline: 06/10/2025 → 12/11/2025 (DD/MM/YYYY)
 
-Assumption: dates are in DD/MM/YYYY format. If you meant MM/DD/YYYY (US), tell me and I'll adjust.
+```mermaid
+gantt
+  title Trascendence — Roadmap (06 Oct 2025 → 12 Nov 2025)
+  dateFormat  YYYY-MM-DD
+  axisFormat  %d/%m
+  excludes    weekends
 
-- 06/10/2025 — 12/10/2025: Sprint 0 — Planning & infra
-  - Finalize requirements, owners and acceptance criteria
-  - Lock repository structure, .env example, Foundry base config
-  - Run initial scaffold (repo tree, placeholder services, CI stubs)
+  section Planning
+  Sprint 0 — Planning & infra :s0, 2025-10-06, 7d
 
-- 13/10/2025 — 19/10/2025: Sprint 1 — Core infra & contracts
-  - Implement initial `TournamentScores.sol` contract + unit tests
-  - Add Foundry CI job and contract build pipeline
-  - Basic API gateway and reverse-proxy skeleton
+  section Core
+  Sprint 1 — Infra & contracts  :s1, 2025-10-13, 7d
 
-- 20/10/2025 — 26/10/2025: Sprint 2 — Auth & User services
-  - Deliver `auth-service` (email/password, JWT, Google OAuth stub)
-  - Deliver `user-service` (profiles, avatars, migrations)
-  - DB migrations and local dev scripts
+  section Services
+  Sprint 2 — Auth & User         :s2, 2025-10-20, 7d
+  Sprint 3 — Game, Chat & Frontend:s3, 2025-10-27, 7d
 
-- 27/10/2025 — 02/11/2025: Sprint 3 — Game & Chat + Frontend skeleton
-  - `game-service` basic matchmaking and match records
-  - `chat-service` WebSocket skeleton and thread/messages storage
-  - Frontend skeleton with Vite, Tailwind, and 3D canvas placeholder
+  section Integration
+  Sprint 4 — Integration & E2E   :s4, 2025-11-03, 7d
+  RC & Stabilization             :s5, 2025-11-10, 3d
+```
 
-- 03/11/2025 — 09/11/2025: Sprint 4 — Integration & E2E
-  - End-to-end score submission: frontend → backend → Fuji (testnet)
-  - Deploy contracts to Fuji testnet, generate `contracts.manifest.json`
-  - Basic monitoring + logging dashboards (Prometheus/Grafana + ELK)
-  - Integration tests and smoke tests
-
-- 10/11/2025 — 12/11/2025: Stabilization & Release Candidate
-  - Bug fixes, documentation polish, final contract verification
-  - Prepare demo, release candidate image builds, handoff notes
+Highlights (one-line per sprint)
+- Sprint 0 (06/10) — planning, repo scaffold, Foundry base, infra decisions
+- Sprint 1 (13/10) — compile & test contracts, Foundry CI, API gateway stub
+- Sprint 2 (20/10) — `auth-service` + `user-service` (migrations, JWT + OAuth stub)
+- Sprint 3 (27/10) — `game-service` + `chat-service` skeletons, frontend scaffold
+- Sprint 4 (03/11) — end-to-end score flow, testnet deploy, basic monitoring
+- RC (10/11) — stabilization, fixes, docs and release-candidate prep
 
 
 ## Modules
@@ -693,19 +691,7 @@ Detailed module specifications in `docs/Notion/Goals 25cd7ca1fabc80c98deddf0598a
 
 ## Contributing
 
-**Workflow:**
-1. Create feature branch from `main`
-2. Implement module per documentation
-3. Write tests (unit + integration)
-4. Test locally with Docker
-5. Open PR → code review by module owner
-6. Merge when approved + CI passes
-
-**Branch naming:**
-- `feature/backend-{service-name}`
-- `feature/frontend-{feature-name}`
-- `feature/blockchain-{contract-name}`
-- `feature/infra-{component}`
+See `CONTRIBUTING.md` for contribution guidelines, branch naming, and the PR review policy (short: small PRs, 2 reviewers, CI green before merge).
 
 ---
 
