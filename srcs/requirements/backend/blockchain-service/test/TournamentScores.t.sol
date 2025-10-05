@@ -54,9 +54,9 @@ contract TournamentScoresTest is Test {
         ts.submitScore(tid, nick, 42);
         uint256 count = ts.getEntryCount(tid);
         assertEq(count, 1);
-        TournamentScores.Entry[] memory lb = ts.getLeaderboard(tid);
-        assertEq(lb[0].nicknameHash, nick);
-        assertEq(lb[0].score, 42);
+    TournamentScores.Entry[] memory lb = ts.getTournamentEntries(tid, 0, 10);
+    assertEq(lb[0].nicknameHash, nick);
+    assertEq(lb[0].score, 42);
     }
 
     /// @notice Verify that duplicate nickname submissions for the same tournament revert with the expected message.
@@ -74,7 +74,7 @@ contract TournamentScoresTest is Test {
         bytes32 nick = keccak256("bob");
         vm.prank(bob);
         ts.submitScore(tid, nick, 10);
-        vm.expectRevert(bytes("Nickname already submitted"));
+        vm.expectRevert(abi.encodeWithSelector(TournamentScores.NicknameAlreadySubmitted.selector));
         vm.prank(bob);
         ts.submitScore(tid, nick, 20);
     }
@@ -86,7 +86,7 @@ contract TournamentScoresTest is Test {
     function testSubmitToNonExistentTournament() public {
         bytes32 tid = keccak256("nope");
         bytes32 nick = keccak256("carol");
-        vm.expectRevert(bytes("Tournament does not exist"));
+        vm.expectRevert(abi.encodeWithSelector(TournamentScores.TournamentNotFound.selector));
         vm.prank(carol);
         ts.submitScore(tid, nick, 1);
     }
@@ -101,7 +101,7 @@ contract TournamentScoresTest is Test {
         vm.prank(owner);
         ts.createTournament(tid);
         vm.prank(owner);
-        vm.expectRevert(bytes("Tournament exists"));
+        vm.expectRevert(abi.encodeWithSelector(TournamentScores.TournamentExists.selector));
         ts.createTournament(tid);
     }
 
@@ -114,7 +114,7 @@ contract TournamentScoresTest is Test {
         bytes32 tid = keccak256("must-be-owner");
         // non-owner cannot create
         vm.prank(alice);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(abi.encodeWithSelector(TournamentScores.NotOwner.selector));
         ts.createTournament(tid);
         // owner can create
         vm.prank(owner);
@@ -144,7 +144,7 @@ contract TournamentScoresTest is Test {
         // old owner cannot create new tournament
         bytes32 t2 = keccak256("after-transfer");
         vm.prank(owner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(abi.encodeWithSelector(TournamentScores.NotOwner.selector));
         ts.createTournament(t2);
 
         // new owner can create

@@ -29,7 +29,11 @@ contract EdgeCasesTest is Test {
         for (uint256 i = 0; i < N; i++) {
             bytes32 nick = keccak256(abi.encodePacked("nick-", i));
             // derive a pseudo-unique submitter address per entry
-            address submitter = address(uint160(uint256(keccak256(abi.encodePacked(i, block.timestamp)))));
+            address submitter = address(
+                uint160(
+                    uint256(keccak256(abi.encodePacked(i, block.timestamp)))
+                )
+            );
             vm.prank(submitter);
             ts.submitScore(tid, nick, uint32(i));
         }
@@ -38,8 +42,8 @@ contract EdgeCasesTest is Test {
         uint256 count = ts.getEntryCount(tid);
         assertEq(count, N);
 
-        // Measure gas used by getLeaderboard (copying storage to memory)
-        TournamentScores.Entry[] memory lb = ts.getLeaderboard(tid);
+        // Read the leaderboard via pagination to avoid copying the full storage in one call.
+        TournamentScores.Entry[] memory lb = ts.getTournamentEntries(tid, 0, N);
         // sanity checks
         assertEq(lb.length, N);
     }
@@ -71,7 +75,11 @@ contract EdgeCasesTest is Test {
         ts.submitScore(tid, nickname, 1);
 
         vm.prank(address(0xB0B0));
-        vm.expectRevert(bytes("Nickname already submitted"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TournamentScores.NicknameAlreadySubmitted.selector
+            )
+        );
         ts.submitScore(tid, nickname, 2);
     }
 
@@ -91,5 +99,36 @@ contract EdgeCasesTest is Test {
 
         uint256 c = ts.getEntryCount(tid);
         assertEq(c, 2);
+    }
+
+    /// @notice Ensure tournamentExists returns false for unknown id and true for created ones.
+    function testTournamentExistsView() public {
+        bytes32 tid = keccak256("exists-test");
+        assertFalse(ts.tournamentExists(tid));
+        vm.prank(owner);
+        ts.createTournament(tid);
+        assertTrue(ts.tournamentExists(tid));
+    }
+
+    /// @notice Test pagination boundaries: start >= length returns empty, count clamp works.
+    function testGetTournamentEntriesPageBoundaries() public {
+        bytes32 tid = keccak256("page-test");
+        vm.prank(owner);
+        ts.createTournament(tid);
+        // add 5 entries
+        for (uint256 i = 0; i < 5; i++) {
+            bytes32 nick = keccak256(abi.encodePacked("p", i));
+            vm.prank(address(uint160(i + 1)));
+            ts.submitScore(tid, nick, uint32(i));
+        }
+
+        // start >= length
+        TournamentScores.Entry[] memory empty = ts.getTournamentEntries(tid, 10, 10);
+        assertEq(empty.length, 0);
+
+        // request more than available -> returns remaining
+        TournamentScores.Entry[] memory page = ts.getTournamentEntries(tid, 3, 10);
+        assertEq(page.length, 2);
+        assertEq(page[0].score, 3);
     }
 }

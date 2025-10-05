@@ -14,6 +14,15 @@ pragma solidity ^0.8.19;
 /// - Leaderboard ordering is insertion order. Clients or off-chain services should compute rank/sort if needed.
 /// - Reading the full leaderboard copies storage to memory and may be gas intensive for large tournaments; prefer pagination or off-chain reads.
 contract TournamentScores {
+    /// -----------------------------------------------------------------------
+    /// Custom errors for gas-efficient revert reasons
+    /// -----------------------------------------------------------------------
+    error TournamentExists();
+    error TournamentNotFound();
+    error NicknameAlreadySubmitted();
+    error NotOwner();
+    error NewOwnerZero();
+
     /// @notice The owner with permission to create tournaments and transfer ownership.
     /// @dev Set to deployer in the constructor. Use `transferOwnership` to change.
     address public owner;
@@ -26,7 +35,7 @@ contract TournamentScores {
     /// @notice Restricts execution to the contract owner.
     /// @dev Reverts with "Not owner" when called by non-owner accounts.
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
 
@@ -78,7 +87,7 @@ contract TournamentScores {
         Tournament storage t = tournaments[tournamentId];
         // Use createdAt == 0 as the sentinel for "not created". This distinguishes a default mapping value
         // from an explicitly created tournament (which records a non-zero block timestamp).
-        require(t.createdAt == 0, "Tournament exists");
+        if (t.createdAt != 0) revert TournamentExists();
         t.createdAt = uint64(block.timestamp);
         emit TournamentCreated(tournamentId, msg.sender, t.createdAt);
     }
@@ -90,33 +99,20 @@ contract TournamentScores {
     /// @param score The score value associated with this submission.
     function submitScore(bytes32 tournamentId, bytes32 nicknameHash, uint32 score) external {
         Tournament storage t = tournaments[tournamentId];
-        require(t.createdAt != 0, "Tournament does not exist");
-        require(!t.seen[nicknameHash], "Nickname already submitted");
+        if (t.createdAt == 0) revert TournamentNotFound();
+        if (t.seen[nicknameHash]) revert NicknameAlreadySubmitted();
         t.entries.push(Entry({nicknameHash: nicknameHash, score: score}));
         t.seen[nicknameHash] = true;
         emit ScoreSubmitted(tournamentId, nicknameHash, score, msg.sender);
     }
 
-    /// @notice Returns the leaderboard entries for `tournamentId` in insertion order.
-    /// @dev Caller receives a memory copy of the entries. For large tournaments this may be expensive; prefer `getEntryCount` + pagination in production.
-    /// @param tournamentId The tournament id to query.
-    /// @return An array of `Entry` structs representing submissions in insertion order.
-    function getLeaderboard(bytes32 tournamentId) external view returns (Entry[] memory) {
-        Tournament storage t = tournaments[tournamentId];
-        require(t.createdAt != 0, "Tournament does not exist");
-        Entry[] memory out = new Entry[](t.entries.length);
-        for (uint256 i = 0; i < t.entries.length; i++) {
-            out[i] = t.entries[i];
-        }
-        return out;
-    }
 
     /// @notice Number of entries submitted for `tournamentId`.
     /// @param tournamentId The tournament id to query.
     /// @return The number of entries (length of the leaderboard) for the tournament.
     function getEntryCount(bytes32 tournamentId) external view returns (uint256) {
         Tournament storage t = tournaments[tournamentId];
-        require(t.createdAt != 0, "Tournament does not exist");
+        if (t.createdAt == 0) revert TournamentNotFound();
         return t.entries.length;
     }
 
@@ -124,8 +120,38 @@ contract TournamentScores {
     /// @dev Only callable by the current owner. Emits `OwnershipTransferred`.
     /// @param newOwner The address to transfer ownership to. Cannot be the zero address.
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner is zero");
+        if (newOwner == address(0)) revert NewOwnerZero();
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
+    }
+
+    /// @notice Check whether a tournament has been created (cheap off-chain check).
+    /// @param tournamentId The tournament id to check.
+    /// @return True if the tournament exists (createdAt != 0), false otherwise.
+    function tournamentExists(bytes32 tournamentId) external view returns (bool) {
+        return tournaments[tournamentId].createdAt != 0;
+    }
+
+    /// @notice Return a page (slice) of entries for a tournament. Safer than copying the entire leaderboard.
+    /// @param tournamentId The tournament id to read.
+    /// @param start Inclusive start index.
+    /// @param count Maximum number of entries to return.
+    /// @return An array of up to `count` entries starting at `start`.
+    function getTournamentEntries(bytes32 tournamentId, uint256 start, uint256 count)
+        public
+        view
+        returns (Entry[] memory)
+    {
+        Tournament storage t = tournaments[tournamentId];
+        if (t.createdAt == 0) revert TournamentNotFound();
+        uint256 available = t.entries.length;
+        if (start >= available) return new Entry[](0);
+        uint256 end = start + count;
+        if (end > available) end = available;
+        Entry[] memory out = new Entry[](end - start);
+        for (uint256 i = start; i < end; i++) {
+            out[i - start] = t.entries[i];
+        }
+        return out;
     }
 }
