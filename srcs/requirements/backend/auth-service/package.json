@@ -1,8 +1,0 @@
-{
-  "name": "auth-service",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "start": "node dist/src/app.js"
-  }
-}
