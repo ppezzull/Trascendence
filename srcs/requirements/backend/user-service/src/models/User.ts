@@ -6,11 +6,13 @@ export interface User {
   id?: number;
   username: string;
   email: string;
-  password_hash: string;
+  password_hash?: string;
   display_name?: string;
   avatar_url?: string;
   is_active?: boolean;
   is_verified?: boolean;
+  google_id?: string;
+  oauth_provider?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -51,6 +53,16 @@ export interface CreateUserRequest {
   email: string;
   password: string;
   display_name?: string;
+}
+
+export interface CreateOAuthUserRequest {
+  google_id: string;
+  email: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+  oauth_provider: string;
+  is_verified?: boolean;
 }
 
 export interface UpdateUserRequest {
@@ -117,6 +129,13 @@ export class UserModel {
     return user || null;
   }
 
+  // Trova un utente per Google ID
+  static async findByGoogleId(googleId: string): Promise<User | null> {
+    const stmt = db.prepare("SELECT * FROM users WHERE google_id = ?");
+    const user = stmt.get(googleId) as User | undefined;
+    return user || null;
+  }
+
   // Verifica le credenziali di login
   static async verifyCredentials(
     email: string,
@@ -127,12 +146,67 @@ export class UserModel {
       return null;
     }
 
+    // Se l'utente ha un provider OAuth, non può fare login con password
+    if (user.oauth_provider && !user.password_hash) {
+      return null;
+    }
+
+    if (!user.password_hash) {
+      return null;
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       return null;
     }
 
     return user;
+  }
+
+  // Crea un utente OAuth
+  static async createOAuthUser(
+    userData: CreateOAuthUserRequest
+  ): Promise<User> {
+    const stmt = db.prepare(`
+      INSERT INTO users (username, email, google_id, oauth_provider, display_name, avatar_url, is_verified, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, '')
+    `);
+
+    const result = stmt.run(
+      userData.username,
+      userData.email,
+      userData.google_id,
+      userData.oauth_provider,
+      userData.display_name || userData.username,
+      userData.avatar_url || null,
+      userData.is_verified ? 1 : 0
+    );
+
+    // Crea le statistiche iniziali per l'utente
+    const statsStmt = db.prepare(`
+      INSERT INTO user_stats (user_id)
+      VALUES (?)
+    `);
+    statsStmt.run(result.lastInsertRowid as number);
+
+    // Restituisci l'utente creato
+    return this.findById(result.lastInsertRowid as number) as Promise<User>;
+  }
+
+  // Collega un account Google a un utente esistente
+  static async linkGoogleAccount(
+    userId: number,
+    googleId: string
+  ): Promise<User | null> {
+    const stmt = db.prepare(`
+      UPDATE users 
+      SET google_id = ?, oauth_provider = 'google', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    stmt.run(googleId, userId);
+
+    return this.findById(userId);
   }
 
   // Aggiorna un utente
