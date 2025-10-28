@@ -75,6 +75,7 @@ export class ApiService {
     
     // Set default headers
     const headers: Record<string, string> = {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
     }
     
@@ -115,6 +116,8 @@ export class ApiService {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       })
+
+      console.log('Login response:', response)
       
       if (response.success && response.token) {
         this.setAuthToken(response.token)
