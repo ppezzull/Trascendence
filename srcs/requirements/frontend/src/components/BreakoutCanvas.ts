@@ -326,7 +326,7 @@ export class BreakoutCanvas {
     if (livesElement) livesElement.textContent = '3'
   }
 
-  private updateScore(score: number, level: number, lives: number) {
+  updateScore(score: number, level: number, lives: number) {
     const scoreElement = document.getElementById('breakout-score')
     const levelElement = document.getElementById('breakout-level')
     const livesElement = document.getElementById('breakout-lives')
