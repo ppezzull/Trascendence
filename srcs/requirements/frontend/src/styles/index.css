@@ -1,1 +1,63 @@
-<!-- placeholder -->
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom cyberpunk styles */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+  }
+}
+
+@layer components {
+  .cyber-border {
+    @apply border border-cyber-green shadow-lg shadow-cyber-green/20;
+  }
+  
+  .cyber-button {
+    @apply px-4 py-2 bg-cyber-dark border border-cyber-green text-cyber-green font-mono transition-all duration-200 hover:bg-cyber-green hover:text-cyber-black hover:shadow-lg hover:shadow-cyber-green/50 active:scale-95;
+  }
+  
+  .cyber-panel {
+    @apply bg-cyber-dark/90 border border-cyber-green p-4 backdrop-blur-sm;
+  }
+  
+  .cyber-input {
+    @apply w-full px-3 py-2 bg-cyber-black border border-cyber-green text-cyber-green font-mono focus:outline-none focus:ring-2 focus:ring-cyber-green focus:ring-opacity-50;
+  }
+  
+  .cyber-title {
+    @apply text-2xl font-bold text-cyber-green mb-4 tracking-wider;
+  }
+  
+  .cyber-card {
+    @apply bg-cyber-dark/80 border border-cyber-green p-4 backdrop-blur-sm transition-all duration-200 hover:border-cyber-cyan hover:shadow-lg hover:shadow-cyber-cyan/20;
+  }
+  
+  .glow-text {
+    @apply text-cyber-green animate-glow;
+  }
+  
+  .terminal-text {
+    @apply font-mono text-sm leading-relaxed;
+  }
+}
+
+@layer utilities {
+  .text-shadow-cyber {
+    text-shadow: 0 0 5px currentColor;
+  }
+  
+  .bg-terminal {
+    background-color: rgba(10, 10, 10, 0.8);
+    background-image: 
+      radial-gradient(rgba(0, 255, 65, 0.1) 1px, transparent 1px),
+      radial-gradient(rgba(0, 255, 65, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+  }
+}
