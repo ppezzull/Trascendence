@@ -92,8 +92,8 @@ export class App {
               Entra nel mondo dei giochi retrò-futuristici con grafica cyberpunk e sfida altri giocatori in partite epiche.
             </p>
             <div class="flex flex-col space-y-3">
-              <button class="cyber-button" onclick="window.location.hash='#/login'">Accedi</button>
-              <button class="cyber-button" onclick="window.location.hash='#/register'">Registrati</button>
+              <a href="/login" class="cyber-button text-center">Accedi</a>
+              <a href="/register" class="cyber-button text-center">Registrati</a>
             </div>
           </div>
           
@@ -102,11 +102,11 @@ export class App {
             <div class="space-y-3">
               <div class="flex items-center justify-between">
                 <span>Pong 3D</span>
-                <button class="cyber-button text-sm" onclick="window.location.hash='#/pong'">Gioca</button>
+                <a href="/pong" class="cyber-button text-sm">Gioca</a>
               </div>
               <div class="flex items-center justify-between">
                 <span>Breakout Cyber</span>
-                <button class="cyber-button text-sm" onclick="window.location.hash='#/breakout'">Gioca</button>
+                <a href="/breakout" class="cyber-button text-sm">Gioca</a>
               </div>
             </div>
           </div>
@@ -124,8 +124,8 @@ export class App {
         <h1 class="cyber-title text-center">ACCESSO</h1>
         <form id="login-form" class="space-y-4">
           <div>
-            <label for="username" class="block text-sm font-medium text-cyber-green mb-1">Username</label>
-            <input type="text" id="username" name="username" class="cyber-input" required>
+            <label for="email" class="block text-sm font-medium text-cyber-green mb-1">Email</label>
+            <input type="email" id="email" name="email" class="cyber-input" required>
           </div>
           <div>
             <label for="password" class="block text-sm font-medium text-cyber-green mb-1">Password</label>
@@ -134,7 +134,7 @@ export class App {
           <button type="submit" class="cyber-button w-full">Accedi</button>
         </form>
         <div class="mt-4 text-center">
-          <p class="text-sm">Non hai un account? <a href="#/register" class="text-cyber-cyan hover:underline">Registrati</a></p>
+          <p class="text-sm">Non hai un account? <a href="/register" class="text-cyber-cyan hover:underline">Registrati</a></p>
         </div>
       </div>
     `
@@ -163,6 +163,10 @@ export class App {
             <input type="email" id="email" name="email" class="cyber-input" required>
           </div>
           <div>
+            <label for="display-name" class="block text-sm font-medium text-cyber-green mb-1">Nome Visualizzato</label>
+            <input type="text" id="display-name" name="display-name" class="cyber-input" required>
+          </div>
+          <div>
             <label for="password" class="block text-sm font-medium text-cyber-green mb-1">Password</label>
             <input type="password" id="password" name="password" class="cyber-input" required>
           </div>
@@ -173,7 +177,7 @@ export class App {
           <button type="submit" class="cyber-button w-full">Registrati</button>
         </form>
         <div class="mt-4 text-center">
-          <p class="text-sm">Hai già un account? <a href="#/login" class="text-cyber-cyan hover:underline">Accedi</a></p>
+          <p class="text-sm">Hai già un account? <a href="/login" class="text-cyber-cyan hover:underline">Accedi</a></p>
         </div>
       </div>
     `
@@ -196,13 +200,13 @@ export class App {
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">PONG 3D</h2>
             <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D e stile cyberpunk</p>
-            <button class="cyber-button" onclick="window.location.hash='#/pong'">Gioca Ora</button>
+            <a href="/pong" class="cyber-button inline-block">Gioca Ora</a>
           </div>
           
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT CYBER</h2>
             <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica con effetti speciali</p>
-            <button class="cyber-button" onclick="window.location.hash='#/breakout'">Gioca Ora</button>
+            <a href="/breakout" class="cyber-button inline-block">Gioca Ora</a>
           </div>
         </div>
       </div>
@@ -375,7 +379,7 @@ export class App {
       <div class="cyber-panel max-w-md mx-auto text-center">
         <h1 class="cyber-title text-3xl mb-4">ERRORE 404</h1>
         <p class="terminal-text mb-6">Pagina non trovata. Il sistema cyber ha rilevato un'anomalia.</p>
-        <button class="cyber-button" onclick="window.location.hash='#/'">Torna alla Home</button>
+        <a href="/" class="cyber-button inline-block">Torna alla Home</a>
       </div>
     `
   }
@@ -385,19 +389,19 @@ export class App {
     const form = event.target as HTMLFormElement
     const formData = new FormData(form)
     
-    const username = formData.get('username') as string
+    const email = formData.get('email') as string
     const password = formData.get('password') as string
     
     try {
       // Call API service for login
-      const response = await this.apiService.login(username, password)
+      const response = await this.apiService.login(email, password)
       
       if (response.success) {
         // Store auth token
         localStorage.setItem('authToken', response.token || '')
         
         // Redirect to home page
-        window.location.hash = '#/'
+        this.router.navigate('/')
       } else {
         // Show error message
         this.showNotification('Credenziali non valide. Riprova.', 'error')
@@ -415,6 +419,7 @@ export class App {
     
     const username = formData.get('username') as string
     const email = formData.get('email') as string
+    const displayName = formData.get('display-name') as string
     const password = formData.get('password') as string
     const confirmPassword = formData.get('confirm-password') as string
     
@@ -425,14 +430,14 @@ export class App {
     
     try {
       // Call API service for registration
-      const response = await this.apiService.register(username, email, password)
+      const response = await this.apiService.register(username, email, password, displayName)
       
       if (response.success) {
         // Show success message
         this.showNotification('Registrazione completata. Ora puoi accedere.', 'success')
         
         // Redirect to login page
-        window.location.hash = '#/login'
+        this.router.navigate('/login')
       } else {
         // Show error message
         this.showNotification(response.message || 'Errore durante la registrazione.', 'error')
@@ -529,7 +534,7 @@ export class App {
     const settingsButton = document.getElementById('game-settings')
     if (settingsButton) {
       settingsButton.addEventListener('click', () => {
-        window.location.hash = '#/settings'
+        this.router.navigate('/settings')
       })
     }
   }
@@ -571,7 +576,7 @@ export class App {
     const settingsButton = document.getElementById('breakout-settings')
     if (settingsButton) {
       settingsButton.addEventListener('click', () => {
-        window.location.hash = '#/settings'
+        this.router.navigate('/settings')
       })
     }
   }

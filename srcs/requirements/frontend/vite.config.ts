@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    // Enable SPA routing - all routes serve index.html
+    historyApiFallback: true,
   },
   build: {
     outDir: 'dist',

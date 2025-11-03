@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './Paddle'
-import { Ball } from './Ball'
+import { Paddle } from './paddle'
+import { Ball } from './ball'
 
 export interface Brick {
   mesh: BABYLON.Mesh

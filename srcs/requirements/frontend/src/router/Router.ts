@@ -17,9 +17,24 @@ export class Router {
     // Handle initial route
     this.handleRoute()
     
-    // Listen for hash changes
-    window.addEventListener('hashchange', () => {
+    // Listen for popstate events (browser back/forward buttons)
+    window.addEventListener('popstate', () => {
       this.handleRoute()
+    })
+    
+    // Intercept all anchor clicks to use History API
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement
+      const anchor = target.closest('a')
+      
+      if (anchor && anchor.href) {
+        const url = new URL(anchor.href)
+        // Only handle internal links
+        if (url.origin === window.location.origin) {
+          e.preventDefault()
+          this.navigate(url.pathname)
+        }
+      }
     })
   }
 
@@ -37,9 +52,8 @@ export class Router {
   }
 
   private handleRoute(): void {
-    // Get current hash path
-    const hash = window.location.hash
-    const path = hash.replace('#', '') || '/'
+    // Get current pathname
+    const path = window.location.pathname
     
     // Only handle if path has changed
     if (path === this.currentPath) return
@@ -95,7 +109,9 @@ export class Router {
   }
 
   public navigate(path: string): void {
-    window.location.hash = `#${path}`
+    // Use History API to navigate
+    window.history.pushState({}, '', path)
+    this.handleRoute()
   }
 
   public getCurrentPath(): string {

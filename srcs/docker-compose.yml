@@ -1,1 +1,241 @@
-<!-- placeholder -->
+version: '3.8'
+
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: ./requirements/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://api-gateway:4000
+      - VITE_WS_URL=ws://api-gateway:4001
+    depends_on:
+      - api-gateway
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./requirements/backend/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_URL=http://user-service:3001
+      - GAME_SERVICE_URL=http://game-service:3002
+      - CHAT_SERVICE_URL=http://chat-service:3003
+      - BLOCKCHAIN_SERVICE_URL=http://blockchain-service:3004
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
+    depends_on:
+      - user-service
+      - game-service
+      - chat-service
+      - blockchain-service
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: ./requirements/backend/user-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - HOST=0.0.0.0
+      - JWT_SECRET=${JWT_SECRET:-supersecret}
+      - CORS_ORIGIN=http://localhost:3000
+      - DATABASE_PATH=/app/data/users.db
+    volumes:
+      - user-service-data:/app/data
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Game Service
+  game-service:
+    build:
+      context: ./requirements/backend/game-service
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - HOST=0.0.0.0
+      - DATABASE_PATH=/app/data/games.db
+    volumes:
+      - game-service-data:/app/data
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Chat Service
+  chat-service:
+    build:
+      context: ./requirements/backend/chat-service
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - HOST=0.0.0.0
+      - DATABASE_PATH=/app/data/chat.db
+    volumes:
+      - chat-service-data:/app/data
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Blockchain Service
+  blockchain-service:
+    build:
+      context: ./requirements/backend/blockchain-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - HOST=0.0.0.0
+      - FUJI_RPC_URL=${FUJI_RPC_URL}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3004/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Infrastructure Services
+
+  # Elasticsearch
+  elasticsearch:
+    build:
+      context: ./requirements/infrastructure/elk/elasticsearch
+      dockerfile: Dockerfile
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # Logstash
+  logstash:
+    build:
+      context: ./requirements/infrastructure/elk/logstash
+      dockerfile: Dockerfile
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./requirements/infrastructure/elk/logstash/conf:/usr/share/logstash/pipeline
+    depends_on:
+      - elasticsearch
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # Kibana
+  kibana:
+    build:
+      context: ./requirements/infrastructure/elk/kibana
+      dockerfile: Dockerfile
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # Prometheus
+  prometheus:
+    build:
+      context: ./requirements/infrastructure/monitoring/prometheus
+      dockerfile: Dockerfile
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./requirements/infrastructure/monitoring/prometheus/conf:/etc/prometheus
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+  # Grafana
+  grafana:
+    build:
+      context: ./requirements/infrastructure/monitoring/grafana
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./requirements/infrastructure/monitoring/grafana/conf:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+# Networks
+networks:
+  transcendence-network:
+    driver: bridge
+
+# Volumes
+volumes:
+  user-service-data:
+  game-service-data:
+  chat-service-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:

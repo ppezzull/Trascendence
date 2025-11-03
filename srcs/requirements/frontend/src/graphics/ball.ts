@@ -1,10 +1,12 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './Paddle'
+import { Paddle } from './paddle'
 
 export class Ball {
+  
+  private lastPosition = new BABYLON.Vector3(0, 0, 0)
   private mesh: BABYLON.Mesh | null = null
   private scene: BABYLON.Scene | null = null
-  private velocity = new BABYLON.Vector3(0.15, 0, 0.1)
+  private velocity = new BABYLON.Vector3(1, 0, 1)
   private initialPosition = new BABYLON.Vector3(0, 0, 0)
   private bounds = {
     minX: -9,
@@ -29,6 +31,10 @@ export class Ball {
       { diameter: 0.5, segments: 16 },
       this.scene
     )
+
+    //testing collision
+    this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
+    this.mesh.showBoundingBox = true
     
     // Create cyber material with glow effect
     const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)
@@ -66,36 +72,47 @@ export class Ball {
   }
 
   public reset(): void {
-    if (!this.mesh) return
-    
-    // Reset position
-    this.mesh.position = this.initialPosition.clone()
-    
-    // Reset velocity with random direction
-    const randomX = Math.random() > 0.5 ? 1 : -1
-    const randomZ = (Math.random() - 0.5) * 0.5
-    this.velocity = new BABYLON.Vector3(
-      0.15 * randomX,
-      0,
-      0.1 * randomZ
-    )
+  if (!this.mesh) return
+
+  this.mesh.position = this.initialPosition.clone()
+
+  // Velocity in units per second (esempio)
+  const randomX = Math.random() > 0.5 ? 1 : -1
+  const randomZ = (Math.random() - 0.5) * 0.5
+  this.velocity = new BABYLON.Vector3(
+    9.0 * randomX,    // 9.0 units/second along X (tweak as you like)
+    0,
+    4.5 * randomZ     // 4.5 units/second along Z (tweak)
+  )
+}
+
+  public update(deltaTimeMs?: number): void {
+  if (!this.mesh) return
+
+  // Salva posizione precedente
+  this.lastPosition.copyFrom(this.mesh.position)
+
+  // Ottieni delta time in ms: usa quello passato o prendi da engine
+  let deltaMs = deltaTimeMs ?? (this.scene?.getEngine().getDeltaTime() ?? 16.6667)
+  const dt = deltaMs / 1000 // secondi
+
+  // SPOSTAMENTO in base al tempo: velocity è in units/second
+  // Se vuoi sub-steps, gestiscili qui (utile per evitare tunneling)
+  const maxStep = 0.04 // 40 ms per substep
+  const steps = Math.max(1, Math.ceil(dt / maxStep))
+  const stepDt = dt / steps
+
+  for (let i = 0; i < steps; i++) {
+    const displacement = this.velocity.scale(stepDt) // units per substep
+    this.mesh.position.addInPlace(displacement)
+    // qui potresti controllare collisioni parziali se vuoi (opzionale)
   }
 
-  public update(): void {
-    if (!this.mesh) return
-    
-    // Update position based on velocity
-    const currentPosition = this.mesh.position.clone()
-    currentPosition.x += this.velocity.x
-    currentPosition.y += this.velocity.y
-    currentPosition.z += this.velocity.z
-    
-    this.mesh.position = currentPosition
-    
-    // Add rotation effect
-    this.mesh.rotation.x += 0.05
-    this.mesh.rotation.y += 0.05
-  }
+  // (opzionale) rotazione visuale solo se usi visual child
+  // this.visual?.rotation.x += 0.05
+  // this.visual?.rotation.y += 0.05
+}
+
 
   public checkWallCollision(): void {
     if (!this.mesh) return
@@ -121,10 +138,11 @@ export class Ball {
     const paddlePosition = paddleMesh.position
     
     // Simple AABB collision detection
+    const { width, height, depth } = paddle.getDimensions()
     const ballRadius = 0.25
-    const paddleWidth = 0.3
-    const paddleHeight = 2
-    const paddleDepth = 1
+    const paddleWidth = width
+    const paddleHeight = height
+    const paddleDepth = depth
     
     // Check if ball is within paddle bounds
     const xOverlap = Math.abs(ballPosition.x - paddlePosition.x) < (ballRadius + paddleWidth / 2)
@@ -145,14 +163,17 @@ export class Ball {
     const ballPosition = this.mesh.position
     
     // Calculate new velocity based on where the ball hit the paddle
-    const relativeIntersectY = (paddlePosition.y - ballPosition.y) / 1 // Paddle height is 2
-    const bounceAngle = relativeIntersectY * Math.PI / 4 // Max 45 degree angle
+    const relativeIntersectZ = (paddlePosition.z - ballPosition.z) / 1 // Paddle height is 2
+    const bounceAngle = relativeIntersectZ * Math.PI / 4 // Max 45 degree angle
     
     // Determine direction based on which paddle was hit
-    const direction = paddlePosition.x < 0 ? 1 : -1
+    const paddleMesh = paddle.getMesh()
+  const ballRadius = 0.25
+  const direction = paddlePosition.x < 0 ? 1 : -1
+  this.mesh.position.x = paddleMesh.position.x + direction * (paddle.getDimensions().width / 2 + ballRadius + 0.01)
     
     // Set new velocity
-    const speed = 0.2
+    const speed = 9
     this.velocity.x = direction * speed * Math.cos(bounceAngle)
     this.velocity.z = speed * Math.sin(bounceAngle)
     
