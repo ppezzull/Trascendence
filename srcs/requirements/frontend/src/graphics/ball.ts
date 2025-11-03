@@ -156,30 +156,54 @@ export class Ball {
     return false
   }
 
-  public handlePaddleHit(paddle: Paddle): void {
-    if (!this.mesh) return
-    
-    const paddlePosition = paddle.getPosition()
-    const ballPosition = this.mesh.position
-    
-    // Calculate new velocity based on where the ball hit the paddle
-    const relativeIntersectZ = (paddlePosition.z - ballPosition.z) / 1 // Paddle height is 2
-    const bounceAngle = relativeIntersectZ * Math.PI / 4 // Max 45 degree angle
-    
-    // Determine direction based on which paddle was hit
-    const paddleMesh = paddle.getMesh()
-  const ballRadius = 0.25
+public handlePaddleHit(paddle: Paddle): void {
+  if (!this.mesh) return
+
+  const paddlePosition = paddle.getPosition()
+  const ballPosition = this.mesh.position
+  const { depth } = paddle.getDimensions()
+
+  // Differenza lungo Z → punto di impatto
+  const relativeZ = paddlePosition.z - ballPosition.z
+  const normalizedImpact = BABYLON.Scalar.Clamp(relativeZ / (depth / 2), -1, 1)
+
+  // Angolo massimo del rimbalzo (45°)
+  const maxBounceAngle = Math.PI / 4
+  const bounceAngle = normalizedImpact * maxBounceAngle
+
+  // Direzione lungo X (sinistra/destra)
   const direction = paddlePosition.x < 0 ? 1 : -1
-  this.mesh.position.x = paddleMesh.position.x + direction * (paddle.getDimensions().width / 2 + ballRadius + 0.01)
-    
-    // Set new velocity
-    const speed = 9
-    this.velocity.x = direction * speed * Math.cos(bounceAngle)
-    this.velocity.z = speed * Math.sin(bounceAngle)
-    
-    // Add some visual feedback
-    this.createHitEffect()
-  }
+
+  // Recupera velocità Z del paddle
+  const paddleVelocityZ = paddle.getCurrentVelocityZ ? paddle.getCurrentVelocityZ() : 0
+
+  // ---- BASE SPEED + BOOST DINAMICO ----
+  const baseSpeed = 9
+  const edgeSpeedBoost = 1 + Math.abs(normalizedImpact) * 0.2
+
+  // Qui attenuiamo il boost negativo (quando il paddle si muove "via" dalla palla)
+  const boostSign = Math.sign(paddleVelocityZ)
+  const absVel = Math.abs(paddleVelocityZ)
+
+  const paddleSpeedFactor =
+    boostSign > 0
+      ? 1 + absVel * 2.5 // spinta più forte se il paddle si muove contro la palla
+      : 1 + absVel * 0.5 // effetto molto più debole se si muove nella stessa direzione
+
+  const finalSpeed = baseSpeed * edgeSpeedBoost * paddleSpeedFactor
+
+  // ---- Effetto SPIN ----
+  const spinInfluence = BABYLON.Scalar.Clamp(paddleVelocityZ * 0.25, -1.5, 1.5)
+
+  // ---- Calcolo direzioni ----
+  this.velocity.x = direction * finalSpeed * Math.cos(bounceAngle)
+  this.velocity.z = finalSpeed * Math.sin(bounceAngle) - spinInfluence
+
+  // Feedback visivo
+  this.createHitEffect()
+}
+
+
 
   private createHitEffect(): void {
     if (!this.scene || !this.mesh) return

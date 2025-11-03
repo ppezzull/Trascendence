@@ -6,6 +6,9 @@ export class Paddle {
   private direction: 'up' | 'down' | null = null
   private speed = 0.3
 
+  private lastZ = 0
+  private velocityZ = 0
+
   // Dimensioni del paddle (devono corrispondere a quelle usate nella collisione)
   private width = 1   // lungo X → spessore
   private height = 1.5  // lungo Y → quasi nullo
@@ -45,22 +48,29 @@ export class Paddle {
   }
 
   public update(): void {
-    if (!this.direction) return
+    // Calcola velocità Z rispetto al frame precedente
+    const prevZ = this.mesh.position.z
 
-    // Movimento lungo Z (non Y!)
     if (this.direction === 'up') {
       this.mesh.position.z -= this.speed
     } else if (this.direction === 'down') {
       this.mesh.position.z += this.speed
     }
 
-    // Limiti verticali per non uscire dal campo
-    const limitZ = 13.5 // leggermente dentro i bounds della ball (maxZ = 14)
+    // Clampa posizione
+    const limitZ = 13.5
     this.mesh.position.z = Math.max(-limitZ, Math.min(limitZ, this.mesh.position.z))
+
+    // Calcola velocità (semplice differenza per frame)
+    this.velocityZ = this.mesh.position.z - prevZ
   }
 
   public reset(): void {
     this.mesh.position.set(this.mesh.position.x, 0, 0)
+  }
+
+  public getCurrentVelocityZ(): number {
+    return this.velocityZ
   }
 
   public getMesh(): BABYLON.Mesh {
