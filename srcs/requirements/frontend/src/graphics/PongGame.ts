@@ -165,10 +165,10 @@ export class PongGame {
       // Determine which player scored
       if (this.ball.getPosition().x < 0) {
         // Player 2 scored
-        this.player2Score++
+        this.player1Score++
       } else {
         // Player 1 scored
-        this.player1Score++
+        this.player2Score++
       }
       
       // Update score display
