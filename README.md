@@ -696,5 +696,5 @@ See `CONTRIBUTING.md` for contribution guidelines, branch naming, and the PR rev
 ---
 
 ## Built by:
-Andrea Falconi • Pietro Jairo Pezzullo • Gabriele Rinella • Eugenio Caruso • Ruggero
+Andrea Falconi • Pietro Jairo Pezzullo • Gabriele Rinella • Eugenio Caruso • Ruggero 
 
