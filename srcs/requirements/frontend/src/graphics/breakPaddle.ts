@@ -4,7 +4,7 @@ export class Paddle {
   private mesh: BABYLON.Mesh
   private scene: BABYLON.Scene
   private direction: 'left' | 'right' | null = null
-  private speed = 0.3
+  private speed = 0.1
 
   private lastX = 0
   private velocityX = 0

@@ -83,6 +83,7 @@ export class BreakoutGame {
     const brickHeight = 0.8
     const brickDepth = 0.5
     const padding = 0.1
+    const zOffset = -5
     
     // Create materials for different brick colors
     const colors = [
@@ -98,7 +99,7 @@ export class BreakoutGame {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const x = (col - cols / 2) * (brickWidth + padding) + brickWidth / 2
-        const z = (row - rows / 2) * (brickHeight + padding) + brickHeight / 2
+        const z = (row - rows / 2) * (brickHeight + padding) + brickHeight / 2 + zOffset
         const y = 0
         
         // Create brick mesh
