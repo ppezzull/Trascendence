@@ -69,7 +69,7 @@ jspm_packages/
 .yarn-integrity
 
 # Yarn
-yarn.lock
+srcs/requirements/frontend/yarn.lock
 
 # dotenv environment variable files
 .env
