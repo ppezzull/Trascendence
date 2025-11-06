@@ -67,6 +67,7 @@ export class PongCanvas {
     // Initialize game
     if (this.scene && this.game) {
       this.game.initialize(this.scene, this.engine)
+      this.game.setScoreCallback(this.updateScore.bind(this))
     }
     
     // Handle window resize

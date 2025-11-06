@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './Paddle'
-import { Ball } from './Ball'
+import { Paddle } from './paddle'
+import { Ball } from './ball'
 
 export class PongGame {
   private scene: BABYLON.Scene | null = null
@@ -165,10 +165,10 @@ export class PongGame {
       // Determine which player scored
       if (this.ball.getPosition().x < 0) {
         // Player 2 scored
-        this.player2Score++
+        this.player1Score++
       } else {
         // Player 1 scored
-        this.player1Score++
+        this.player2Score++
       }
       
       // Update score display
