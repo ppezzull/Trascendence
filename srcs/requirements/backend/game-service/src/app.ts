@@ -9,6 +9,8 @@ import jwt from "@fastify/jwt";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import dotenv from "dotenv";
+import pino from "pino";
+import metricsPlugin from "fastify-metrics";
 
 // Carica le variabili d'ambiente
 dotenv.config();
@@ -19,11 +21,21 @@ import gameRoutes from "./routes/gameRoutes";
 // Importa il sistema di migrazioni
 import runMigrations from "./database/migrate";
 
-// Crea l'istanza di Fastify
+// Crea l'istanza di Fastify con Pino logger
 const fastify: FastifyInstance = Fastify({
-  logger: {
+  logger: pino({
     level: process.env.LOG_LEVEL || "info",
-  },
+    formatters: {
+      level: (label) => {
+        return { level: label };
+      },
+    },
+    timestamp: pino.stdTimeFunctions.isoTime,
+    base: {
+      service: process.env.SERVICE_NAME || 'game-service',
+      environment: process.env.NODE_ENV || 'development',
+    },
+  }),
 });
 
 // ==================== PLUGINS ====================
@@ -84,6 +96,13 @@ async function registerPlugins() {
       deepLinking: true,
     },
     staticCSP: true,
+  });
+
+  // Registra Prometheus metrics endpoint
+  await fastify.register(metricsPlugin, {
+    endpoint: '/metrics',
+    defaultMetrics: { enabled: true },
+    routeMetrics: { enabled: true },
   });
 }
 
