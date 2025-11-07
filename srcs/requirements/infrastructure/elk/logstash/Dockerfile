@@ -7,9 +7,6 @@
 
 FROM docker.elastic.co/logstash/logstash:8.11.1
 
-# Install required plugins
-RUN logstash-plugin install logstash-input-docker_logs
-
 # Copy configuration file
 COPY conf/logstash.conf /usr/share/logstash/pipeline/logstash.conf
 
