@@ -9,6 +9,7 @@ export interface ApiResponse<T = any> {
 export interface LoginResponse {
   success: boolean
   token?: string
+  message?: string
   user?: {
     id: string
     username: string
@@ -47,7 +48,7 @@ export class ApiService {
 
   constructor() {
     // Base URL for API calls - adjust based on your backend configuration
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    this.baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001'
     
     // Get auth token from localStorage
     this.authToken = localStorage.getItem('authToken')
@@ -73,14 +74,19 @@ export class ApiService {
     const url = `${this.baseUrl}${endpoint}`
     
     // Set default headers
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
-      ...options.headers,
     }
     
     // Add auth token if available
     if (this.authToken) {
-      headers.Authorization = `Bearer ${this.authToken}`
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+    
+    // Merge with any additional headers from options
+    if (options.headers) {
+      Object.assign(headers, options.headers)
     }
     
     try {
@@ -103,16 +109,19 @@ export class ApiService {
   }
 
   // Auth service methods
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string): Promise<LoginResponse> {
+    console.log('Login request:', email, password)
     try {
-      const response = await this.request<LoginResponse>('/auth/login', {
+      const response = await this.request<LoginResponse>('/api/users/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       })
+
+      console.log('Login response:', response)
       
       if (response.success && response.token) {
         this.setAuthToken(response.token)
-        localStorage.setItem('username', username)
+        localStorage.setItem('email', email)
       }
       
       return response
@@ -122,11 +131,12 @@ export class ApiService {
     }
   }
 
-  async register(username: string, email: string, password: string): Promise<ApiResponse> {
+  async register(username: string, email: string, password: string, displayName: string): Promise<ApiResponse> {
+    console.log('Register request:', username, email, password, displayName)
     try {
-      const response = await this.request<ApiResponse>('/auth/register', {
+      const response = await this.request<ApiResponse>('/api/users/register', {
         method: 'POST',
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, password, display_name: displayName }),
       })
       
       return response
@@ -138,12 +148,12 @@ export class ApiService {
 
   async logout(): Promise<ApiResponse> {
     try {
-      const response = await this.request<ApiResponse>('/auth/logout', {
+      const response = await this.request<ApiResponse>('/api/users/logout', {
         method: 'POST',
       })
       
       this.clearAuthToken()
-      localStorage.removeItem('username')
+      localStorage.removeItem('email')
       
       return response
     } catch (error) {
@@ -155,7 +165,7 @@ export class ApiService {
   // User service methods
   async getCurrentUser(): Promise<ApiResponse<User>> {
     try {
-      return await this.request<User>('/users/me')
+      return await this.request<User>('/api/users/me')
     } catch (error) {
       console.error('Get current user error:', error)
       return { success: false, message: 'Failed to get user data' }
@@ -168,7 +178,7 @@ export class ApiService {
       if (username) data.username = username
       if (email) data.email = email
       
-      return await this.request<ApiResponse>('/users/me', {
+      return await this.request<ApiResponse>('/api/users/me', {
         method: 'PUT',
         body: JSON.stringify(data),
       })
@@ -180,7 +190,7 @@ export class ApiService {
 
   async getUserStats(): Promise<ApiResponse> {
     try {
-      return await this.request<ApiResponse>('/users/me/stats')
+      return await this.request<ApiResponse>('/api/users/stats')
     } catch (error) {
       console.error('Get user stats error:', error)
       return { success: false, message: 'Failed to get user stats' }
