@@ -239,7 +239,8 @@ services:
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
       # Mount host filesystem read-only for metrics collection
-      - /:/host:ro,rslave
+      # Note: rslave propagation removed for macOS compatibility (works on both Linux and macOS)
+      - /:/host:ro
     networks:
       - internal
     ports:
