@@ -562,11 +562,11 @@ export class BreakoutGame {
       // Level complete
       this.level++
       this.resetBricks()
-      this.ball.reset()
-      
+      this.ball?.reset()
+
       // Add bonus score for completing level
       this.score += 100 * this.level
-      
+
       // Show level complete message
       this.showNotification(`Livello ${this.level} completato!`, 'success')
     } else if (this.ball && this.ball.isOutOfBounds()) {
