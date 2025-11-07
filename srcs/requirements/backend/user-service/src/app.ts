@@ -6,7 +6,6 @@ import oauth2 from "@fastify/oauth2";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import dotenv from "dotenv";
-import pino from "pino";
 import metricsPlugin from "fastify-metrics";
 
 // Carica le variabili d'ambiente
@@ -18,19 +17,19 @@ import authRoutes from "./routes/authRoutes";
 
 // Crea l'istanza di Fastify con Pino logger
 const fastify: FastifyInstance = Fastify({
-  logger: pino({
+  logger: {
     level: process.env.LOG_LEVEL || "info",
     formatters: {
-      level: (label) => {
+      level: (label: string) => {
         return { level: label };
       },
     },
-    timestamp: pino.stdTimeFunctions.isoTime,
+    timestamp: () => `,"time":"${new Date().toISOString()}"`,
     base: {
       service: process.env.SERVICE_NAME || 'user-service',
       environment: process.env.NODE_ENV || 'development',
     },
-  }),
+  },
 });
 
 // Registra i plugin
