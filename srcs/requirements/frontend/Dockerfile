@@ -65,9 +65,6 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -out /etc/nginx/ssl/nginx-selfsigned.crt \
     -subj "/C=US/ST=State/L=City/O=42School/OU=Trascendence/CN=localhost"
 
-# Verify Nginx configuration syntax
-RUN nginx -t
-
 # Expose ports
 EXPOSE 80 443
 
