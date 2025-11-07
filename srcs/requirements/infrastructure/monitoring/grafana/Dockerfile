@@ -11,11 +11,6 @@ FROM grafana/grafana:latest
 # This auto-configures Prometheus datasource and dashboards
 COPY provisioning /etc/grafana/provisioning
 
-# Set permissions
-USER root
-RUN chown -R grafana:grafana /etc/grafana/provisioning
-USER grafana
-
 # Expose port 3000 (Grafana web UI)
 EXPOSE 3000
 

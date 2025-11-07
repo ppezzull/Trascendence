@@ -8,12 +8,12 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install all dependencies (including dev dependencies needed for build)
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
-COPY migrations/ ./migrations/ 2>/dev/null || true
+COPY migrations/ ./migrations/
 
 # Create data directory for SQLite database
 RUN mkdir -p ./data

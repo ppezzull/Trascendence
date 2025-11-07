@@ -11,11 +11,6 @@ FROM prom/prometheus:latest
 COPY conf/prometheus.yml /etc/prometheus/prometheus.yml
 COPY conf/alerts/*.yml /etc/prometheus/alerts/
 
-# Set permissions
-USER root
-RUN chown -R prometheus:prometheus /etc/prometheus
-USER prometheus
-
 # Expose port 9090 (Prometheus web UI and API)
 EXPOSE 9090
 

@@ -10,14 +10,18 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Enable Corepack for Yarn version management
+RUN corepack enable
+
+# Copy package files and Yarn configuration
 COPY package*.json ./
 COPY yarn.lock* ./
+COPY .yarnrc.yml ./
 
 # Install dependencies
 # Support both npm and yarn
 RUN if [ -f yarn.lock ]; then \
-      yarn install --frozen-lockfile; \
+      yarn install --immutable; \
     else \
       npm ci; \
     fi
