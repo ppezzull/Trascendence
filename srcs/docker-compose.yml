@@ -284,6 +284,7 @@ services:
       # Application configuration
       - NODE_ENV=production
       - PORT=3001
+      - HOST=0.0.0.0
       # Database
       - DB_PATH=/app/data/users.db
       # Logging (for ELK Stack)
@@ -299,8 +300,7 @@ services:
       - user_data:/app/data
     networks:
       - internal
-    ports:
-      - "3001:3001"  # Direct API access for development
+    # No direct port exposure - access only through Nginx (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3001/health || exit 1"]
       interval: 10s
@@ -319,6 +319,7 @@ services:
       # Application configuration
       - NODE_ENV=production
       - PORT=3003
+      - HOST=0.0.0.0
       # Database
       - DB_PATH=/app/data/games.db
       # Logging
@@ -334,8 +335,7 @@ services:
       - game_data:/app/data
     networks:
       - internal
-    ports:
-      - "3003:3003"
+    # No direct port exposure - access only through Nginx (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3003/health || exit 1"]
       interval: 10s
@@ -354,6 +354,7 @@ services:
       # Application configuration
       - NODE_ENV=production
       - PORT=3002
+      - HOST=0.0.0.0
       # Database
       - DB_PATH=/app/data/chat.db
       # Logging
@@ -366,8 +367,7 @@ services:
       - chat_data:/app/data
     networks:
       - internal
-    ports:
-      - "3002:3002"
+    # No direct port exposure - access only through Nginx (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3002/health || exit 1"]
       interval: 10s
