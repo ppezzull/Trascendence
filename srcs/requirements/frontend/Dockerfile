@@ -55,22 +55,19 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy Nginx configuration
 COPY conf/nginx.conf /etc/nginx/nginx.conf
 
-# Create directory for SSL certificates
-RUN mkdir -p /etc/nginx/ssl
+# Create directories for SSL certificates (using standard Debian/Alpine paths)
+RUN mkdir -p /etc/ssl/certs /etc/ssl/private
 
-# Generate self-signed SSL certificate (valid for 365 days)
-# For development only - replace with real certificate in production
-RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/nginx-selfsigned.key \
-    -out /etc/nginx/ssl/nginx-selfsigned.crt \
-    -subj "/C=US/ST=State/L=City/O=42School/OU=Trascendence/CN=localhost"
+# Copy entrypoint script
+COPY tools/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Expose ports
-EXPOSE 80 443
+# Expose ports (80 for HTTP redirect, 8090 for HTTPS)
+EXPOSE 80 8090
 
 # Health check - verify Nginx is serving files
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider --no-check-certificate https://localhost:443/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider --no-check-certificate https://localhost:8090/ || exit 1
 
-# Start Nginx in foreground
-CMD ["nginx", "-g", "daemon off;"]
+# Start via entrypoint script (generates SSL cert then starts Nginx)
+CMD ["/usr/local/bin/entrypoint.sh"]

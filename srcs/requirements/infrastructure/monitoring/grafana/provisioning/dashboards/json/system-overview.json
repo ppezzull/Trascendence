@@ -1,12 +1,11 @@
 {
-  "dashboard": {
-    "title": "System Overview",
-    "tags": ["system", "node-exporter"],
-    "timezone": "browser",
-    "schemaVersion": 16,
-    "version": 1,
-    "refresh": "30s",
-    "panels": [
+  "title": "System Overview",
+  "tags": ["system", "node-exporter"],
+  "timezone": "browser",
+  "schemaVersion": 16,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
       {
         "id": 1,
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
@@ -101,6 +100,4 @@
         }
       }
     ]
-  },
-  "overwrite": true
 }
