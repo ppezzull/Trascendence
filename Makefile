@@ -134,20 +134,31 @@ images:
 # Show access URLs
 urls:
 	@echo "$(GREEN)========================================$(NC)"
-	@echo "$(GREEN)  Access URLs$(NC)"
+	@echo "$(GREEN)  Access URLs - Single Entry Point$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
-	@echo "Frontend:"
+	@echo "$(YELLOW)All services accessible via Nginx (HTTPS):$(NC)"
+	@echo ""
+	@echo "Frontend Application:"
 	@echo "  https://localhost:8090"
 	@echo ""
-	@echo "DevOps UIs:"
+	@echo "DevOps Monitoring UIs:"
 	@echo "  Kibana:     https://localhost:8090/kibana/"
 	@echo "  Grafana:    https://localhost:8090/grafana/  (admin/admin123)"
-	@echo "  Prometheus: http://localhost:9090  (internal)"
+	@echo "  Prometheus: https://localhost:8090/prometheus/"
 	@echo ""
-	@echo "API Swagger Docs:"
-	@echo "  User Service:   http://localhost:3001/docs"
-	@echo "  Game Service:   http://localhost:3003/docs"
-	@echo "  Chat Service:   http://localhost:3002/docs"
+	@echo "Backend API Services:"
+	@echo "  User API:   https://localhost:8090/api/users/"
+	@echo "  Auth API:   https://localhost:8090/api/auth/"
+	@echo "  Game API:   https://localhost:8090/api/game/"
+	@echo "  Chat API:   https://localhost:8090/api/chat/"
+	@echo ""
+	@echo "API Documentation (Swagger UI):"
+	@echo "  User Docs:  https://localhost:8090/docs/user"
+	@echo "  Game Docs:  https://localhost:8090/docs/game"
+	@echo "  Chat Docs:  https://localhost:8090/docs/chat"
+	@echo ""
+	@echo "$(YELLOW)Note: All direct port access removed for security$(NC)"
+	@echo "$(YELLOW)All communication uses internal Docker network$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 
 # ==============================================================================
@@ -219,27 +230,25 @@ exec-prometheus:
 
 # Check health of all services
 health:
-	@echo "$(GREEN)Checking service health...$(NC)"
+	@echo "$(GREEN)Checking service health via Docker...$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Application Services:$(NC)"
-	@curl -s http://localhost:3001/health | jq '.' 2>/dev/null || echo "user-service: DOWN"
-	@curl -s http://localhost:3003/health | jq '.' 2>/dev/null || echo "game-service: DOWN"
-	@curl -s http://localhost:3002/health | jq '.' 2>/dev/null || echo "chat-service: DOWN"
+	@echo "$(YELLOW)Container Health Status:$(NC)"
+	@docker compose -f $(COMPOSE_FILE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "healthy|unhealthy|starting" || echo "No health data available"
 	@echo ""
-	@echo "$(YELLOW)DevOps Services:$(NC)"
-	@curl -s http://localhost:9200/_cluster/health 2>/dev/null | jq '.status' || echo "Elasticsearch: DOWN"
-	@curl -s http://localhost:9090/-/healthy 2>/dev/null && echo "Prometheus: UP" || echo "Prometheus: DOWN"
+	@echo "$(YELLOW)Note: Services use internal Docker network$(NC)"
+	@echo "$(YELLOW)Access via: https://localhost:8090$(NC)"
 	@echo ""
 
 # Check Elasticsearch health
 health-elk:
-	@echo "$(GREEN)Elasticsearch cluster health:$(NC)"
-	@curl -s http://localhost:9200/_cluster/health?pretty
+	@echo "$(GREEN)Elasticsearch cluster health (via Docker exec):$(NC)"
+	@docker exec elasticsearch curl -s http://localhost:9200/_cluster/health?pretty
 
 # Check Prometheus targets
 health-prometheus:
 	@echo "$(GREEN)Prometheus targets:$(NC)"
-	@echo "Open: http://localhost:9090/targets"
+	@echo "Access via: https://localhost:8090/prometheus/targets"
+	@docker exec prometheus wget -qO- http://localhost:9090/-/healthy && echo "Prometheus: Healthy" || echo "Prometheus: Unhealthy"
 
 # ==============================================================================
 # DATABASE COMMANDS
@@ -289,29 +298,32 @@ rebuild:
 
 # Test ELK Stack
 test-elk:
-	@echo "$(GREEN)Testing ELK Stack...$(NC)"
+	@echo "$(GREEN)Testing ELK Stack (via Docker exec)...$(NC)"
 	@echo ""
 	@echo "1. Elasticsearch:"
-	@curl -s http://localhost:9200 | jq '.'
+	@docker exec elasticsearch curl -s http://localhost:9200 | jq '.'
 	@echo ""
-	@echo "2. Kibana:"
-	@curl -s http://localhost:5601/kibana/api/status | jq '.status.overall.state'
+	@echo "2. Kibana (accessible via Nginx):"
+	@echo "   Visit: https://localhost:8090/kibana/"
+	@curl -sk https://localhost:8090/kibana/api/status | jq '.status.overall.state' || echo "Check via browser"
 	@echo ""
 	@echo "3. Indices:"
-	@curl -s http://localhost:9200/_cat/indices?v
+	@docker exec elasticsearch curl -s http://localhost:9200/_cat/indices?v
 
 # Test Monitoring
 test-monitoring:
-	@echo "$(GREEN)Testing Monitoring Stack...$(NC)"
+	@echo "$(GREEN)Testing Monitoring Stack (via Docker exec)...$(NC)"
 	@echo ""
-	@echo "1. Prometheus:"
-	@curl -s http://localhost:9090/-/healthy
+	@echo "1. Prometheus (accessible via Nginx):"
+	@echo "   Visit: https://localhost:8090/prometheus/"
+	@docker exec prometheus wget -qO- http://localhost:9090/-/healthy && echo "   Status: Healthy" || echo "   Status: Unhealthy"
 	@echo ""
-	@echo "2. Node Exporter metrics:"
-	@curl -s http://localhost:9100/metrics | head -n 5
+	@echo "2. Node Exporter metrics (internal):"
+	@docker exec node-exporter wget -qO- http://localhost:9100/metrics | head -n 5
 	@echo ""
-	@echo "3. Service metrics (user-service):"
-	@curl -s http://localhost:3001/metrics | head -n 5
+	@echo "3. Grafana (accessible via Nginx):"
+	@echo "   Visit: https://localhost:8090/grafana/"
+	@docker exec grafana wget -qO- http://localhost:3000/api/health | jq '.' || echo "Check via browser"
 
 # Test all services
 test-all:
