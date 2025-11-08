@@ -86,8 +86,7 @@ services:
       - es_data:/usr/share/elasticsearch/data
     networks:
       - internal
-    ports:
-      - "9200:9200"  # Exposed for direct API access and debugging
+    # No direct port exposure - internal network communication only (used by Logstash and Kibana)
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
       interval: 10s
@@ -144,8 +143,7 @@ services:
         condition: service_healthy
     networks:
       - internal
-    ports:
-      - "5601:5601"  # Exposed for direct access if needed
+    # No direct port exposure - access via Nginx at https://localhost:8090/kibana/ (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5601/kibana/api/status || exit 1"]
       interval: 10s
@@ -179,8 +177,7 @@ services:
       - '--web.enable-admin-api'
     networks:
       - internal
-    ports:
-      - "9090:9090"  # Exposed for direct access and debugging
+    # No direct port exposure - access via Nginx at https://localhost:8090/prometheus/ (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
       interval: 10s
@@ -218,8 +215,7 @@ services:
       - prometheus
     networks:
       - internal
-    ports:
-      - "3000:3000"  # Exposed for direct access if needed
+    # No direct port exposure - access via Nginx at https://localhost:8090/grafana/ (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
       interval: 10s
@@ -243,8 +239,7 @@ services:
       - /:/host:ro
     networks:
       - internal
-    ports:
-      - "9100:9100"  # Exposed for debugging
+    # No direct port exposure - internal network communication only (scraped by Prometheus)
     restart: unless-stopped
 
   # ============================================================================
@@ -405,13 +400,17 @@ services:
 #   - Not a Docker container - deployed on Avalanche Fuji testnet
 #   - Game-service interacts with it via ethers.js
 #
-# Access URLs:
+# Access URLs (Single Entry Point - All via Nginx):
 #   - Frontend:    https://localhost:8090
 #   - Kibana:      https://localhost:8090/kibana/
 #   - Grafana:     https://localhost:8090/grafana/ (admin/admin123)
-#   - Prometheus:  http://localhost:9090 (direct access)
-#   - User API:    http://localhost:3001/docs (Swagger)
-#   - Game API:    http://localhost:3003/docs (Swagger)
-#   - Chat API:    http://localhost:3002/docs (Swagger)
+#   - Prometheus:  https://localhost:8090/prometheus/
+#   - User API:    https://localhost:8090/api/users/
+#   - Auth API:    https://localhost:8090/api/auth/
+#   - Game API:    https://localhost:8090/api/game/
+#   - Chat API:    https://localhost:8090/api/chat/
+#   - User Docs:   https://localhost:8090/docs/user (Swagger UI)
+#   - Game Docs:   https://localhost:8090/docs/game (Swagger UI)
+#   - Chat Docs:   https://localhost:8090/docs/chat (Swagger UI)
 #
 # ==============================================================================
