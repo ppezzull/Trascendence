@@ -70,7 +70,7 @@ EXPOSE 80 443
 
 # Health check - verify Nginx is serving files
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider --no-check-certificate https://localhost:443/ || exit 1
 
 # Start Nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]
