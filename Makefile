@@ -194,6 +194,26 @@ logs-app:
 	@echo "$(GREEN)Application services logs:$(NC)"
 	docker compose -f $(COMPOSE_FILE) logs -f user-service game-service chat-service
 
+# Show User Service logs
+logs-user:
+	@echo "$(GREEN)User Service logs:$(NC)"
+	docker compose -f $(COMPOSE_FILE) logs -f user-service
+
+# Show Game Service logs
+logs-game:
+	@echo "$(GREEN)Game Service logs:$(NC)"
+	docker compose -f $(COMPOSE_FILE) logs -f game-service
+
+# Show Chat Service logs
+logs-chat:
+	@echo "$(GREEN)Chat Service logs:$(NC)"
+	docker compose -f $(COMPOSE_FILE) logs -f chat-service
+
+# Show Frontend logs
+logs-frontend:
+	@echo "$(GREEN)Frontend (Nginx) logs:$(NC)"
+	docker compose -f $(COMPOSE_FILE) logs -f frontend
+
 # ==============================================================================
 # EXEC COMMANDS (Enter container shell)
 # ==============================================================================
@@ -249,6 +269,45 @@ health-prometheus:
 	@echo "$(GREEN)Prometheus targets:$(NC)"
 	@echo "Access via: https://localhost:8090/prometheus/targets"
 	@docker exec prometheus wget -qO- http://localhost:9090/-/healthy && echo "Prometheus: Healthy" || echo "Prometheus: Unhealthy"
+
+# Check Application Services health
+health-app:
+	@echo "$(GREEN)Application Services Health:$(NC)"
+	@echo ""
+	@echo "$(YELLOW)User Service:$(NC)"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/health 2>/dev/null | jq '.' || echo "  Status: DOWN"
+	@echo ""
+	@echo "$(YELLOW)Game Service:$(NC)"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/health 2>/dev/null | jq '.' || echo "  Status: DOWN"
+	@echo ""
+	@echo "$(YELLOW)Chat Service:$(NC)"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/health 2>/dev/null | jq '.' || echo "  Status: DOWN"
+	@echo ""
+	@echo "$(YELLOW)Access URLs:$(NC)"
+	@echo "  User API:  https://localhost:8090/api/users/"
+	@echo "  Game API:  https://localhost:8090/api/game/"
+	@echo "  Chat API:  https://localhost:8090/api/chat/"
+
+# Check User Service health
+health-user:
+	@echo "$(GREEN)User Service Health:$(NC)"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Swagger UI: https://localhost:8090/docs/user"
+
+# Check Game Service health
+health-game:
+	@echo "$(GREEN)Game Service Health:$(NC)"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Swagger UI: https://localhost:8090/docs/game"
+
+# Check Chat Service health
+health-chat:
+	@echo "$(GREEN)Chat Service Health:$(NC)"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Swagger UI: https://localhost:8090/docs/chat"
 
 # ==============================================================================
 # DATABASE COMMANDS
@@ -325,12 +384,87 @@ test-monitoring:
 	@echo "   Visit: https://localhost:8090/grafana/"
 	@docker exec grafana wget -qO- http://localhost:3000/api/health | jq '.' || echo "Check via browser"
 
+# Test Application Services
+test-app:
+	@echo "$(GREEN)Testing Application Services...$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. User Service:$(NC)"
+	@echo "   Health endpoint:"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/health 2>/dev/null | jq '.' || echo "   FAILED"
+	@echo "   Metrics endpoint:"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/metrics 2>/dev/null | head -n 3 || echo "   No metrics available"
+	@echo "   Swagger UI: https://localhost:8090/docs/user"
+	@echo ""
+	@echo "$(YELLOW)2. Game Service:$(NC)"
+	@echo "   Health endpoint:"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/health 2>/dev/null | jq '.' || echo "   FAILED"
+	@echo "   Metrics endpoint:"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/metrics 2>/dev/null | head -n 3 || echo "   No metrics available"
+	@echo "   Swagger UI: https://localhost:8090/docs/game"
+	@echo ""
+	@echo "$(YELLOW)3. Chat Service:$(NC)"
+	@echo "   Health endpoint:"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/health 2>/dev/null | jq '.' || echo "   FAILED"
+	@echo "   Metrics endpoint:"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/metrics 2>/dev/null | head -n 3 || echo "   No metrics available"
+	@echo "   Swagger UI: https://localhost:8090/docs/chat"
+	@echo ""
+	@echo "$(YELLOW)API Access via Nginx:$(NC)"
+	@echo "   User API:  https://localhost:8090/api/users/"
+	@echo "   Auth API:  https://localhost:8090/api/auth/"
+	@echo "   Game API:  https://localhost:8090/api/game/"
+	@echo "   Chat API:  https://localhost:8090/api/chat/"
+
+# Test User Service
+test-user:
+	@echo "$(GREEN)Testing User Service...$(NC)"
+	@echo ""
+	@echo "Health Check:"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Metrics (first 10 lines):"
+	@docker exec user-service wget -qO- http://127.0.0.1:3001/metrics 2>/dev/null | head -n 10
+	@echo ""
+	@echo "Access URLs:"
+	@echo "  API:     https://localhost:8090/api/users/"
+	@echo "  Auth:    https://localhost:8090/api/auth/"
+	@echo "  Swagger: https://localhost:8090/docs/user"
+
+# Test Game Service
+test-game:
+	@echo "$(GREEN)Testing Game Service...$(NC)"
+	@echo ""
+	@echo "Health Check:"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Metrics (first 10 lines):"
+	@docker exec game-service wget -qO- http://127.0.0.1:3003/metrics 2>/dev/null | head -n 10
+	@echo ""
+	@echo "Access URLs:"
+	@echo "  API:     https://localhost:8090/api/game/"
+	@echo "  Swagger: https://localhost:8090/docs/game"
+
+# Test Chat Service
+test-chat:
+	@echo "$(GREEN)Testing Chat Service...$(NC)"
+	@echo ""
+	@echo "Health Check:"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/health 2>/dev/null | jq '.'
+	@echo ""
+	@echo "Metrics (first 10 lines):"
+	@docker exec chat-service wget -qO- http://127.0.0.1:3002/metrics 2>/dev/null | head -n 10
+	@echo ""
+	@echo "Access URLs:"
+	@echo "  API:     https://localhost:8090/api/chat/"
+	@echo "  Swagger: https://localhost:8090/docs/chat"
+
 # Test all services
 test-all:
 	@echo "$(GREEN)Testing all services...$(NC)"
 	@make health
 	@make test-elk
 	@make test-monitoring
+	@make test-app
 
 # ==============================================================================
 # HELP COMMAND
@@ -361,23 +495,40 @@ help:
 	@echo "  make list-all     - Show all containers"
 	@echo "  make images       - Show images"
 	@echo "  make urls         - Show access URLs"
-	@echo "  make health       - Check service health"
+	@echo ""
+	@echo "$(YELLOW)Health Check Commands:$(NC)"
+	@echo "  make health            - Check all services health"
+	@echo "  make health-elk        - Check Elasticsearch health"
+	@echo "  make health-prometheus - Check Prometheus health"
+	@echo "  make health-app        - Check all app services health"
+	@echo "  make health-user       - Check User Service health"
+	@echo "  make health-game       - Check Game Service health"
+	@echo "  make health-chat       - Check Chat Service health"
 	@echo ""
 	@echo "$(YELLOW)Logs Commands:$(NC)"
 	@echo "  make logs                        - Show all logs"
 	@echo "  make logs-service SERVICE=name   - Show specific service logs"
-	@echo "  make logs-elk                    - Show ELK logs"
-	@echo "  make logs-monitoring             - Show monitoring logs"
-	@echo "  make logs-app                    - Show application logs"
+	@echo "  make logs-elk                    - Show ELK stack logs"
+	@echo "  make logs-monitoring             - Show monitoring stack logs"
+	@echo "  make logs-app                    - Show all app services logs"
+	@echo "  make logs-user                   - Show User Service logs"
+	@echo "  make logs-game                   - Show Game Service logs"
+	@echo "  make logs-chat                   - Show Chat Service logs"
+	@echo "  make logs-frontend               - Show Frontend (Nginx) logs"
 	@echo ""
 	@echo "$(YELLOW)Exec Commands:$(NC)"
 	@echo "  make exec CONTAINER=name   - Enter container shell"
 	@echo "  make exec-user             - Enter user-service"
 	@echo "  make exec-game             - Enter game-service"
+	@echo "  make exec-chat             - Enter chat-service"
 	@echo ""
 	@echo "$(YELLOW)Testing Commands:$(NC)"
 	@echo "  make test-elk         - Test ELK Stack"
-	@echo "  make test-monitoring  - Test Monitoring"
+	@echo "  make test-monitoring  - Test Monitoring Stack"
+	@echo "  make test-app         - Test Application Services"
+	@echo "  make test-user        - Test User Service"
+	@echo "  make test-game        - Test Game Service"
+	@echo "  make test-chat        - Test Chat Service"
 	@echo "  make test-all         - Test everything"
 	@echo ""
 	@echo "$(YELLOW)Other Commands:$(NC)"
@@ -393,8 +544,8 @@ help:
 
 .PHONY: all info up down start stop restart clean fclean re prune \
         status ps list list-all list-all-id images urls \
-        logs logs-service logs-elk logs-monitoring logs-app \
-        exec exec-user exec-game exec-chat exec-blockchain exec-elk exec-prometheus \
-        health health-elk health-prometheus \
+        logs logs-service logs-elk logs-monitoring logs-app logs-user logs-game logs-chat logs-frontend \
+        exec exec-user exec-game exec-chat exec-elk exec-prometheus \
+        health health-elk health-prometheus health-app health-user health-game health-chat \
         backup-db build build-service rebuild \
-        test-elk test-monitoring test-all help
+        test-elk test-monitoring test-app test-user test-game test-chat test-all help
