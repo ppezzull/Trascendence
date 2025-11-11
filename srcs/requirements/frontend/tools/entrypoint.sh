@@ -9,6 +9,13 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 echo "SSL certificate created successfully"
 
+# Fix nginx logs for Logstash: Remove symlinks and create actual files
+echo "Configuring nginx logs for Logstash..."
+rm -f /var/log/nginx/access.log /var/log/nginx/error.log
+touch /var/log/nginx/access.log /var/log/nginx/error.log
+chown nginx:nginx /var/log/nginx/access.log /var/log/nginx/error.log
+echo "Nginx logs configured successfully"
+
 # Start NGINX in foreground
 echo "Starting Nginx..."
 nginx -g "daemon off;"
