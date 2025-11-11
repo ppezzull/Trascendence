@@ -126,7 +126,9 @@ services:
 
   # Requirement: Set up Kibana for visualizing log data and creating dashboards
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.1
+    build:
+      context: ./requirements/infrastructure/elk/kibana
+      dockerfile: Dockerfile
     container_name: kibana
     environment:
       # Server configuration
