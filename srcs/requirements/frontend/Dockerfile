@@ -58,6 +58,11 @@ COPY conf/nginx.conf /etc/nginx/nginx.conf
 # Create directories for SSL certificates (using standard Debian/Alpine paths)
 RUN mkdir -p /etc/ssl/certs /etc/ssl/private
 
+# Fix nginx logs: Remove symlinks and create actual log files for Logstash
+RUN rm -f /var/log/nginx/access.log /var/log/nginx/error.log && \
+    touch /var/log/nginx/access.log /var/log/nginx/error.log && \
+    chown nginx:nginx /var/log/nginx/access.log /var/log/nginx/error.log
+
 # Copy entrypoint script
 COPY tools/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
