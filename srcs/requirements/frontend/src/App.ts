@@ -83,7 +83,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center text-4xl mb-8">TRAScENDENCE</h1>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="cyber-card">
@@ -194,7 +194,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">SELEZIONA GIOCO</h1>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="cyber-card text-center">
@@ -218,7 +218,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">PONG 3D</h1>
         <div class="flex flex-col items-center">
           <div id="pong-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
@@ -241,7 +241,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">BREAKOUT CYBER</h1>
         <div class="flex flex-col items-center">
           <div id="breakout-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
@@ -264,7 +264,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto h-96">
+      <div class="cyber-panel w-full h-full mx-auto h-96">
         <h1 class="cyber-title text-center">CHAT CYBER</h1>
         <div class="flex h-80">
           <div id="chat-sidebar" class="w-1/3 border-r border-cyber-green pr-4">
@@ -295,7 +295,7 @@ export class App {
     if (!contentElement) return
 
     contentElement.innerHTML = `
-      <div class="cyber-panel max-w-4xl mx-auto">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">PROFILO UTENTE</h1>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="cyber-card">
