@@ -1,4 +1,5 @@
 import { ApiService } from '../services/ApiService'
+import { Ball } from '../graphics/ball.ts'
 
 export interface GameSettings {
   ballSpeed: 'slow' | 'normal' | 'fast'
@@ -16,10 +17,12 @@ export class GameSettingsComponent {
 
   constructor() {
     this.apiService = new ApiService()
+
+    const speed = localStorage.getItem('ballSpeed') as 'slow' | 'normal' | 'fast' | null
     
     // Default settings
     this.settings = {
-      ballSpeed: 'normal',
+      ballSpeed: speed || 'normal',
       powerUps: true,
       theme: 'cyber',
       soundEnabled: true,
@@ -84,7 +87,7 @@ export class GameSettingsComponent {
               <button class="difficulty-option cyber-button ${this.settings.difficulty === 'hard' ? 'bg-cyber-green text-cyber-black' : ''}" data-difficulty="hard">Difficile</button>
             </div>
           </div>
-          
+          Ball
           <!-- Audio -->
           <div class="cyber-card p-4">
             <h2 class="text-lg font-bold text-cyber-green mb-4">Audio</h2>
@@ -123,7 +126,7 @@ export class GameSettingsComponent {
         const speed = (e.target as HTMLElement).getAttribute('data-speed') as 'slow' | 'normal' | 'fast'
         if (speed) {
           this.settings.ballSpeed = speed
-          this.updateSpeedUI()
+          localStorage.setItem('ballSpeed', speed)
         }
       })
     })
