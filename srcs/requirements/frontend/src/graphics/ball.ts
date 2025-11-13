@@ -17,9 +17,29 @@ export class Ball {
     maxZ: 14
   }
 
+
+  public setVelocity(velocity: BABYLON.Vector3): void {
+    this.velocity = velocity.clone()
+  }
+
+  public setOptionsVelocity(velocity: string): void {
+    if (velocity === 'slow') {
+      this.setVelocity(new BABYLON.Vector3(5, 0, 2))
+    } else if (velocity === 'normal') {
+      this.setVelocity(new BABYLON.Vector3(9, 0, 4.5))
+    } else if (velocity === 'fast') {
+      this.setVelocity(new BABYLON.Vector3(14, 0, 7))
+    }
+  }
+
   constructor(name: string, scene: BABYLON.Scene) {
     this.scene = scene
     this.createMesh(name)
+
+    const savedSpeed = localStorage.getItem('ballSpeed') as 'slow' | 'normal' | 'fast' | null
+    if (savedSpeed) {
+      this.setOptionsVelocity(savedSpeed)
+    }
   }
 
   private createMesh(name: string): void {
@@ -263,9 +283,6 @@ public handlePaddleHit(paddle: Paddle): void {
     return this.velocity.clone()
   }
 
-  public setVelocity(velocity: BABYLON.Vector3): void {
-    this.velocity = velocity.clone()
-  }
 
   public dispose(): void {
     if (this.mesh) {
