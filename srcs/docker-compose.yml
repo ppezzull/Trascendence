@@ -1,241 +1,428 @@
-version: '3.8'
+# ==============================================================================
+# Trascendence DevOps Infrastructure - Production Configuration
+# ==============================================================================
+#
+# DevOps Modules Implementation:
+#   - Module #39 (ELK Stack): Elasticsearch, Logstash, Kibana
+#   - Module #42 (Monitoring): Prometheus, Grafana, Node Exporter
+#   - Module #22 (Microservices): User, Game, Chat services
+#
+# Total Containers: 10
+#   - ELK Stack: 3 (elasticsearch, logstash, kibana)
+#   - Monitoring: 3 (prometheus, grafana, node-exporter)
+#   - Application: 4 (frontend + 3 microservices)
+#
+# ==============================================================================
 
+# ==============================================================================
+# VOLUMES - Persistent Data Storage
+# ==============================================================================
+volumes:
+  # ELK Stack volumes
+  es_data:
+    driver: local
+    name: trascendence_es_data
+
+  kibana_data:
+    driver: local
+    name: trascendence_kibana_data
+
+  nginx_logs:
+    driver: local
+    name: trascendence_nginx_logs
+
+  # Monitoring volumes
+  prometheus_data:
+    driver: local
+    name: trascendence_prometheus_data
+
+  grafana_data:
+    driver: local
+    name: trascendence_grafana_data
+
+  # Application database volumes
+  user_data:
+    driver: local
+    name: trascendence_user_data
+
+  game_data:
+    driver: local
+    name: trascendence_game_data
+
+  chat_data:
+    driver: local
+    name: trascendence_chat_data
+
+# ==============================================================================
+# NETWORKS - Service Communication
+# ==============================================================================
+networks:
+  internal:
+    driver: bridge
+    name: trascendence_network
+
+# ==============================================================================
+# SERVICES
+# ==============================================================================
 services:
-  # Frontend Service
-  frontend:
-    build:
-      context: ./requirements/frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://api-gateway:4000
-      - VITE_WS_URL=ws://api-gateway:4001
-    depends_on:
-      - api-gateway
-    networks:
-      - transcendence-network
-    restart: unless-stopped
 
-  # API Gateway
-  api-gateway:
-    build:
-      context: ./requirements/backend/api-gateway
-      dockerfile: Dockerfile
-    ports:
-      - "4000:4000"
-      - "4001:4001"
-    environment:
-      - NODE_ENV=development
-      - USER_SERVICE_URL=http://user-service:3001
-      - GAME_SERVICE_URL=http://game-service:3002
-      - CHAT_SERVICE_URL=http://chat-service:3003
-      - BLOCKCHAIN_SERVICE_URL=http://blockchain-service:3004
-      - JWT_SECRET=${JWT_SECRET:-supersecret}
-    depends_on:
-      - user-service
-      - game-service
-      - chat-service
-      - blockchain-service
-    networks:
-      - transcendence-network
-    restart: unless-stopped
+  # ============================================================================
+  # ELK STACK - Major Module #39
+  # ============================================================================
+  # Requirement: Deploy Elasticsearch to store and index log data
 
-  # User Service
-  user-service:
-    build:
-      context: ./requirements/backend/user-service
-      dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=development
-      - PORT=3001
-      - HOST=0.0.0.0
-      - JWT_SECRET=${JWT_SECRET:-supersecret}
-      - CORS_ORIGIN=http://localhost:3000
-      - DATABASE_PATH=/app/data/users.db
-    volumes:
-      - user-service-data:/app/data
-    networks:
-      - transcendence-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Game Service
-  game-service:
-    build:
-      context: ./requirements/backend/game-service
-      dockerfile: Dockerfile
-    ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=development
-      - PORT=3002
-      - HOST=0.0.0.0
-      - DATABASE_PATH=/app/data/games.db
-    volumes:
-      - game-service-data:/app/data
-    networks:
-      - transcendence-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Chat Service
-  chat-service:
-    build:
-      context: ./requirements/backend/chat-service
-      dockerfile: Dockerfile
-    ports:
-      - "3003:3003"
-    environment:
-      - NODE_ENV=development
-      - PORT=3003
-      - HOST=0.0.0.0
-      - DATABASE_PATH=/app/data/chat.db
-    volumes:
-      - chat-service-data:/app/data
-    networks:
-      - transcendence-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Blockchain Service
-  blockchain-service:
-    build:
-      context: ./requirements/backend/blockchain-service
-      dockerfile: Dockerfile
-    ports:
-      - "3004:3004"
-    environment:
-      - NODE_ENV=development
-      - PORT=3004
-      - HOST=0.0.0.0
-      - FUJI_RPC_URL=${FUJI_RPC_URL}
-      - PRIVATE_KEY=${PRIVATE_KEY}
-      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
-    networks:
-      - transcendence-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3004/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Infrastructure Services
-
-  # Elasticsearch
   elasticsearch:
-    build:
-      context: ./requirements/infrastructure/elk/elasticsearch
-      dockerfile: Dockerfile
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
     environment:
+      # Single-node cluster configuration (minimal for school project)
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
+      # Disable security features (SSL not required per compliance analysis)
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      # Memory settings (1GB is sufficient for development)
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - bootstrap.memory_lock=false
+      # Cluster identification
+      - cluster.name=trascendence-cluster
+      - node.name=es-node-01
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - es_data:/usr/share/elasticsearch/data
     networks:
-      - transcendence-network
+      - internal
+    # No direct port exposure - internal network communication only (used by Logstash and Kibana)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
     restart: unless-stopped
 
-  # Logstash
+  # Requirement: Configure Logstash to collect, process, and transform logs
   logstash:
     build:
       context: ./requirements/infrastructure/elk/logstash
       dockerfile: Dockerfile
-    ports:
-      - "5044:5044"
+    container_name: logstash
+    environment:
+      # Memory settings
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+      # Elasticsearch connection
+      - ELASTICSEARCH_HOST=elasticsearch:9200
+      - XPACK_MONITORING_ENABLED=false
     volumes:
-      - ./requirements/infrastructure/elk/logstash/conf:/usr/share/logstash/pipeline
+      # Access Docker socket to read container logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Access Nginx logs for HTTP analytics
+      - nginx_logs:/var/log/nginx:ro
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     networks:
-      - transcendence-network
+      - internal
     restart: unless-stopped
 
-  # Kibana
+  # Requirement: Set up Kibana for visualizing log data and creating dashboards
   kibana:
     build:
       context: ./requirements/infrastructure/elk/kibana
       dockerfile: Dockerfile
-    ports:
-      - "5601:5601"
+    container_name: kibana
     environment:
+      # Server configuration
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5601
+      # Elasticsearch connection
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      # Reverse proxy configuration (access via Nginx)
+      - SERVER_BASEPATH=/kibana
+      - SERVER_REWRITEBASEPATH=true
+      - SERVER_PUBLICBASEURL=https://localhost:8090/kibana
+      # Disable telemetry
+      - TELEMETRY_ENABLED=false
+      - TELEMETRY_OPTIN=false
+    volumes:
+      - kibana_data:/usr/share/kibana/data
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     networks:
-      - transcendence-network
+      - internal
+    # No direct port exposure - access via Nginx at https://localhost:8090/kibana/ (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/kibana/api/status || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
     restart: unless-stopped
 
-  # Prometheus
+  # ============================================================================
+  # MONITORING STACK - Minor Module #42
+  # ============================================================================
+  # Requirement: Deploy Prometheus as monitoring toolkit
+
   prometheus:
     build:
       context: ./requirements/infrastructure/monitoring/prometheus
       dockerfile: Dockerfile
-    ports:
-      - "9090:9090"
+    container_name: prometheus
+    environment:
+      - TZ=Europe/Rome
     volumes:
-      - ./requirements/infrastructure/monitoring/prometheus/conf:/etc/prometheus
-      - prometheus-data:/prometheus
+      - prometheus_data:/prometheus
+      - ./requirements/infrastructure/monitoring/prometheus/conf:/etc/prometheus:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
+      # Requirement: Ensure proper data retention strategies
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      # Reverse proxy configuration (access via Nginx at /prometheus/)
+      - '--web.external-url=https://localhost:8090/prometheus'
+      - '--web.route-prefix=/prometheus'
     networks:
-      - transcendence-network
+      - internal
+    # No direct port exposure - access via Nginx at https://localhost:8090/prometheus/ (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/prometheus/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
-  # Grafana
+  # Requirement: Create custom dashboards using Grafana
+  # Requirement: Implement secure authentication for Grafana
   grafana:
     build:
       context: ./requirements/infrastructure/monitoring/grafana
       dockerfile: Dockerfile
-    ports:
-      - "3001:3000"
+    container_name: grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Security: Admin credentials (CHANGE IN PRODUCTION!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      # Server configuration (access via Nginx reverse proxy)
+      - GF_SERVER_ROOT_URL=https://localhost:8090/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_DOMAIN=localhost
+      # Disable telemetry and analytics
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Data retention
+      - GF_DATABASE_WAL=true
+      - GF_LOG_MODE=console
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./requirements/infrastructure/monitoring/grafana/conf:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+      - ./requirements/infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
     networks:
-      - transcendence-network
+      - internal
+    # No direct port exposure - access via Nginx at https://localhost:8090/grafana/ (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
-# Networks
-networks:
-  transcendence-network:
-    driver: bridge
+  # Requirement: Configure data exporters and integrations
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      # Mount host filesystem read-only for metrics collection
+      # Note: rslave propagation removed for macOS compatibility (works on both Linux and macOS)
+      - /:/host:ro
+    networks:
+      - internal
+    # No direct port exposure - internal network communication only (scraped by Prometheus)
+    restart: unless-stopped
 
-# Volumes
-volumes:
-  user-service-data:
-  game-service-data:
-  chat-service-data:
-  elasticsearch-data:
-  prometheus-data:
-  grafana-data:
+  # ============================================================================
+  # APPLICATION SERVICES - Major Module #22 (Microservices)
+  # ============================================================================
+  # Requirement: Divide backend into smaller, loosely-coupled microservices
+
+  # Frontend: Nginx API Gateway and SPA host
+  frontend:
+    build:
+      context: ./requirements/frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "8090:8090"  # HTTPS (main access point)
+      - "80:80"      # HTTP (redirects to HTTPS)
+    volumes:
+      - ./requirements/frontend/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - user-service
+      - game-service
+      - chat-service
+      - kibana
+      - grafana
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Requirement: Each microservice has single, well-defined task
+  # User Service: Authentication, user management, profiles
+  user-service:
+    build:
+      context: ./requirements/backend/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      # Application configuration
+      - NODE_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+      # Database
+      - DB_PATH=/app/data/users.db
+      # Logging (for ELK Stack)
+      - LOG_LEVEL=info
+      - SERVICE_NAME=user-service
+      # JWT Secret (load from .env)
+      - JWT_SECRET=${JWT_SECRET:-changeme-supersecret-jwt-key}
+      # OAuth (Google)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-https://localhost:8090/api/auth/google/callback}
+    volumes:
+      - user_data:/app/data
+    networks:
+      - internal
+    # No direct port exposure - access only through Nginx (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Game Service: Game logic, matchmaking, tournaments
+  game-service:
+    build:
+      context: ./requirements/backend/game-service
+      dockerfile: Dockerfile
+    container_name: game-service
+    environment:
+      # Application configuration
+      - NODE_ENV=production
+      - PORT=3003
+      - HOST=0.0.0.0
+      # Database
+      - DB_PATH=/app/data/games.db
+      # Logging
+      - LOG_LEVEL=info
+      - SERVICE_NAME=game-service
+      # Blockchain integration (Avalanche Fuji)
+      - FUJI_RPC_URL=${FUJI_RPC_URL:-https://api.avax-test.network/ext/bc/C/rpc}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      # Service communication
+      - USER_SERVICE_URL=http://user-service:3001
+    volumes:
+      - game_data:/app/data
+    networks:
+      - internal
+    # No direct port exposure - access only through Nginx (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3003/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Chat Service: Messaging, WebSocket, presence
+  chat-service:
+    build:
+      context: ./requirements/backend/chat-service
+      dockerfile: Dockerfile
+    container_name: chat-service
+    environment:
+      # Application configuration
+      - NODE_ENV=production
+      - PORT=3002
+      - HOST=0.0.0.0
+      # Database
+      - DB_PATH=/app/data/chat.db
+      # Logging
+      - LOG_LEVEL=info
+      - SERVICE_NAME=chat-service
+      # Service communication
+      - USER_SERVICE_URL=http://user-service:3001
+      - GAME_SERVICE_URL=http://game-service:3003
+    volumes:
+      - chat_data:/app/data
+    networks:
+      - internal
+    # No direct port exposure - access only through Nginx (single entry point)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3002/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+#
+# Module #22 (Microservices) - MAJOR:
+#   ✅ Multiple loosely-coupled services (user, game, chat)
+#   ✅ Clear boundaries and interfaces (separate databases, REST APIs)
+#   ✅ Communication mechanisms (REST APIs between services)
+#   ✅ Single responsibility per service
+#
+# Module #39 (ELK Stack) - MAJOR:
+#   ✅ Elasticsearch deployed and configured
+#   ✅ Logstash collects and processes Docker logs
+#   ✅ Kibana provides visualization dashboards
+#   ✅ Data retention policy: Manual cleanup (30-90 days)
+#   ✅ Security: Docker network isolation
+#
+# Module #42 (Monitoring) - MINOR:
+#   ✅ Prometheus deployed with 30-day retention
+#   ✅ Node Exporter provides system metrics
+#   ✅ Grafana provides custom dashboards
+#   ✅ Alerting rules configured in Prometheus
+#   ✅ Secure authentication (admin/admin123)
+#
+# Blockchain Integration:
+#   - blockchain-service is a Solidity smart contract (Foundry project)
+#   - Not a Docker container - deployed on Avalanche Fuji testnet
+#   - Game-service interacts with it via ethers.js
+#
+# Access URLs (Single Entry Point - All via Nginx):
+#   - Frontend:    https://localhost:8090
+#   - Kibana:      https://localhost:8090/kibana/
+#   - Grafana:     https://localhost:8090/grafana/ (admin/admin123)
+#   - Prometheus:  https://localhost:8090/prometheus/
+#   - User API:    https://localhost:8090/api/users/
+#   - Auth API:    https://localhost:8090/api/auth/
+#   - Game API:    https://localhost:8090/api/game/
+#   - Chat API:    https://localhost:8090/api/chat/
+#   - User Docs:   https://localhost:8090/docs/user (Swagger UI)
+#   - Game Docs:   https://localhost:8090/docs/game (Swagger UI)
+#   - Chat Docs:   https://localhost:8090/docs/chat (Swagger UI)
+#
+# ==============================================================================

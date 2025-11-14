@@ -1,0 +1,19 @@
+# ==============================================================================
+# Grafana Dashboard Provisioning Configuration
+# ==============================================================================
+# Purpose: Auto-load dashboards from JSON files
+# Module: #42 (Monitoring System)
+# ==============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'Trascendence Dashboards'
+    orgId: 1
+    folder: 'Trascendence'
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

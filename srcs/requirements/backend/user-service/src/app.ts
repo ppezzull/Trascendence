@@ -6,6 +6,7 @@ import oauth2 from "@fastify/oauth2";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import dotenv from "dotenv";
+import metricsPlugin from "fastify-metrics";
 
 // Carica le variabili d'ambiente
 dotenv.config();
@@ -14,10 +15,20 @@ dotenv.config();
 import userRoutes from "./routes/userRoutes";
 import authRoutes from "./routes/authRoutes";
 
-// Crea l'istanza di Fastify
+// Crea l'istanza di Fastify con Pino logger
 const fastify: FastifyInstance = Fastify({
   logger: {
     level: process.env.LOG_LEVEL || "info",
+    formatters: {
+      level: (label: string) => {
+        return { level: label };
+      },
+    },
+    timestamp: () => `,"time":"${new Date().toISOString()}"`,
+    base: {
+      service: process.env.SERVICE_NAME || 'user-service',
+      environment: process.env.NODE_ENV || 'development',
+    },
   },
 });
 
@@ -80,6 +91,13 @@ async function registerPlugins() {
       docExpansion: "full",
       deepLinking: false,
     },
+  });
+
+  // Registra Prometheus metrics endpoint
+  await fastify.register(metricsPlugin, {
+    endpoint: '/metrics',
+    defaultMetrics: { enabled: true },
+    routeMetrics: { enabled: true },
   });
 }
 

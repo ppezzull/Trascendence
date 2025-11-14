@@ -1,0 +1,19 @@
+# ==============================================================================
+# Grafana Datasource Provisioning - Prometheus
+# ==============================================================================
+# Purpose: Auto-configure Prometheus as Grafana datasource
+# Module: #42 (Monitoring System)
+# ==============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s

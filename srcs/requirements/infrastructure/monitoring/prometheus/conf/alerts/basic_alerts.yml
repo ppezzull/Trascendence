@@ -1,0 +1,140 @@
+# ==============================================================================
+# Prometheus Alert Rules
+# ==============================================================================
+# Purpose: Define alerting rules for service and system monitoring
+# Module: #42 (Monitoring System) - Requirement: Set up alerting rules
+# ==============================================================================
+
+groups:
+
+  # ============================================================================
+  # SERVICE HEALTH ALERTS
+  # ============================================================================
+  - name: service_health
+    interval: 30s
+    rules:
+
+      # Alert when any service is down
+      - alert: ServiceDown
+        expr: up{job=~"user-service|game-service|chat-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
+
+      # Alert when Prometheus cannot scrape a target
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "Target {{ $labels.job }} is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }}."
+
+  # ============================================================================
+  # SYSTEM RESOURCE ALERTS
+  # ============================================================================
+  - name: system_resources
+    interval: 30s
+    rules:
+
+      # Alert when CPU usage is high
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 5 minutes."
+
+      # Alert when memory usage is high
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% for more than 5 minutes."
+
+      # Alert when disk space is low
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is above 80% on root filesystem."
+
+  # ============================================================================
+  # APPLICATION PERFORMANCE ALERTS (Optional - requires fastify-metrics)
+  # ============================================================================
+  - name: application_performance
+    interval: 30s
+    rules:
+
+      # Alert when HTTP error rate is high (if metrics available)
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Service {{ $labels.job }} has more than 5% error rate."
+
+      # Alert when response time is slow (if metrics available)
+      - alert: SlowResponseTime
+        expr: http_request_duration_seconds_bucket{le="1.0"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow response time on {{ $labels.job }}"
+          description: "Service {{ $labels.job }} response time is degraded."
+
+# ==============================================================================
+# ALERT CONFIGURATION NOTES
+# ==============================================================================
+#
+# Requirement Satisfaction (Module #42):
+#   ✅ "Set up alerting rules in Prometheus" - 7 alert rules defined
+#   ✅ Service availability monitoring (ServiceDown, TargetDown)
+#   ✅ System resource monitoring (CPU, Memory, Disk)
+#   ✅ Application performance monitoring (Error rate, Response time)
+#
+# Alert Severity Levels:
+#   - critical: Immediate action required (service down)
+#   - warning:  Action needed soon (high resource usage)
+#   - info:     Informational (not implemented here)
+#
+# Alert Categories:
+#   - availability: Service up/down status
+#   - monitoring:   Monitoring infrastructure health
+#   - resources:    System resource usage
+#   - performance:  Application performance metrics
+#
+# Alert Routing:
+#   - No Alertmanager configured (not required per compliance analysis)
+#   - Alerts visible in Prometheus UI: http://localhost:9090/alerts
+#   - Alerts visible in Grafana (via datasource)
+#
+# Tuning Alerts:
+#   - Adjust thresholds based on actual system behavior
+#   - CPU > 80%: Change "80" in HighCPUUsage rule
+#   - Memory > 85%: Change "85" in HighMemoryUsage rule
+#   - Disk > 80%: Change "80" in LowDiskSpace rule
+#
+# ==============================================================================

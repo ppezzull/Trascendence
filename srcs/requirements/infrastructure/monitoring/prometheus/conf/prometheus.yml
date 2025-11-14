@@ -1,1 +1,129 @@
-<!-- placeholder -->
+# ==============================================================================
+# Prometheus Configuration
+# ==============================================================================
+# Purpose: Scrape metrics from services and system exporters
+# Module: #42 (Monitoring System)
+# ==============================================================================
+
+global:
+  # How frequently to scrape targets
+  scrape_interval: 15s
+
+  # How frequently to evaluate alerting rules
+  evaluation_interval: 15s
+
+  # Attach these labels to all time series
+  external_labels:
+    cluster: 'trascendence'
+    environment: 'production'
+
+# Requirement: Set up alerting rules in Prometheus
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+      # Note: No Alertmanager required per compliance analysis
+      # Alerts are configured but not routed anywhere (school project)
+
+# Load alerting rules
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+# Requirement: Configure data exporters and integrations
+scrape_configs:
+
+  # ============================================================================
+  # PROMETHEUS SELF-MONITORING
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          type: 'infrastructure'
+
+  # ============================================================================
+  # SYSTEM METRICS - Node Exporter (REQUIRED for Module #42)
+  # ============================================================================
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          type: 'infrastructure'
+
+  # ============================================================================
+  # APPLICATION SERVICES (Requirement: Integrate with application metrics)
+  # ============================================================================
+
+  # User Service - Authentication and user management
+  - job_name: 'user-service'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['user-service:3001']
+        labels:
+          service: 'user-service'
+          type: 'backend'
+          language: 'nodejs'
+
+  # Game Service - Game logic and matchmaking
+  - job_name: 'game-service'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['game-service:3003']
+        labels:
+          service: 'game-service'
+          type: 'backend'
+          language: 'nodejs'
+
+  # Chat Service - Messaging and WebSocket
+  - job_name: 'chat-service'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['chat-service:3002']
+        labels:
+          service: 'chat-service'
+          type: 'backend'
+          language: 'nodejs'
+
+  # ============================================================================
+  # OPTIONAL: Additional Infrastructure Monitoring
+  # ============================================================================
+
+  # Elasticsearch (if metrics endpoint is available)
+  # - job_name: 'elasticsearch'
+  #   metrics_path: '/_prometheus/metrics'
+  #   static_configs:
+  #     - targets: ['elasticsearch:9200']
+
+# ==============================================================================
+# CONFIGURATION NOTES
+# ==============================================================================
+#
+# Data Retention (Module #42 Requirement):
+#   - Configured via command-line flags in docker-compose.yml:
+#     --storage.tsdb.retention.time=30d
+#     --storage.tsdb.retention.size=10GB
+#
+# Scrape Targets Status:
+#   - View at: http://localhost:9090/targets
+#   - All services must show "UP" status
+#
+# Service Discovery:
+#   - Static configuration (sufficient for fixed container deployment)
+#   - Services are discovered via Docker Compose service names
+#
+# Required Service Modifications:
+#   - Services must expose /metrics endpoint (fastify-metrics)
+#   - If /metrics returns 404, Prometheus will show service as DOWN
+#   - See: COLLEAGUE-COORDINATION-REQUIRED.md
+#
+# Security:
+#   - Prometheus is on internal Docker network only
+#   - No authentication required (not exposed publicly)
+#   - Access via Grafana (which has authentication)
+#
+# ==============================================================================
