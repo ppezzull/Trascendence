@@ -500,6 +500,58 @@ docker exec kibana curl -s -X POST \
 
 ---
 
+## Platform Compatibility
+
+### Docker Desktop for Mac/Windows Limitation
+
+**Important:** Dashboards 2 (Application Logs Overview) and 3 (Service Health Monitor) require direct filesystem access to Docker container logs stored at `/var/lib/docker/containers/`.
+
+| Dashboard | Mac/Windows (Docker Desktop) | Linux |
+|-----------|------------------------------|-------|
+| **Dashboard 1: HTTP Traffic Analytics** | ✅ Full functionality | ✅ Full functionality |
+| **Dashboard 2: Application Logs Overview** | ⚠️ No data (requires Linux) | ✅ Full functionality |
+| **Dashboard 3: Service Health Monitor** | ⚠️ No data (requires Linux) | ✅ Full functionality |
+
+### Why This Limitation Exists
+
+**On Linux hosts:**
+- Docker containers write logs to `/var/lib/docker/containers/`
+- Logstash can read these files directly via volume mount
+- All 3 dashboards work perfectly ✅
+
+**On Docker Desktop (Mac/Windows):**
+- Docker runs inside a Linux VM managed by Docker Desktop
+- Container logs are inside the VM filesystem, not accessible to host
+- Volume mount `/var/lib/docker/containers:/var/lib/docker/containers:ro` silently fails
+- Only Dashboard 1 works (uses nginx logs from named volume) ✅
+- Dashboards 2 & 3 show "No results" because `application-logs-*` indices are empty ⚠️
+
+### Verification
+
+#### Check if Application Logs Are Being Collected
+
+```bash
+# Check for application-logs indices
+docker exec elasticsearch curl -s "localhost:9200/_cat/indices/application-logs-*?v"
+
+# On Mac: Returns empty (no indices)
+# On Linux: Returns list of application-logs-* indices
+```
+
+#### Verify Logstash Can Access Container Logs
+
+```bash
+# Check if path exists and is readable
+docker exec logstash ls -la /var/lib/docker/containers/
+
+# On Mac: "Permission denied" or "No such file or directory"
+# On Linux: Lists container directories
+```
+
+This is a **known Docker Desktop limitation**, not an implementation error. The dashboards are correctly implemented and work perfectly on Linux systems.
+
+---
+
 ## Troubleshooting
 
 ### Dashboard Shows "No Results Found"
