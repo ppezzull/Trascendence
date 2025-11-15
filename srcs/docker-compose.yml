@@ -253,6 +253,18 @@ services:
     # No direct port exposure - internal network communication only (scraped by Prometheus)
     restart: unless-stopped
 
+  # Nginx Prometheus Exporter
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.0
+    container_name: nginx-exporter
+    command:
+      - -nginx.scrape-uri=http://frontend:8080/stub_status
+    networks:
+      - internal
+    restart: unless-stopped
+    depends_on:
+      - frontend
+
   # ============================================================================
   # APPLICATION SERVICES - Major Module #22 (Microservices)
   # ============================================================================

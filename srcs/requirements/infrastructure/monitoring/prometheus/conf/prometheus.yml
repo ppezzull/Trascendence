@@ -93,6 +93,15 @@ scrape_configs:
   # OPTIONAL: Additional Infrastructure Monitoring
   # ============================================================================
 
+  # Nginx Exporter - Frontend metrics
+  - job_name: 'nginx-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+          type: 'infrastructure'
+
   # Elasticsearch (if metrics endpoint is available)
   # - job_name: 'elasticsearch'
   #   metrics_path: '/_prometheus/metrics'
