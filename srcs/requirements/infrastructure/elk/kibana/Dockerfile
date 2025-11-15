@@ -5,7 +5,9 @@
 # Module: #39 (ELK Stack for Log Management)
 # ==============================================================================
 #
-# Auto-provisions index patterns on startup for nginx-logs and application-logs
+# Auto-provisions on startup:
+#   - Index patterns: nginx-logs-*, application-logs-*
+#   - Dashboards: HTTP Traffic Analytics, Application Logs, Service Health
 # ==============================================================================
 
 FROM docker.elastic.co/kibana/kibana:8.11.1
@@ -19,8 +21,9 @@ RUN apt-get update && apt-get install -y curl && apt-get clean && rm -rf /var/li
 # Create directory for saved objects
 RUN mkdir -p /usr/share/kibana/saved-objects
 
-# Copy saved objects (index patterns)
+# Copy saved objects (index patterns and dashboards)
 COPY saved-objects/index-patterns.ndjson /usr/share/kibana/saved-objects/
+COPY saved-objects/dashboards.ndjson /usr/share/kibana/saved-objects/
 
 # Copy entrypoint script
 COPY tools/entrypoint.sh /usr/local/bin/kibana-entrypoint.sh
