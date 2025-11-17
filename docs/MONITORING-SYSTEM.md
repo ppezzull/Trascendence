@@ -376,7 +376,8 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://prometheus:9090/prometheus
+    uid: PBFA97CFB590B2093
     isDefault: true
     editable: true
     jsonData:
@@ -728,7 +729,8 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://prometheus:9090/prometheus
+    uid: PBFA97CFB590B2093
     isDefault: true
     editable: true
     jsonData:
