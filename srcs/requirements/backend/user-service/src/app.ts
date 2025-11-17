@@ -35,8 +35,13 @@ const fastify: FastifyInstance = Fastify({
 // Registra i plugin
 async function registerPlugins() {
   // Abilita CORS
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
   await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN || true,
+    origin: corsOrigins,
+    credentials: true,
   });
 
   // Abilita Helmet per la sicurezza

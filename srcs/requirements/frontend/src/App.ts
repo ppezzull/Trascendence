@@ -1,6 +1,8 @@
 import { Router } from './router/Router'
 import { Navbar } from './components/Navbar'
 import { ApiService } from './services/ApiService'
+import { authService } from './services/AuthService'
+import { createAuthGuard } from './components/AuthGuard'
 import { PongCanvas } from './components/PongCanvas'
 import { ChatBox } from './components/ChatBox'
 import { BreakoutCanvas } from './components/BreakoutCanvas'
@@ -9,6 +11,7 @@ import { GameSettingsComponent } from './components/GameSettings'
 export class App {
   private router: Router
   private apiService: ApiService
+  private chatBox: ChatBox | null = null
 
   constructor() {
     this.router = new Router()
@@ -84,7 +87,7 @@ export class App {
 
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
-        <h1 class="cyber-title text-center text-4xl mb-8">TRAScENDENCE</h1>
+        <h1 class="cyber-title text-center text-4xl mb-8">TRASCENDENCE</h1>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="cyber-card">
             <h2 class="text-xl font-bold text-cyber-green mb-4">Benvenuto nella Piattaforma Cyber</h2>
@@ -169,6 +172,9 @@ export class App {
           <div>
             <label for="password" class="block text-sm font-medium text-cyber-green mb-1">Password</label>
             <input type="password" id="password" name="password" class="cyber-input" required>
+            <p class="text-xs text-gray-400 mt-1">
+              La password deve contenere almeno 8 caratteri, una lettera maiuscola, una lettera minuscola e un numero
+            </p>
           </div>
           <div>
             <label for="confirm-password" class="block text-sm font-medium text-cyber-green mb-1">Conferma Password</label>
@@ -294,49 +300,81 @@ export class App {
     const contentElement = document.getElementById('content')
     if (!contentElement) return
 
+    // Check authentication state before applying auth guard
+    const authState = authService.getState()
+    console.log('Profile page - Auth state:', authState)
+
+    if (!authState.isAuthenticated) {
+      console.log('Profile page - User not authenticated, redirecting to login')
+      // Redirect to login if not authenticated
+      this.router.navigate('/login')
+      return
+    }
+
+    console.log('Profile page - User authenticated, showing profile')
+    // Create and apply auth guard to profile page
+    const authGuard = createAuthGuard({ requireAuth: true })
+    authGuard.protect(contentElement)
+
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
-        <h1 class="cyber-title text-center">PROFILO UTENTE</h1>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="cyber-card">
-            <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni</h2>
-            <div class="space-y-2">
-              <div class="flex justify-between">
-                <span>Username:</span>
-                <span id="profile-username">CyberPlayer</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Email:</span>
-                <span id="profile-email">player@cyber.com</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Stato:</span>
-                <span class="text-cyber-cyan">Online</span>
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="cyber-title text-3xl">PROFILO UTENTE</h1>
+          <button id="logout-btn" class="cyber-button-sm">
+            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+          </button>
+        </div>
+
+        <div id="profile-loading" class="text-center text-cyber-green py-8">
+          <i class="fas fa-spinner fa-spin text-2xl"></i>
+          <p class="mt-2">Caricamento profilo...</p>
+        </div>
+
+        <div id="profile-content" class="hidden">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni</h2>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span>Username:</span>
+                  <span id="profile-username">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Email:</span>
+                  <span id="profile-email">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Display Name:</span>
+                  <span id="profile-display-name">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Stato:</span>
+                  <span id="profile-status" class="text-cyber-cyan">Online</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div class="cyber-card">
-            <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Pong</h2>
-            <div class="space-y-2">
-              <div class="flex justify-between">
-                <span>Vittorie:</span>
-                <span id="pong-wins">42</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Sconfitte:</span>
-                <span id="pong-losses">18</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Ratio:</span>
-                <span id="pong-ratio">2.33</span>
+
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Pong</h2>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span>Vittorie:</span>
+                  <span id="pong-wins">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Sconfitte:</span>
+                  <span id="pong-losses">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Ratio:</span>
+                  <span id="pong-ratio">-</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div class="cyber-card">
-            <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Breakout</h2>
-            <div class="space-y-2">
+
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Breakout</h2>
+              <div class="space-y-2">
               <div class="flex justify-between">
                 <span>Livelli Completati:</span>
                 <span id="breakout-levels">15</span>
@@ -347,13 +385,129 @@ export class App {
               </div>
               <div class="flex justify-between">
                 <span>Power-up Raccolti:</span>
-                <span id="breakout-powerups">87</span>
+                <span id="breakout-powerups">-</span>
               </div>
             </div>
           </div>
         </div>
       </div>
     `
+
+    // Load real user data and stats
+    this.loadProfileData()
+
+    // Add logout event listener
+    const logoutBtn = document.getElementById('logout-btn')
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        this.handleLogout()
+      })
+    }
+  }
+
+  private async loadProfileData() {
+    try {
+      const authState = authService.getState()
+
+      if (!authState.isAuthenticated || !authState.user) {
+        this.router.navigate('/login')
+        return
+      }
+
+      // Show loading
+      const loadingElement = document.getElementById('profile-loading')
+      const contentElement = document.getElementById('profile-content')
+
+      if (loadingElement) loadingElement.classList.remove('hidden')
+      if (contentElement) contentElement.classList.add('hidden')
+
+      // Get user stats from API
+      const userStatsResponse = await this.apiService.getUserStats(authState.user.id)
+
+      if (userStatsResponse.success && userStatsResponse.data) {
+        // Update profile with real data
+        this.updateProfileDisplay(authState.user, userStatsResponse.data)
+      } else {
+        // Show error and use basic user info
+        this.updateProfileDisplay(authState.user, null)
+        this.showNotification('Impossibile caricare le statistiche', 'error')
+      }
+
+      // Hide loading, show content
+      if (loadingElement) loadingElement.classList.add('hidden')
+      if (contentElement) contentElement.classList.remove('hidden')
+
+    } catch (error) {
+      console.error('Error loading profile data:', error)
+
+      const loadingElement = document.getElementById('profile-loading')
+      const contentElement = document.getElementById('profile-content')
+
+      if (loadingElement) loadingElement.classList.add('hidden')
+      if (contentElement) contentElement.classList.remove('hidden')
+
+      this.showNotification('Errore nel caricamento del profilo', 'error')
+    }
+  }
+
+  private updateProfileDisplay(user: any, stats: any) {
+    // Update user info
+    const usernameEl = document.getElementById('profile-username')
+    const emailEl = document.getElementById('profile-email')
+    const displayNameEl = document.getElementById('profile-display-name')
+
+    if (usernameEl) usernameEl.textContent = user.username || 'N/A'
+    if (emailEl) emailEl.textContent = user.email || 'N/A'
+    if (displayNameEl) displayNameEl.textContent = user.display_name || user.username || 'N/A'
+
+    // Update stats if available - handle the actual API response format
+    if (stats) {
+      const pongWinsEl = document.getElementById('pong-wins')
+      const pongLossesEl = document.getElementById('pong-losses')
+      const pongRatioEl = document.getElementById('pong-ratio')
+      const tournamentsPlayedEl = document.getElementById('tournaments-played')
+      const tournamentsWonEl = document.getElementById('tournaments-won')
+
+      // Handle API response format: { wins: 0, losses: 0, tournaments_played: 0, tournaments_won: 0 }
+      const wins = stats.wins || stats.pong?.wins || '0'
+      const losses = stats.losses || stats.pong?.losses || '0'
+      const tournamentsPlayed = stats.tournaments_played || stats.tournaments?.played || '0'
+      const tournamentsWon = stats.tournaments_won || stats.tournaments?.won || '0'
+
+      if (pongWinsEl) pongWinsEl.textContent = wins.toString()
+      if (pongLossesEl) pongLossesEl.textContent = losses.toString()
+      if (tournamentsPlayedEl) tournamentsPlayedEl.textContent = tournamentsPlayed.toString()
+      if (tournamentsWonEl) tournamentsWonEl.textContent = tournamentsWon.toString()
+
+      if (pongRatioEl) {
+        const winsNum = parseInt(wins.toString())
+        const lossesNum = parseInt(losses.toString())
+        const ratio = lossesNum > 0
+          ? (winsNum / lossesNum).toFixed(2)
+          : winsNum > 0 ? '∞' : '0'
+        pongRatioEl.textContent = ratio
+      }
+
+      // For breakout stats, use placeholder data since API doesn't return them yet
+      const breakoutLevelsEl = document.getElementById('breakout-levels')
+      const breakoutHighscoreEl = document.getElementById('breakout-highscore')
+      const breakoutPowerupsEl = document.getElementById('breakout-powerups')
+
+      if (breakoutLevelsEl) breakoutLevelsEl.textContent = stats.breakout?.levels || '0'
+      if (breakoutHighscoreEl) breakoutHighscoreEl.textContent = stats.breakout?.highscore || '0'
+      if (breakoutPowerupsEl) breakoutPowerupsEl.textContent = stats.breakout?.powerups || '0'
+    }
+  }
+
+  private async handleLogout() {
+    try {
+      await authService.logout()
+      this.showNotification('Logout effettuato con successo', 'success')
+      this.router.navigate('/')
+    } catch (error) {
+      console.error('Logout error:', error)
+      this.showNotification('Errore durante il logout', 'error')
+    }
   }
 
   private async renderSettingsPage() {
@@ -388,23 +542,23 @@ export class App {
     event.preventDefault()
     const form = event.target as HTMLFormElement
     const formData = new FormData(form)
-    
+
     const email = formData.get('email') as string
     const password = formData.get('password') as string
-    
+
     try {
-      // Call API service for login
-      const response = await this.apiService.login(email, password)
-      
+      // Use AuthService for login (this handles token storage and state management)
+      const response = await authService.login(email, password)
+
       if (response.success) {
-        // Store auth token
-        localStorage.setItem('authToken', response.token || '')
-        
-        // Redirect to home page
-        this.router.navigate('/')
+        // Show success notification
+        this.showNotification('Login effettuato con successo!', 'success')
+
+        // Redirect to profile page
+        this.router.navigate('/profile')
       } else {
         // Show error message
-        this.showNotification('Credenziali non valide. Riprova.', 'error')
+        this.showNotification(response.message || 'Credenziali non valide. Riprova.', 'error')
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -412,19 +566,46 @@ export class App {
     }
   }
 
+  private validatePassword(password: string): { isValid: boolean; message: string } {
+    if (password.length < 8) {
+      return { isValid: false, message: 'La password deve contenere almeno 8 caratteri.' }
+    }
+
+    if (!/(?=.*[a-z])/.test(password)) {
+      return { isValid: false, message: 'La password deve contenere almeno una lettera minuscola.' }
+    }
+
+    if (!/(?=.*[A-Z])/.test(password)) {
+      return { isValid: false, message: 'La password deve contenere almeno una lettera maiuscola.' }
+    }
+
+    if (!/(?=.*\d)/.test(password)) {
+      return { isValid: false, message: 'La password deve contenere almeno un numero.' }
+    }
+
+    return { isValid: true, message: '' }
+  }
+
   private async handleRegister(event: Event) {
     event.preventDefault()
     const form = event.target as HTMLFormElement
     const formData = new FormData(form)
-    
+
     const username = formData.get('username') as string
     const email = formData.get('email') as string
     const displayName = formData.get('display-name') as string
     const password = formData.get('password') as string
     const confirmPassword = formData.get('confirm-password') as string
-    
+
     if (password !== confirmPassword) {
       this.showNotification('Le password non coincidono.', 'error')
+      return
+    }
+
+    // Validate password requirements
+    const passwordValidation = this.validatePassword(password)
+    if (!passwordValidation.isValid) {
+      this.showNotification(passwordValidation.message, 'error')
       return
     }
     
@@ -584,13 +765,18 @@ export class App {
   private initializeChat() {
     const chatMain = document.getElementById('chat-main')
     if (!chatMain) return
-    
+
+    // Cleanup existing chatBox if any
+    if (this.chatBox) {
+      this.chatBox.cleanup()
+    }
+
     // Create and initialize ChatBox
-    const chatBox = new ChatBox()
-    chatBox.render(chatMain)
-    
+    this.chatBox = new ChatBox()
+    this.chatBox.render(chatMain)
+
     // Make chatBox globally available for button onclick handlers
-    window.chatBox = chatBox
+    window.chatBox = this.chatBox
     
     // Add event listeners for chat controls
     const sendButton = document.getElementById('send-message')

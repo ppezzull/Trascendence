@@ -8,7 +8,7 @@ export class Navbar {
           <!-- Logo -->
           <div class="flex items-center">
             <a href="/" class="text-cyber-green font-bold text-xl tracking-wider hover:text-cyber-cyan transition-colors">
-              TRAScENDENCE
+              TRASCENDENCE
             </a>
           </div>
           

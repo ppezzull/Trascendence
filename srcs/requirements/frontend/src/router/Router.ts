@@ -7,26 +7,28 @@ export class Router {
   private routes: Map<string, () => void> = new Map()
   private notFoundCallback: () => void = () => {}
   private currentPath: string = ''
+  private isInitialized: boolean = false
 
   constructor() {
-    // Initialize router
-    this.init()
+    // Don't initialize immediately - wait for routes to be added
   }
 
   private init() {
+    if (this.isInitialized) return
+
     // Handle initial route
     this.handleRoute()
-    
+
     // Listen for popstate events (browser back/forward buttons)
     window.addEventListener('popstate', () => {
       this.handleRoute()
     })
-    
+
     // Intercept all anchor clicks to use History API
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement
       const anchor = target.closest('a')
-      
+
       if (anchor && anchor.href) {
         const url = new URL(anchor.href)
         // Only handle internal links
@@ -36,6 +38,8 @@ export class Router {
         }
       }
     })
+
+    this.isInitialized = true
   }
 
   public addRoute(path: string, callback: () => void): void {
@@ -47,7 +51,8 @@ export class Router {
   }
 
   public start(): void {
-    // Router is already initialized in constructor
+    // Initialize router now that all routes have been added
+    this.init()
     console.log('Router started')
   }
 
