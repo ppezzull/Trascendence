@@ -11,6 +11,10 @@
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
         "type": "graph",
         "title": "CPU Usage",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "targets": [
           {
             "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
@@ -28,6 +32,10 @@
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
         "type": "graph",
         "title": "Memory Usage",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "targets": [
           {
             "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
@@ -45,9 +53,13 @@
         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
         "type": "graph",
         "title": "Disk Usage",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "targets": [
           {
-            "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})) * 100",
+            "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=~\"/|/var/lib/docker\"} / node_filesystem_size_bytes{mountpoint=~\"/|/var/lib/docker\"})) * 100",
             "legendFormat": "Disk Usage %",
             "refId": "A"
           }
@@ -62,6 +74,10 @@
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
         "type": "stat",
         "title": "Service Status",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "targets": [
           {
             "expr": "up{job=~\"user-service|game-service|chat-service\"}",

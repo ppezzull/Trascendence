@@ -11,6 +11,10 @@
       "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
       "type": "stat",
       "title": "Active Connections",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "targets": [
         {
           "expr": "nginx_connections_active",
@@ -53,6 +57,10 @@
       "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
       "type": "stat",
       "title": "Total Requests",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "targets": [
         {
           "expr": "nginx_http_requests_total",
@@ -87,6 +95,10 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "type": "graph",
       "title": "HTTP Request Rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "targets": [
         {
           "expr": "rate(nginx_http_requests_total[5m])",
@@ -133,6 +145,10 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
       "type": "graph",
       "title": "Connection States",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "targets": [
         {
           "expr": "nginx_connections_active",
