@@ -175,6 +175,7 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ./requirements/infrastructure/monitoring/prometheus/conf:/etc/prometheus:ro
+      - ./requirements/infrastructure/monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
