@@ -1,0 +1,60 @@
+# ==============================================================================
+# Prometheus Alert Rules - Critical Alerts
+# ==============================================================================
+# Purpose: Define essential alert rules for system and service monitoring
+# Module: #42 (Monitoring System)
+# ==============================================================================
+
+groups:
+  - name: critical_alerts
+    interval: 30s
+    rules:
+      # Service completely down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for 1 minute"
+
+      # High CPU usage (above 90%)
+      - alert: HighCPU
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage above 90%"
+          description: "CPU usage is {{ $value | printf \"%.2f\" }}%"
+
+      # High memory usage (above 90%)
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage above 90%"
+          description: "Memory usage is {{ $value | printf \"%.2f\" }}%"
+
+      # Low disk space (below 10%) - cross-platform compatible
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/docker"} / node_filesystem_size_bytes{mountpoint=~"/|/var/lib/docker"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space below 10%"
+          description: "Only {{ $value | printf \"%.2f\" }}% disk space remaining"
+
+      # Nginx exporter down
+      - alert: NginxDown
+        expr: up{job="nginx-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nginx monitoring is down"
+          description: "Cannot collect nginx metrics"
