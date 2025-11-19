@@ -1,10 +1,10 @@
 export interface Route {
   path: string
-  callback: () => void
+  callback: (params?: Record<string, string>) => void
 }
 
 export class Router {
-  private routes: Map<string, () => void> = new Map()
+  private routes: Map<string, (params?: Record<string, string>) => void> = new Map()
   private notFoundCallback: () => void = () => {}
   private currentPath: string = ''
   private isInitialized: boolean = false
@@ -42,7 +42,7 @@ export class Router {
     this.isInitialized = true
   }
 
-  public addRoute(path: string, callback: () => void): void {
+  public addRoute(path: string, callback: (params?: Record<string, string>) => void): void {
     this.routes.set(path, callback)
   }
 
@@ -74,7 +74,8 @@ export class Router {
       const matchedRoute = this.findDynamicRoute(path)
       
       if (matchedRoute) {
-        matchedRoute.callback()
+        const params = this.extractParams(matchedRoute.path, path)
+        matchedRoute.callback(params)
       } else {
         // Route not found
         this.notFoundCallback()
@@ -82,7 +83,22 @@ export class Router {
     }
   }
 
-  private findDynamicRoute(path: string): { path: string, callback: () => void } | null {
+  private extractParams(routePath: string, actualPath: string): Record<string, string> {
+    const params: Record<string, string> = {}
+    const routeSegments = routePath.split('/')
+    const pathSegments = actualPath.split('/')
+    
+    for (let i = 0; i < routeSegments.length; i++) {
+      if (routeSegments[i].startsWith(':')) {
+        const paramName = routeSegments[i].substring(1)
+        params[paramName] = pathSegments[i]
+      }
+    }
+    
+    return params
+  }
+
+  private findDynamicRoute(path: string): { path: string, callback: (params?: Record<string, string>) => void } | null {
     // Simple dynamic route matching
     // This could be enhanced with more sophisticated pattern matching
     

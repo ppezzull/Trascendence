@@ -8,6 +8,14 @@ import { ChatBox } from './components/ChatBox'
 import { BreakoutCanvas } from './components/BreakoutCanvas'
 import { GameSettingsComponent } from './components/GameSettings'
 
+// Declare global app instance for button onclick handlers
+declare global {
+  interface Window {
+    app: App
+    chatBox: ChatBox
+  }
+}
+
 export class App {
   private router: Router
   private apiService: ApiService
@@ -52,6 +60,9 @@ export class App {
     
     // Setup routing
     this.setupRouting()
+    
+    // Make app instance globally available for button onclick handlers
+    window.app = this
   }
 
   private initializeComponents() {
@@ -85,6 +96,8 @@ export class App {
     this.router.addRoute('/games', () => this.renderGamesPage())
     this.router.addRoute('/pong', () => this.renderPongPage())
     this.router.addRoute('/breakout', () => this.renderBreakoutPage())
+    this.router.addRoute('/tournaments', () => this.renderTournamentsPage())
+    this.router.addRoute('/tournament/:id', (params: any) => this.renderTournamentDetailsPage(params.id))
     this.router.addRoute('/chat', () => this.renderChatPage())
     this.router.addRoute('/profile', () => this.renderProfilePage())
     this.router.addRoute('/settings', () => this.renderSettingsPage())
@@ -217,7 +230,7 @@ export class App {
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">SELEZIONA GIOCO</h1>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">PONG 3D</h2>
             <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D e stile cyberpunk</p>
@@ -228,6 +241,12 @@ export class App {
             <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT CYBER</h2>
             <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica con effetti speciali</p>
             <a href="/breakout" class="cyber-button inline-block">Gioca Ora</a>
+          </div>
+          
+          <div class="cyber-card text-center">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI CYBER</h2>
+            <p class="terminal-text mb-4">Partecipa a tornei epici e diventa il campione della piattaforma</p>
+            <a href="/tournaments" class="cyber-button inline-block">Scopri Tornei</a>
           </div>
         </div>
       </div>
@@ -245,8 +264,26 @@ export class App {
           <div id="pong-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
             <!-- 3D Canvas will be rendered here -->
           </div>
-          <div class="flex space-x-4">
-            <button id="start-game" class="cyber-button">Inizia Partita</button>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS 1</h2>
+              <p class="terminal-text text-sm mb-4 text-center">Sfida un altro giocatore sullo stesso dispositivo</p>
+              <button id="start-pvp" class="cyber-button w-full">Inizia Partita</button>
+            </div>
+            
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS BOT</h2>
+              <p class="terminal-text text-sm mb-4 text-center">Sfida l'IA con diversi livelli di difficoltà</p>
+              <div class="space-y-2 mb-4">
+                <button id="start-pve-easy" class="cyber-button-sm w-full">Facile</button>
+                <button id="start-pve-medium" class="cyber-button-sm w-full">Medio</button>
+                <button id="start-pve-hard" class="cyber-button-sm w-full">Difficile</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4">
             <button id="game-settings" class="cyber-button">Impostazioni</button>
           </div>
         </div>
@@ -268,8 +305,14 @@ export class App {
           <div id="breakout-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
             <!-- 3D Canvas will be rendered here -->
           </div>
-          <div class="flex space-x-4">
-            <button id="start-breakout" class="cyber-button">Inizia Partita</button>
+          
+          <div class="cyber-card w-full max-w-2xl">
+            <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS 1</h2>
+            <p class="terminal-text text-sm mb-4 text-center">Sfida un altro giocatore sullo stesso dispositivo</p>
+            <button id="start-breakout" class="cyber-button w-full">Inizia Partita</button>
+          </div>
+          
+          <div class="mt-4">
             <button id="breakout-settings" class="cyber-button">Impostazioni</button>
           </div>
         </div>
@@ -278,6 +321,269 @@ export class App {
     
     // Initialize Breakout game
     this.initializeBreakoutGame()
+  }
+
+  private renderTournamentsPage() {
+    const contentElement = document.getElementById('content')
+    if (!contentElement) return
+
+    contentElement.innerHTML = `
+      <div class="cyber-panel w-full h-full mx-auto">
+        <h1 class="cyber-title text-center">TORNEI CYBER</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="cyber-card text-center">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T4</h2>
+            <p class="terminal-text mb-4">Torneo a eliminazione diretta con 4 partecipanti</p>
+            <button id="create-t4-tournament" class="cyber-button inline-block">Crea Torneo T4</button>
+          </div>
+          
+          <div class="cyber-card text-center">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T8</h2>
+            <p class="terminal-text mb-4">Torneo a eliminazione diretta con 8 partecipanti</p>
+            <button id="create-t8-tournament" class="cyber-button inline-block">Crea Torneo T8</button>
+          </div>
+        </div>
+        
+        <div class="cyber-card">
+          <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI ATTIVI</h2>
+          <div id="active-tournaments" class="space-y-4">
+            <div class="text-center text-cyber-green py-8">
+              <i class="fas fa-spinner fa-spin text-2xl"></i>
+              <p class="mt-2">Caricamento tornei attivi...</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="cyber-card mt-6">
+          <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI PASSATI</h2>
+          <div id="past-tournaments" class="space-y-4">
+            <div class="text-center text-cyber-green py-8">
+              <i class="fas fa-spinner fa-spin text-2xl"></i>
+              <p class="mt-2">Caricamento tornei passati...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+    
+    // Initialize tournaments page
+    this.initializeTournamentsPage()
+  }
+
+  private async renderTournamentDetailsPage(tournamentId: string) {
+    const contentElement = document.getElementById('content')
+    if (!contentElement) return
+
+    contentElement.innerHTML = `
+      <div class="cyber-panel w-full h-full mx-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="cyber-title text-2xl">DETTAGLI TORNEO</h1>
+          <button id="back-to-tournaments" class="cyber-button-sm">Indietro</button>
+        </div>
+        
+        <div id="tournament-loading" class="text-center text-cyber-green py-8">
+          <i class="fas fa-spinner fa-spin text-2xl"></i>
+          <p class="mt-2">Caricamento dettagli torneo...</p>
+        </div>
+
+        <div id="tournament-content" class="hidden">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni Torneo</h2>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span>Nome:</span>
+                  <span id="tournament-name">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Gioco:</span>
+                  <span id="tournament-game">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Partecipanti:</span>
+                  <span id="tournament-participants">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Stato:</span>
+                  <span id="tournament-status">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Azioni</h2>
+              <div class="space-y-2">
+                <button id="join-tournament-btn" class="cyber-button w-full hidden">Iscriviti</button>
+                <button id="start-tournament-btn" class="cyber-button w-full hidden">Avvia Torneo</button>
+                <button id="view-bracket-btn" class="cyber-button w-full">Visualizza Bracket</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="cyber-card">
+            <h2 class="text-lg font-bold text-cyber-green mb-4">Tabellone</h2>
+            <div id="tournament-bracket" class="text-center">
+              <!-- Tournament bracket will be rendered here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+    
+    // Initialize tournament details page
+    this.initializeTournamentDetailsPage(tournamentId)
+  }
+
+  private async initializeTournamentDetailsPage(tournamentId: string) {
+    // Add event listener for back button
+    const backButton = document.getElementById('back-to-tournaments')
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        this.router.navigate('/tournaments')
+      })
+    }
+    
+    // Load tournament details
+    await this.loadTournamentDetails(tournamentId)
+  }
+
+  private async loadTournamentDetails(tournamentId: string) {
+    try {
+      const response = await this.apiService.getTournament(tournamentId)
+      
+      if (response.success && response.data) {
+        const tournament = response.data
+        this.updateTournamentDetailsDisplay(tournament)
+        
+        // Load tournament bracket
+        await this.loadTournamentBracket(tournamentId)
+      } else {
+        this.showNotification(response.message || 'Errore nel caricamento del torneo', 'error')
+        this.router.navigate('/tournaments')
+      }
+    } catch (error) {
+      console.error('Load tournament details error:', error)
+      this.showNotification('Errore durante il caricamento del torneo', 'error')
+      this.router.navigate('/tournaments')
+    }
+  }
+
+  private updateTournamentDetailsDisplay(tournament: any) {
+    // Hide loading, show content
+    const loadingElement = document.getElementById('tournament-loading')
+    const contentElement = document.getElementById('tournament-content')
+    
+    if (loadingElement) loadingElement.classList.add('hidden')
+    if (contentElement) contentElement.classList.remove('hidden')
+    
+    // Update tournament info
+    const nameElement = document.getElementById('tournament-name')
+    const gameElement = document.getElementById('tournament-game')
+    const participantsElement = document.getElementById('tournament-participants')
+    const statusElement = document.getElementById('tournament-status')
+    
+    if (nameElement) nameElement.textContent = tournament.name
+    if (gameElement) gameElement.textContent = tournament.gameType === 'pong' ? 'Pong 3D' : 'Breakout Cyber'
+    if (participantsElement) participantsElement.textContent = `${tournament.currentParticipants || 0}/${tournament.maxParticipants}`
+    if (statusElement) statusElement.textContent = this.getTournamentStatusText(tournament.status)
+    
+    // Show/hide action buttons based on tournament status
+    const joinButton = document.getElementById('join-tournament-btn')
+    const startButton = document.getElementById('start-tournament-btn')
+    
+    if (tournament.status === 'registration') {
+      if (joinButton) joinButton.classList.remove('hidden')
+      if (startButton) startButton.classList.add('hidden')
+    } else if (tournament.status === 'active') {
+      if (joinButton) joinButton.classList.add('hidden')
+      if (startButton) startButton.classList.add('hidden')
+    }
+    
+    // Add event listeners
+    if (joinButton && !joinButton.hasAttribute('data-listener')) {
+      joinButton.setAttribute('data-listener', 'true')
+      joinButton.addEventListener('click', () => {
+        this.joinTournament(tournament.id)
+      })
+    }
+    
+    if (startButton && !startButton.hasAttribute('data-listener')) {
+      startButton.setAttribute('data-listener', 'true')
+      startButton.addEventListener('click', () => {
+        this.startTournament(tournament.id)
+      })
+    }
+    
+    const bracketButton = document.getElementById('view-bracket-btn')
+    if (bracketButton && !bracketButton.hasAttribute('data-listener')) {
+      bracketButton.setAttribute('data-listener', 'true')
+      bracketButton.addEventListener('click', () => {
+        this.loadTournamentBracket(tournament.id)
+      })
+    }
+  }
+
+  private async loadTournamentBracket(tournamentId: string) {
+    try {
+      const response = await this.apiService.getTournamentBracket(tournamentId)
+      
+      if (response.success && response.data) {
+        this.renderTournamentBracket(response.data)
+      } else {
+        this.showNotification(response.message || 'Errore nel caricamento del tabellone', 'error')
+      }
+    } catch (error) {
+      console.error('Load tournament bracket error:', error)
+      this.showNotification('Errore durante il caricamento del tabellone', 'error')
+    }
+  }
+
+  private renderTournamentBracket(bracket: any) {
+    const bracketElement = document.getElementById('tournament-bracket')
+    if (!bracketElement) return
+    
+    // This is a simplified bracket rendering
+    // In a real implementation, you would create a more complex visualization
+    bracketElement.innerHTML = `
+      <div class="text-center">
+        <p class="text-cyber-green mb-4">Tabellone del torneo</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ${bracket.rounds ? bracket.rounds.map((round: any, index: number) => `
+            <div class="cyber-card">
+              <h3 class="text-lg font-bold text-cyber-green mb-2">Round ${index + 1}</h3>
+              <div class="space-y-2">
+                ${round.matches ? round.matches.map((match: any) => `
+                  <div class="border border-cyber-green rounded p-2">
+                    <div class="flex justify-between">
+                      <span>${match.player1 || 'TBD'}</span>
+                      <span>VS</span>
+                      <span>${match.player2 || 'TBD'}</span>
+                    </div>
+                    ${match.winner ? `<div class="text-cyber-cyan text-sm">Vincitore: ${match.winner}</div>` : ''}
+                  </div>
+                `).join('') : '<p>Nessuna partita</p>'}
+              </div>
+            </div>
+          `).join('') : '<p>Nessun round disponibile</p>'}
+        </div>
+      </div>
+    `
+  }
+
+  private async startTournament(tournamentId: string) {
+    try {
+      const response = await this.apiService.startTournament(tournamentId)
+      
+      if (response.success) {
+        this.showNotification('Torneo avviato con successo!', 'success')
+        this.loadTournamentDetails(tournamentId) // Reload tournament details
+      } else {
+        this.showNotification(response.message || 'Errore nell\'avvio del torneo', 'error')
+      }
+    } catch (error) {
+      console.error('Start tournament error:', error)
+      this.showNotification('Errore durante l\'avvio del torneo', 'error')
+    }
   }
 
   private renderChatPage() {
@@ -328,7 +634,7 @@ export class App {
 
     console.log('Profile page - User authenticated, showing profile')
     // Create and apply auth guard to profile page
-    const authGuard = createAuthGuard()
+    const authGuard = createAuthGuard(contentElement)
     authGuard.protect(contentElement)
 
     contentElement.innerHTML = `
@@ -697,7 +1003,7 @@ export class App {
     
     try {
       // Call API service to update game settings
-      const response = await this.apiService.updateGameSettings({
+      const response = await this.apiService.updateGameSettings('pong', {
         ballSpeed,
         powerUps,
         theme
@@ -738,11 +1044,35 @@ export class App {
     }
     
     // Add event listeners for game controls
-    const startButton = document.getElementById('start-game')
-    if (startButton) {
-      startButton.addEventListener('click', () => {
-        console.log('Starting Pong game...')
-        this.showNotification('Partita avviata!', 'success')
+    const startPvPButton = document.getElementById('start-pvp')
+    if (startPvPButton) {
+      startPvPButton.addEventListener('click', () => {
+        console.log('Starting Pong PvP game...')
+        this.startPongGame('pvp')
+      })
+    }
+    
+    const startPvEEasyButton = document.getElementById('start-pve-easy')
+    if (startPvEEasyButton) {
+      startPvEEasyButton.addEventListener('click', () => {
+        console.log('Starting Pong PvE easy game...')
+        this.startPongGame('pve', 'easy')
+      })
+    }
+    
+    const startPvEMediumButton = document.getElementById('start-pve-medium')
+    if (startPvEMediumButton) {
+      startPvEMediumButton.addEventListener('click', () => {
+        console.log('Starting Pong PvE medium game...')
+        this.startPongGame('pve', 'medium')
+      })
+    }
+    
+    const startPvEHardButton = document.getElementById('start-pve-hard')
+    if (startPvEHardButton) {
+      startPvEHardButton.addEventListener('click', () => {
+        console.log('Starting Pong PvE hard game...')
+        this.startPongGame('pve', 'hard')
       })
     }
     
@@ -752,6 +1082,15 @@ export class App {
         this.router.navigate('/settings')
       })
     }
+  }
+
+  private startPongGame(mode: 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
+    // Start the game with the specified mode and difficulty
+    const gameMode = mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`
+    this.showNotification(`Partita avviata: ${gameMode}!`, 'success')
+    
+    // Here you would initialize the actual game with the specified mode and difficulty
+    // For now, we'll just show a notification
   }
 
   private initializeBreakoutGame() {
@@ -784,7 +1123,7 @@ export class App {
     if (startButton) {
       startButton.addEventListener('click', () => {
         console.log('Starting Breakout game...')
-        this.showNotification('Partita avviata!', 'success')
+        this.startBreakoutGame()
       })
     }
     
@@ -794,6 +1133,159 @@ export class App {
         this.router.navigate('/settings')
       })
     }
+  }
+
+  private startBreakoutGame() {
+    // Start the Breakout game
+    this.showNotification('Partita Breakout avviata!', 'success')
+    
+    // Here you would initialize the actual game
+    // For now, we'll just show a notification
+  }
+
+  private initializeTournamentsPage() {
+    // Add event listeners for tournament creation
+    const createT4Button = document.getElementById('create-t4-tournament')
+    if (createT4Button) {
+      createT4Button.addEventListener('click', () => {
+        this.createTournament(4)
+      })
+    }
+    
+    const createT8Button = document.getElementById('create-t8-tournament')
+    if (createT8Button) {
+      createT8Button.addEventListener('click', () => {
+        this.createTournament(8)
+      })
+    }
+    
+    // Load tournaments
+    this.loadTournaments()
+  }
+
+  private async createTournament(maxParticipants: number) {
+    try {
+      const tournamentType = maxParticipants === 4 ? 'T4' : 'T8'
+      const tournamentData = {
+        name: `Torneo ${tournamentType} - ${new Date().toLocaleDateString()}`,
+        gameType: 'pong', // Default to pong, could be extended
+        maxParticipants,
+        type: tournamentType.toLowerCase()
+      }
+      
+      const response = await this.apiService.createTournament(tournamentData)
+      
+      if (response.success) {
+        this.showNotification(`Torneo ${tournamentType} creato con successo!`, 'success')
+        this.loadTournaments() // Reload tournaments list
+      } else {
+        this.showNotification(response.message || 'Errore nella creazione del torneo', 'error')
+      }
+    } catch (error) {
+      console.error('Create tournament error:', error)
+      this.showNotification('Errore durante la creazione del torneo', 'error')
+    }
+  }
+
+  private async loadTournaments() {
+    try {
+      const response = await this.apiService.getTournaments()
+      
+      if (response.success && response.data) {
+        const tournaments = response.data
+        const activeTournaments = tournaments.filter((t: any) => t.status === 'active' || t.status === 'registration')
+        const pastTournaments = tournaments.filter((t: any) => t.status === 'completed')
+        
+        this.renderTournamentsList(activeTournaments, 'active-tournaments')
+        this.renderTournamentsList(pastTournaments, 'past-tournaments')
+      } else {
+        this.showTournamentsError('active-tournaments')
+        this.showTournamentsError('past-tournaments')
+      }
+    } catch (error) {
+      console.error('Load tournaments error:', error)
+      this.showTournamentsError('active-tournaments')
+      this.showTournamentsError('past-tournaments')
+    }
+  }
+
+  private renderTournamentsList(tournaments: any[], containerId: string) {
+    const container = document.getElementById(containerId)
+    if (!container) return
+    
+    if (tournaments.length === 0) {
+      container.innerHTML = `
+        <div class="text-center text-gray-400 py-4">
+          <p>Nessun torneo ${containerId === 'active-tournaments' ? 'attivo' : 'passato'} disponibile</p>
+        </div>
+      `
+      return
+    }
+    
+    container.innerHTML = tournaments.map(tournament => `
+      <div class="border border-cyber-green rounded p-4 hover:bg-cyber-dark/50 transition-colors">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="text-lg font-bold text-cyber-green">${tournament.name}</h3>
+            <p class="text-sm text-gray-400">
+              Gioco: ${tournament.gameType === 'pong' ? 'Pong 3D' : 'Breakout Cyber'} | 
+              Partecipanti: ${tournament.currentParticipants || 0}/${tournament.maxParticipants} |
+              Stato: ${this.getTournamentStatusText(tournament.status)}
+            </p>
+            ${tournament.winner ? `<p class="text-sm text-cyber-cyan">Vincitore: ${tournament.winner}</p>` : ''}
+          </div>
+          <div class="flex space-x-2">
+            ${tournament.status === 'registration' ? 
+              `<button class="cyber-button-sm" onclick="app.joinTournament('${tournament.id}')">Iscriviti</button>` : 
+              tournament.status === 'active' ? 
+              `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>` :
+              `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Risultati</button>`
+            }
+          </div>
+        </div>
+      </div>
+    `).join('')
+  }
+
+  private showTournamentsError(containerId: string) {
+    const container = document.getElementById(containerId)
+    if (!container) return
+    
+    container.innerHTML = `
+      <div class="text-center text-cyber-magenta py-4">
+        <p>Errore nel caricamento dei tornei</p>
+      </div>
+    `
+  }
+
+  private getTournamentStatusText(status: string): string {
+    switch (status) {
+      case 'registration': return 'Iscrizioni aperte'
+      case 'active': return 'In corso'
+      case 'completed': return 'Completato'
+      default: return status
+    }
+  }
+
+  async joinTournament(tournamentId: string) {
+    try {
+      const response = await this.apiService.registerForTournament(tournamentId)
+      
+      if (response.success) {
+        this.showNotification('Iscrizione al torneo effettuata con successo!', 'success')
+        this.loadTournaments() // Reload tournaments list
+      } else {
+        this.showNotification(response.message || 'Errore nell\'iscrizione al torneo', 'error')
+      }
+    } catch (error) {
+      console.error('Join tournament error:', error)
+      this.showNotification('Errore durante l\'iscrizione al torneo', 'error')
+    }
+  }
+
+  viewTournament(tournamentId: string) {
+    // Navigate to tournament details page
+    this.router.navigate(`/tournament/${tournamentId}`)
   }
 
   private initializeChat() {
