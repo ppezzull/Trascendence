@@ -579,9 +579,16 @@ export class App {
         if (this.navbar && response.user) {
           const username = response.user.username || '-'
           this.navbar.updateUsername(username)
+          this.navbar['updateUserUI']()
         }
 
+        // Trigger a custom event to notify other components about the login
+      window.dispatchEvent(new CustomEvent('userLoggedIn', { 
+        detail: { user: response.user } 
+      }))
+
         // Redirect to profile page
+        
         this.router.navigate('/profile')
       } else {
         // Show error message

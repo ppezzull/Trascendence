@@ -114,6 +114,9 @@ export class Navbar {
     
     if (usernameDisplay) usernameDisplay.textContent = username
     if (mobileUsernameDisplay) mobileUsernameDisplay.textContent = username
+
+    // Also update the UI to show/hide the correct elements
+    this.updateUserUI()
   }
 
   private addEventListeners() {
