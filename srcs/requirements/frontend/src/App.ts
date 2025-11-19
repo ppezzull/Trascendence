@@ -12,6 +12,7 @@ export class App {
   private router: Router
   private apiService: ApiService
   private chatBox: ChatBox | null = null
+  private navbar: Navbar | null = null
 
   constructor() {
     this.router = new Router()
@@ -41,7 +42,7 @@ export class App {
         
         <!-- Footer -->
         <footer class="bg-cyber-dark/90 border-t border-cyber-green p-4 text-center">
-          <p class="text-cyber-green text-sm">© 2024 Trascendence - Cyber Gaming Platform</p>
+          <p class="text-cyber-green text-sm">© 2025 Trascendence - Cyber Gaming Platform</p>
         </footer>
       </div>
     `
@@ -57,9 +58,23 @@ export class App {
     // Initialize navbar
     const navbarElement = document.getElementById('navbar')
     if (navbarElement) {
-      const navbar = new Navbar()
-      navbar.render(navbarElement)
+      this.navbar = new Navbar()
+      
+      // Get current user data if authenticated
+      const authState = authService.getState()
+      const username = authState.user?.username || null
+      
+      // Render navbar with username if available
+      this.navbar.render(navbarElement, username || undefined)
     }
+    
+    // Subscribe to auth state changes to update navbar when user logs in/out
+    authService.subscribe((authState) => {
+      if (this.navbar && authState.isAuthenticated && authState.user) {
+        const username = authState.user.username || 'CyberPlayer'
+        this.navbar.updateUsername(username)
+      }
+    })
   }
 
   private setupRouting() {
@@ -313,7 +328,7 @@ export class App {
 
     console.log('Profile page - User authenticated, showing profile')
     // Create and apply auth guard to profile page
-    const authGuard = createAuthGuard({ requireAuth: true })
+    const authGuard = createAuthGuard()
     authGuard.protect(contentElement)
 
     contentElement.innerHTML = `
@@ -502,6 +517,12 @@ export class App {
   private async handleLogout() {
     try {
       await authService.logout()
+      
+      // Update navbar to reset username
+      if (this.navbar) {
+        this.navbar.updateUsername('-')
+      }
+      
       this.showNotification('Logout effettuato con successo', 'success')
       this.router.navigate('/')
     } catch (error) {
@@ -553,6 +574,12 @@ export class App {
       if (response.success) {
         // Show success notification
         this.showNotification('Login effettuato con successo!', 'success')
+
+        // Update navbar with user data
+        if (this.navbar && response.user) {
+          const username = response.user.username || '-'
+          this.navbar.updateUsername(username)
+        }
 
         // Redirect to profile page
         this.router.navigate('/profile')

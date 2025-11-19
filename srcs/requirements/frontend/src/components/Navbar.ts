@@ -1,7 +1,13 @@
 export class Navbar {
   private isMenuOpen = false
+  private currentUsername: string | null = null
 
-  render(container: HTMLElement) {
+  render(container: HTMLElement, username?: string) {
+    // Store the username if provided
+    if (username !== undefined) {
+      this.currentUsername = username
+    }
+    
     container.innerHTML = `
       <div class="container mx-auto px-4">
         <div class="flex items-center justify-between h-16">
@@ -45,7 +51,7 @@ export class Navbar {
               <!-- User is logged in (hidden by default) -->
               <div id="user-menu" class="hidden">
                 <div class="flex items-center space-x-4">
-                  <span id="username-display" class="text-cyber-green">CyberPlayer</span>
+                  <span id="username-display" class="text-cyber-green">${this.currentUsername || '-'}</span>
                   <button id="logout-btn" class="cyber-button text-sm">Logout</button>
                 </div>
               </div>
@@ -81,7 +87,7 @@ export class Navbar {
               <!-- Mobile user menu (hidden by default) -->
               <div id="mobile-user-menu" class="hidden space-y-2">
                 <div class="px-3 py-2 text-cyber-green">
-                  <span id="mobile-username-display">CyberPlayer</span>
+                  <span id="mobile-username-display">${this.currentUsername || '-'}</span>
                 </div>
                 <button id="mobile-logout-btn" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan text-left w-full">Logout</button>
               </div>
@@ -96,6 +102,18 @@ export class Navbar {
     
     // Check if user is logged in
     this.updateUserUI()
+  }
+
+  // Add a method to update the username after initial render
+  updateUsername(username: string) {
+    this.currentUsername = username
+    
+    // Update the username display elements if they exist
+    const usernameDisplay = document.getElementById('username-display')
+    const mobileUsernameDisplay = document.getElementById('mobile-username-display')
+    
+    if (usernameDisplay) usernameDisplay.textContent = username
+    if (mobileUsernameDisplay) mobileUsernameDisplay.textContent = username
   }
 
   private addEventListeners() {
@@ -131,15 +149,11 @@ export class Navbar {
   private updateUserUI() {
     // Check if user is logged in
     const authToken = localStorage.getItem('authToken')
-    const email = localStorage.getItem('email') || 'CyberPlayer'
     
     const guestActions = document.getElementById('guest-actions')
     const userMenu = document.getElementById('user-menu')
     const mobileGuestActions = document.getElementById('mobile-guest-actions')
     const mobileUserMenu = document.getElementById('mobile-user-menu')
-    
-    const usernameDisplay = document.getElementById('username-display')
-    const mobileUsernameDisplay = document.getElementById('mobile-username-display')
     
     if (authToken) {
       // User is logged in
@@ -147,9 +161,6 @@ export class Navbar {
       if (userMenu) userMenu.classList.remove('hidden')
       if (mobileGuestActions) mobileGuestActions.classList.add('hidden')
       if (mobileUserMenu) mobileUserMenu.classList.remove('hidden')
-      
-      if (usernameDisplay) usernameDisplay.textContent = email
-      if (mobileUsernameDisplay) mobileUsernameDisplay.textContent = email
     } else {
       // User is not logged in
       if (guestActions) guestActions.classList.remove('hidden')
@@ -163,6 +174,9 @@ export class Navbar {
     // Clear auth data
     localStorage.removeItem('authToken')
     localStorage.removeItem('email')
+    
+    // Reset current username
+    this.currentUsername = null
     
     // Update UI
     this.updateUserUI()
