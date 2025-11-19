@@ -206,9 +206,20 @@ services:
       dockerfile: Dockerfile
     container_name: grafana
     environment:
-      # Security: Admin credentials (CHANGE IN PRODUCTION!)
+      # Security: Admin credentials (MANDATORY - set in .env file)
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD not set in .env}"
+
+      # Password policy enforcement
+      - GF_SECURITY_PASSWORD_MIN_LENGTH=12
+
+      # Session security
+      - GF_AUTH_LOGIN_COOKIE_NAME=grafana_session
+      - GF_AUTH_LOGIN_MAXIMUM_LIFETIME_DAYS=7
+
+      # Disable anonymous access
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+
       # Server configuration (access via Nginx reverse proxy)
       - GF_SERVER_ROOT_URL=https://localhost:8090/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
