@@ -58,7 +58,7 @@ export class Paddle {
     }
 
     // Clampa posizione
-    const limitZ = 13.5
+    const limitZ = 7.8
     this.mesh.position.z = Math.max(-limitZ, Math.min(limitZ, this.mesh.position.z))
 
     // Calcola velocità (semplice differenza per frame)

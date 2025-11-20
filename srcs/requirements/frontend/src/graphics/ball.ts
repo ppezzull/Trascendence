@@ -13,8 +13,8 @@ export class Ball {
     maxX: 9,
     minY: -4.5,
     maxY: 4.5,
-    minZ: -14,
-    maxZ: 14
+    minZ: -10,
+    maxZ: 10
   }
 
 

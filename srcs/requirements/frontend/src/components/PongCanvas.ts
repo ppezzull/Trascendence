@@ -95,7 +95,7 @@ export class PongCanvas {
       'camera',
       Math.PI / 2, // Alpha
       Math.PI / 4, // Beta
-      20, // Radius
+      25, // Radius
       BABYLON.Vector3.Zero(), // Target
       this.scene
     )
@@ -120,7 +120,7 @@ export class PongCanvas {
     // Create cyber grid ground
     const ground = BABYLON.MeshBuilder.CreateGround(
       'ground',
-      { width: 20, height: 30 },
+      { width: 20, height: 20 },
       this.scene
     )
     
@@ -177,7 +177,7 @@ export class PongCanvas {
     const wallThickness = 0.2
     const wallHeight = 5
     const arenaWidth = 20
-    const arenaLength = 30
+    const arenaLength = 20
     
     // Side walls
     const leftWall = BABYLON.MeshBuilder.CreateBox(
