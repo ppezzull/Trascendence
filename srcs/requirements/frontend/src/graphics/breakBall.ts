@@ -31,10 +31,6 @@ export class Ball {
 	  { diameter: 0.5, segments: 16 },
 	  this.scene
 	)
-
-	//testing collision
-	this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
-	this.mesh.showBoundingBox = true
 	
 	// Create cyber material with glow effect
 	const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)

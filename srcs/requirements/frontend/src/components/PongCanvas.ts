@@ -257,17 +257,17 @@ export class PongCanvas {
     switch (event.key) {
       case 'w':
       case 'W':
-        this.game.movePlayer1Paddle('up')
+        this.game.movePlayer2Paddle('up')
         break
       case 's':
       case 'S':
-        this.game.movePlayer1Paddle('down')
+        this.game.movePlayer2Paddle('down')
         break
       case 'ArrowUp':
-        this.game.movePlayer2Paddle('up')
+        this.game.movePlayer1Paddle('up')
         break
       case 'ArrowDown':
-        this.game.movePlayer2Paddle('down')
+        this.game.movePlayer1Paddle('down')
         break
     }
   }
@@ -280,11 +280,11 @@ export class PongCanvas {
       case 'W':
       case 's':
       case 'S':
-        this.game.stopPlayer1Paddle()
+        this.game.stopPlayer2Paddle()
         break
       case 'ArrowUp':
       case 'ArrowDown':
-        this.game.stopPlayer2Paddle()
+        this.game.stopPlayer1Paddle()
         break
     }
   }

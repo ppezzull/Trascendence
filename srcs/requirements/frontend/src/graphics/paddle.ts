@@ -21,10 +21,6 @@ export class Paddle {
       { width: this.width, height: this.height, depth: this.depth },
       this.scene
     )
-
-    //testing collision
-    this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
-    this.mesh.showBoundingBox = true
     
     const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)
     material.diffuseColor = new BABYLON.Color3(0.1, 0.8, 1.0)
