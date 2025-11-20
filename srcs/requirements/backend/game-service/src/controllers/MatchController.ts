@@ -129,6 +129,10 @@ export class MatchController {
     reply: FastifyReply
   ) {
     try {
+      // Log per debug
+      console.log("Request body:", request.body);
+      console.log("Request headers:", request.headers);
+
       const matchId = parseInt(request.params.matchId);
       const { user_id, score } = request.body;
 
@@ -177,17 +181,20 @@ export class MatchController {
 
       for (const player of players) {
         const won = player.user_id === winner_id;
-        const opponentElo =
-          players.find((p) => p.user_id !== player.user_id)?.user_id || 1000;
+        const opponentPlayer = players.find(
+          (p) => p.user_id !== player.user_id
+        );
 
+        // Ottieni le statistiche del giocatore
         const playerStats = StatsModel.getOrCreateStats(
           player.user_id,
           match.game_id
         );
-        const opponentStats = StatsModel.getOrCreateStats(
-          opponentElo,
-          match.game_id
-        );
+
+        // Ottieni le statistiche dell'avversario
+        const opponentStats = opponentPlayer
+          ? StatsModel.getOrCreateStats(opponentPlayer.user_id, match.game_id)
+          : { elo_rating: 1000 }; // Default se non trovato
 
         const eloChange = StatsModel.calculateEloChange(
           playerStats.elo_rating,

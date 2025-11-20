@@ -150,6 +150,14 @@ async function gameRoutes(fastify: FastifyInstance) {
       schema: {
         description: "Aggiorna il punteggio di un giocatore",
         tags: ["Matches"],
+        body: {
+          type: "object",
+          required: ["user_id", "score"],
+          properties: {
+            user_id: { type: "number" },
+            score: { type: "number" },
+          },
+        },
       },
       onRequest: [fastify.authenticate],
     },
@@ -165,6 +173,12 @@ async function gameRoutes(fastify: FastifyInstance) {
       schema: {
         description: "Termina una partita",
         tags: ["Matches"],
+        body: {
+          type: "object",
+          properties: {
+            winner_id: { type: "number" },
+          },
+        },
       },
       onRequest: [fastify.authenticate],
     },
