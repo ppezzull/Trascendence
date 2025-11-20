@@ -17,32 +17,6 @@ export class PongCanvas {
   render(container: HTMLElement) {
     container.innerHTML = `
       <div class="relative w-full h-full">
-        <!-- Game Mode Selection -->
-        <div id="game-mode-selection" class="absolute inset-0 bg-cyber-black/90 flex items-center justify-center z-50">
-          <div class="cyber-panel p-8 max-w-md w-full">
-            <h2 class="cyber-title text-2xl mb-6 text-center">SELEZIONA MODALITÀ</h2>
-            
-            <div class="space-y-4 mb-6">
-              <button id="pvp-mode" class="cyber-button w-full">1 VS 1 (Locale)</button>
-              <button id="pve-mode" class="cyber-button w-full">1 VS BOT</button>
-            </div>
-            
-            <!-- Bot Difficulty Selection (hidden by default) -->
-            <div id="bot-difficulty" class="hidden space-y-4 mb-6">
-              <h3 class="text-cyber-green text-lg font-bold text-center">Seleziona Difficoltà BOT</h3>
-              <div class="grid grid-cols-3 gap-2">
-                <button id="bot-easy" class="cyber-button text-sm">Facile</button>
-                <button id="bot-medium" class="cyber-button text-sm">Medio</button>
-                <button id="bot-hard" class="cyber-button text-sm">Difficile</button>
-              </div>
-            </div>
-            
-            <div class="text-center">
-              <button id="start-selected-mode" class="cyber-button hidden">Inizia Partita</button>
-            </div>
-          </div>
-        </div>
-        
         <canvas id="pong-canvas" class="w-full h-full rounded border border-cyber-green"></canvas>
         
         <!-- Game HUD -->
@@ -460,7 +434,7 @@ export class PongCanvas {
     }
   }
 
-  private startGame() {
+  public startGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -472,7 +446,45 @@ export class PongCanvas {
     document.getElementById('change-mode-btn')?.classList.add('hidden')
   }
 
-  private pauseGame() {
+  public setGameMode(mode: 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
+    this.gameMode = mode
+    if (difficulty) {
+      this.botDifficulty = difficulty
+    }
+    
+    // Update game mode in the game instance
+    if (this.game) {
+      this.game.setGameMode(mode, difficulty)
+    }
+  }
+  
+  public dispose() {
+    // Stop the game
+    if (this.game) {
+      this.game.pause()
+    }
+    
+    // Dispose of Babylon.js resources
+    if (this.scene) {
+      this.scene.dispose()
+    }
+    
+    if (this.engine) {
+      this.engine.dispose()
+    }
+    
+    // Clear references
+    this.game = null
+    this.scene = null
+    this.engine = null
+    this.canvas = null
+    
+    // Remove event listeners if any
+    window.removeEventListener('keydown', this.handleKeyDown)
+    window.removeEventListener('keyup', this.handleKeyUp)
+  }
+
+  public pauseGame() {
     if (!this.game) return
     
     this.isRunning = false
@@ -483,7 +495,7 @@ export class PongCanvas {
     document.getElementById('resume-game-btn')?.classList.remove('hidden')
   }
 
-  private resumeGame() {
+  public resumeGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -494,7 +506,7 @@ export class PongCanvas {
     document.getElementById('pause-game-btn')?.classList.remove('hidden')
   }
 
-  private resetGame() {
+  public resetGame() {
     if (!this.game) return
     
     this.isRunning = false

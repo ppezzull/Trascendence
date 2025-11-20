@@ -7,6 +7,9 @@ import { PongCanvas } from './components/PongCanvas'
 import { ChatBox } from './components/ChatBox'
 import { BreakoutCanvas } from './components/BreakoutCanvas'
 import { GameSettingsComponent } from './components/GameSettings'
+import { GameModeSelector, GameMode, BotDifficulty } from './components/GameModeSelector'
+import { GameSettingsPanel, GameSettings } from './components/GameSettingsPanel'
+import { GameControls } from './components/GameControls'
 
 // Declare global app instance for button onclick handlers
 declare global {
@@ -260,39 +263,622 @@ export class App {
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">PONG 3D</h1>
-        <div class="flex flex-col items-center">
-          <div id="pong-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
-            <!-- 3D Canvas will be rendered here -->
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-            <div class="cyber-card">
-              <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS 1</h2>
-              <p class="terminal-text text-sm mb-4 text-center">Sfida un altro giocatore sullo stesso dispositivo</p>
-              <button id="start-pvp" class="cyber-button w-full">Inizia Partita</button>
+        
+        <!-- Game State Container -->
+        <div id="pong-game-container" class="flex flex-col items-center">
+          <div class="cyber-card w-full max-w-2xl">
+            <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">CARICAMENTO...</h2>
+            <div class="text-center text-cyber-green">
+              <i class="fas fa-spinner fa-spin text-2xl"></i>
+              <p class="mt-2">Inizializzazione gioco in corso...</p>
             </div>
-            
-            <div class="cyber-card">
-              <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS BOT</h2>
-              <p class="terminal-text text-sm mb-4 text-center">Sfida l'IA con diversi livelli di difficoltà</p>
-              <div class="space-y-2 mb-4">
-                <button id="start-pve-easy" class="cyber-button-sm w-full">Facile</button>
-                <button id="start-pve-medium" class="cyber-button-sm w-full">Medio</button>
-                <button id="start-pve-hard" class="cyber-button-sm w-full">Difficile</button>
-              </div>
-            </div>
-          </div>
-          
-          <div class="mt-4">
-            <button id="game-settings" class="cyber-button">Impostazioni</button>
           </div>
         </div>
       </div>
     `
     
-    // Initialize Pong game
-    this.initializePongGame()
+    // Initialize Pong game with state management after a short delay
+    setTimeout(() => {
+      this.initializePongGameWithStates()
+    }, 100)
   }
+
+  private initializePongGameWithStates() {
+    console.log('Initializing Pong game with states...')
+    const gameContainer = document.getElementById('pong-game-container')
+    if (!gameContainer) {
+      console.error('Pong game container not found!')
+      return
+    }
+
+    console.log('Pong game container found, rendering selection state...')
+
+    // Define game modes
+    const gameModes: GameMode[] = [
+      {
+        id: 'pvp',
+        name: '1 VS 1',
+        description: 'Sfida un altro giocatore sullo stesso dispositivo',
+        icon: 'fas fa-users'
+      },
+      {
+        id: 'pve',
+        name: '1 VS BOT',
+        description: 'Sfida l\'IA con diversi livelli di difficoltà',
+        icon: 'fas fa-robot'
+      }
+    ]
+
+    // Define bot difficulties
+    const botDifficulties: BotDifficulty[] = [
+      {
+        id: 'easy',
+        name: 'Facile',
+        description: 'Velocità di risposta ridotta'
+      },
+      {
+        id: 'medium',
+        name: 'Medio',
+        description: 'Velocità di risposta normale'
+      },
+      {
+        id: 'hard',
+        name: 'Difficile',
+        description: 'Velocità di risposta elevata'
+      }
+    ]
+
+    // Start with selection state
+    console.log('Calling renderPongSelectionState...')
+    this.renderPongSelectionState(gameContainer, gameModes, botDifficulties)
+  }
+
+  private renderPongSelectionState(
+    container: HTMLElement, 
+    gameModes: GameMode[], 
+    botDifficulties: BotDifficulty[]
+  ) {
+    console.log('Rendering Pong selection state...')
+    
+    container.innerHTML = `
+      <div class="cyber-card w-full max-w-2xl">
+        <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">SELEZIONA MODALITÀ</h2>
+        <div class="space-y-4">
+          ${gameModes.map((mode, index) => `
+            <div class="mode-option border border-cyber-green rounded p-4 cursor-pointer hover:bg-cyber-dark/50 transition-colors" data-mode="${mode.id}">
+              <div class="flex items-center">
+                ${mode.icon ? `<i class="${mode.icon} text-cyber-green mr-3"></i>` : ''}
+                <div class="flex-1">
+                  <h3 class="text-md font-bold text-cyber-green">${mode.name}</h3>
+                  <p class="text-sm text-gray-400">${mode.description}</p>
+                </div>
+                <div class="mode-radio">
+                  <input type="radio" name="game-mode" value="${mode.id}" class="sr-only">
+                  <div class="w-5 h-5 border-2 border-cyber-green rounded-full flex items-center justify-center radio-indicator" data-mode-index="${index}">
+                    <div class="w-3 h-3 border-2 border-transparent rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+              ${mode.id === 'pve' && botDifficulties ? `
+                <div class="difficulty-selector mt-4 hidden" id="difficulty-options">
+                  <h4 class="text-sm font-bold text-cyber-green mb-2">Seleziona difficoltà:</h4>
+                  <div class="grid grid-cols-3 gap-2">
+                    ${botDifficulties.map(difficulty => `
+                      <div class="difficulty-option border border-cyber-green rounded p-2 cursor-pointer hover:bg-cyber-dark/50 transition-colors text-center" data-difficulty="${difficulty.id}">
+                        <input type="radio" name="bot-difficulty" value="${difficulty.id}" class="sr-only">
+                        <div class="text-sm">${difficulty.name}</div>
+                        <div class="text-xs text-gray-400">${difficulty.description}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <div class="mt-6 text-center">
+          <button id="start-game-btn" class="cyber-button" disabled> Avanti </button>
+        </div>
+      </div>
+    `
+
+    this.setupPongGameModeEventListeners(container)
+    
+    // Add CSS styles for radio buttons
+    const style = document.createElement('style')
+    style.textContent = `
+      .radio-indicator {
+        transition: all 0.2s ease;
+      }
+      .mode-option[data-mode]:hover .radio-indicator {
+        border-color: #00ffff;
+      }
+      .mode-option.selected .radio-indicator > div {
+        background-color: #00ff00;
+        border-color: #00ff00;
+      }
+      .difficulty-option:hover {
+        border-color: #00ffff;
+        background-color: rgba(0, 255, 255, 0.1);
+      }
+      .difficulty-option.selected {
+        border-color: #00ffff;
+        background-color: rgba(0, 255, 255, 0.2);
+      }
+    `
+    document.head.appendChild(style)
+  }
+
+  private setupPongGameModeEventListeners(container: HTMLElement) {
+    // Mode selection
+    const modeOptions = container.querySelectorAll('.mode-option')
+    modeOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        const modeId = option.getAttribute('data-mode')
+        if (modeId) {
+          this.selectPongGameMode(modeId, container)
+        }
+      })
+    })
+
+    // Difficulty selection (for PVE mode)
+    const difficultyOptions = container.querySelectorAll('.difficulty-option')
+    difficultyOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        const difficultyId = option.getAttribute('data-difficulty')
+        if (difficultyId) {
+          this.selectPongBotDifficulty(difficultyId, container)
+        }
+      })
+    })
+
+    // Start button
+    const startButton = container.querySelector('#start-game-btn') as HTMLButtonElement
+    if (startButton) {
+      startButton.addEventListener('click', () => {
+        if (this.currentPongMode) {
+          this.onPongModeSelectedUpdated(this.currentPongMode, this.currentPongDifficulty || undefined)
+        }
+      })
+    }
+  }
+
+  private selectPongGameMode(modeId: string, container: HTMLElement) {
+    // Update visual selection
+    const modeOptions = container.querySelectorAll('.mode-option')
+    modeOptions.forEach(option => {
+      const optionModeId = option.getAttribute('data-mode')
+      const radio = option.querySelector('input[type="radio"]') as HTMLInputElement
+      const radioIndicator = option.querySelector('.mode-radio > div') as HTMLElement
+      
+      if (optionModeId === modeId) {
+        radio.checked = true
+        radioIndicator.classList.remove('border-transparent')
+        radioIndicator.classList.add('bg-cyber-green')
+        option.classList.add('border-cyber-cyan', 'bg-cyber-dark/30', 'selected')
+      } else {
+        radio.checked = false
+        radioIndicator.classList.add('border-transparent')
+        radioIndicator.classList.remove('bg-cyber-green')
+        option.classList.remove('border-cyber-cyan', 'bg-cyber-dark/30', 'selected')
+      }
+    })
+
+    this.currentPongMode = modeId
+
+    // Show/hide difficulty options based on mode
+    const difficultyOptions = container.querySelector('#difficulty-options') as HTMLElement
+    if (difficultyOptions) {
+      if (modeId === 'pve') {
+        difficultyOptions.classList.remove('hidden')
+      } else {
+        difficultyOptions.classList.add('hidden')
+        this.currentPongDifficulty = undefined
+      }
+    }
+
+    this.updatePongStartButton(container)
+  }
+
+  private selectPongBotDifficulty(difficultyId: string, container: HTMLElement) {
+    // Update visual selection
+    const difficultyOptions = container.querySelectorAll('.difficulty-option')
+    difficultyOptions.forEach(option => {
+      const optionDifficultyId = option.getAttribute('data-difficulty')
+      const radio = option.querySelector('input[type="radio"]') as HTMLInputElement
+      
+      if (optionDifficultyId === difficultyId) {
+        radio.checked = true
+        option.classList.add('border-cyber-cyan', 'bg-cyber-dark/30', 'selected')
+      } else {
+        radio.checked = false
+        option.classList.remove('border-cyber-cyan', 'bg-cyber-dark/30', 'selected')
+      }
+    })
+
+    this.currentPongDifficulty = difficultyId
+    this.updatePongStartButton(container)
+  }
+
+  private updatePongStartButton(container: HTMLElement) {
+    const startButton = container.querySelector('#start-game-btn') as HTMLButtonElement
+    if (!startButton) return
+
+    let canStart = this.currentPongMode !== null
+    
+    // For PVE mode, difficulty must also be selected
+    if (this.currentPongMode === 'pve' && !this.currentPongDifficulty) {
+      canStart = false
+    }
+
+    startButton.disabled = !canStart
+  }
+
+  private renderPongPreparationState(
+    container: HTMLElement,
+    mode: string,
+    difficulty?: string
+  ) {
+    container.innerHTML = `
+      <div class="w-full flex flex-col items-center justify-center py-8">
+        <!-- Title -->
+        <div class="text-center mb-6">
+          <h2 class="text-3xl font-bold text-cyber-green">
+            ${mode === 'pvp' ? 'PARTITA 1 VS 1' : `PARTITA 1 VS BOT (${difficulty?.toUpperCase()})`}
+          </h2>
+        </div>
+        
+        <!-- Game Preview -->
+        <div class="cyber-card w-full max-w-6xl mb-6">
+          <h3 class="text-lg font-bold text-cyber-green mb-4 text-center">ANTEPRIMA GIOCO</h3>
+          <div id="pong-canvas-container" class="w-full h-[500px] bg-cyber-black border border-cyber-green">
+            <!-- 3D Canvas will be rendered here -->
+          </div>
+          </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex justify-center space-x-4">
+          <button id="start-pong-game" class="cyber-button px-8 py-3 text-lg">Inizia Partita</button>
+          <button id="back-to-selection" class="cyber-button-secondary px-8 py-3 text-lg">Indietro</button>
+        </div>
+      </div>
+    `
+    
+    // Initialize canvas
+    const canvasContainer = document.getElementById('pong-canvas-container')
+    if (canvasContainer) {
+      this.currentPongCanvas = new PongCanvas()
+      this.currentPongCanvas.render(canvasContainer)
+      this.currentPongCanvas.setGameMode(mode as 'pvp' | 'pve', difficulty as 'easy' | 'medium' | 'hard')
+    }
+
+    // Setup event listeners
+    const startButton = document.getElementById('start-pong-game')
+    if (startButton) {
+      startButton.addEventListener('click', () => {
+        this.startPongGame(mode, difficulty)
+      })
+    }
+
+    const backButton = document.getElementById('back-to-selection')
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        this.initializePongGameWithStates()
+      })
+    }
+  }
+
+  private renderPongGameState(container: HTMLElement, mode: string, difficulty?: string) {
+    container.innerHTML = `
+      <div class="w-full h-full flex flex-col items-center justify-center py-8">
+        <!-- Game Title -->
+        <div class="text-center mb-6">
+          <h2 class="text-3xl font-bold text-cyber-green">
+            ${mode === 'pvp' ? 'PARTITA 1 VS 1' : `PARTITA 1 VS BOT (${difficulty?.toUpperCase()})`}
+          </h2>
+        </div>
+        
+        <!-- Game Canvas -->
+        <div class="w-full max-w-6xl">
+          <div id="pong-canvas-container" class="w-full h-[600px] bg-cyber-black border-2 border-cyber-green">
+            <!-- 3D Canvas will be rendered here -->
+          </div>
+        </div>
+        
+        <!-- Game Controls -->
+        <div class="flex justify-center space-x-4 mt-4">
+          <button id="pause-game-btn" class="cyber-button">Pausa</button>
+          <button id="resume-game-btn" class="cyber-button hidden">Riprendi</button>
+          <button id="restart-game-btn" class="cyber-button">Restart</button>
+          <button id="exit-game-btn" class="cyber-button">Esci</button>
+        </div>
+      </div>
+    `
+
+    // Initialize canvas
+    const canvasContainer = document.getElementById('pong-canvas-container')
+    if (canvasContainer) {
+      // Create a new canvas instance for the game state
+      const pongCanvas = new PongCanvas()
+      pongCanvas.render(canvasContainer)
+      
+      // Set the game mode and difficulty
+      pongCanvas.setGameMode(mode as 'pvp' | 'pve', difficulty as 'easy' | 'medium' | 'hard')
+      
+      // Store the canvas instance
+      this.currentPongCanvas = pongCanvas
+      
+      // Set score callback
+      pongCanvas.updateScore = (player1Score: number, player2Score: number) => {
+        // Handle score updates
+        this.handlePongScoreUpdate(player1Score, player2Score)
+      }
+      
+      // Start the game after a short delay
+      setTimeout(() => {
+        pongCanvas.startGame()
+      }, 100)
+    }
+
+    // Setup event listeners for controls
+    const pauseBtn = document.getElementById('pause-game-btn')
+    const resumeBtn = document.getElementById('resume-game-btn')
+    const restartBtn = document.getElementById('restart-game-btn')
+    const exitBtn = document.getElementById('exit-game-btn')
+    
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', () => {
+        this.pausePongGame()
+        pauseBtn.classList.add('hidden')
+        resumeBtn?.classList.remove('hidden')
+      })
+    }
+    
+    if (resumeBtn) {
+      resumeBtn.addEventListener('click', () => {
+        this.resumePongGame()
+        resumeBtn.classList.add('hidden')
+        pauseBtn?.classList.remove('hidden')
+      })
+    }
+    
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => {
+        this.restartPongGame()
+      })
+    }
+    
+    if (exitBtn) {
+      exitBtn.addEventListener('click', () => {
+        this.exitPongGame()
+      })
+    }
+  }
+
+  private onPongModeSelectedUpdated(modeId: string, difficulty?: string) {
+    const gameContainer = document.getElementById('pong-game-container')
+    if (!gameContainer) return
+
+    this.currentPongMode = modeId
+    this.currentPongDifficulty = difficulty
+
+    // Move to preparation state
+    this.renderPongPreparationState(gameContainer, modeId, difficulty)
+  }
+
+  private onPongSettingsChanged(settings: GameSettings) {
+    this.currentPongSettings = settings
+  }
+
+  private async startPongGame(mode: string, difficulty?: string) {
+    const gameContainer = document.getElementById('pong-game-container')
+    if (!gameContainer) return
+
+    try {
+      // Create a match in the backend
+      const matchResponse = await this.apiService.createMatch('pong')
+      
+      if (matchResponse.success && matchResponse.data) {
+        // Store the match ID for later use
+        this.currentMatchId = matchResponse.data.id
+        
+        // Move to game state and start the game
+        this.renderPongGameState(gameContainer, mode, difficulty)
+        this.showNotification(`Partita avviata: ${mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`}!`, 'success')
+      } else {
+        this.showNotification('Errore nella creazione della partita', 'error')
+      }
+    } catch (error) {
+      console.error('Error creating match:', error)
+      // Continue with local game if API fails
+      this.renderPongGameState(gameContainer, mode, difficulty)
+      this.showNotification(`Partita avviata localmente: ${mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`}!`, 'info')
+    }
+  }
+
+  private async handlePongScoreUpdate(player1Score: number, player2Score: number) {
+    const maxScore = this.currentPongSettings?.maxScore || 5
+    
+    // Update score in backend if we have a match ID
+    if (this.currentMatchId) {
+      try {
+        await this.apiService.updateMatchScore(this.currentMatchId, {
+          player1_score: player1Score,
+          player2_score: player2Score
+        })
+      } catch (error) {
+        console.error('Error updating match score:', error)
+      }
+    }
+    
+    // Check for game over
+    if (player1Score >= maxScore || player2Score >= maxScore) {
+      const winner = player1Score >= maxScore ? 'PLAYER 1' : 'PLAYER 2'
+      this.showNotification(`Vincitore: ${winner}!`, 'success')
+      
+      // Handle game over
+      setTimeout(() => {
+        this.handlePongGameOver(winner, player1Score, player2Score)
+      }, 2000)
+    }
+  }
+
+  private async handlePongGameOver(winner: string, player1Score: number, player2Score: number) {
+    // First, stop the game to prevent it from continuing
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.pauseGame()
+      this.currentPongCanvas.dispose()
+      this.currentPongCanvas = null
+    }
+    
+    // Finish match in backend if we have a match ID
+    if (this.currentMatchId) {
+      try {
+        const winnerId = winner === 'PLAYER 1' ? '1' : '2' // You might need to get actual user IDs
+        await this.apiService.finishMatch(this.currentMatchId, {
+          winner_id: winnerId,
+          final_scores: {
+            player1: player1Score,
+            player2: player2Score
+          }
+        })
+      } catch (error) {
+        console.error('Error finishing match:', error)
+      }
+    }
+    
+    // Show game over dialog
+    const gameContainer = document.getElementById('pong-game-container')
+    if (!gameContainer) return
+
+    gameContainer.innerHTML = `
+      <div class="cyber-card max-w-md mx-auto text-center">
+        <h2 class="text-2xl font-bold text-cyber-green mb-4">PARTITA TERMINATA</h2>
+        <p class="text-xl mb-4">Vincitore: ${winner}</p>
+        <p class="text-lg mb-6">Punteggio Finale: ${player1Score} - ${player2Score}</p>
+        <div class="flex justify-center space-x-4">
+          <button id="play-again" class="cyber-button">Gioca Ancora</button>
+          <button id="back-to-menu" class="cyber-button-secondary">Menu Principale</button>
+        </div>
+      </div>
+    `
+    
+    // Clear the match ID
+    this.currentMatchId = null
+
+    // Setup event listeners
+    const playAgainButton = document.getElementById('play-again')
+    if (playAgainButton) {
+      playAgainButton.addEventListener('click', () => {
+        this.initializePongGameWithStates()
+      })
+    }
+
+    const backToMenuButton = document.getElementById('back-to-menu')
+    if (backToMenuButton) {
+      backToMenuButton.addEventListener('click', () => {
+        this.router.navigate('/games')
+      })
+    }
+  }
+
+  private pausePongGame() {
+    // Pause the game
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.pauseGame()
+      this.showNotification('Gioco in pausa', 'info')
+    }
+  }
+
+  private resumePongGame() {
+    // Resume the game
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.resumeGame()
+      this.showNotification('Gioco ripreso', 'info')
+    }
+  }
+
+  private restartPongGame() {
+    // Restart the game with current settings
+    if (this.currentPongCanvas) {
+      // Reset the game
+      this.currentPongCanvas.resetGame()
+      // Start it again
+      this.currentPongCanvas.startGame()
+      this.showNotification('Partita riavviata!', 'info')
+    }
+  }
+
+  private async exitPongGame() {
+    // Pause the game while showing confirmation
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.pauseGame()
+    }
+    
+    // Show confirmation dialog
+    const gameContainer = document.getElementById('pong-game-container')
+    if (!gameContainer) return
+
+    gameContainer.innerHTML = `
+      <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="cyber-card max-w-md mx-auto p-6">
+          <h2 class="text-xl font-bold text-cyber-green mb-4">CONFERMA USCITA</h2>
+          <p class="text-center mb-6">Sei sicuro di voler uscire dalla partita?</p>
+          <div class="flex justify-center space-x-4">
+            <button id="confirm-exit" class="cyber-button">Esci</button>
+            <button id="cancel-exit" class="cyber-button-secondary">Annulla</button>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Setup event listeners
+    const confirmButton = document.getElementById('confirm-exit')
+    if (confirmButton) {
+      confirmButton.addEventListener('click', async () => {
+        // Finish the match if we have a match ID
+        if (this.currentMatchId) {
+          try {
+            await this.apiService.finishMatch(this.currentMatchId, {
+              status: 'abandoned'
+            })
+          } catch (error) {
+            console.error('Error finishing match:', error)
+          }
+        }
+        
+        // Dispose of the canvas
+        if (this.currentPongCanvas) {
+          this.currentPongCanvas.dispose()
+          this.currentPongCanvas = null
+        }
+        
+        // Clear the match ID
+        this.currentMatchId = null
+        
+        // Go back to selection
+        this.initializePongGameWithStates()
+      })
+    }
+
+    const cancelButton = document.getElementById('cancel-exit')
+    if (cancelButton) {
+      cancelButton.addEventListener('click', () => {
+        // Resume the game and go back to game state
+        if (this.currentPongCanvas) {
+          this.currentPongCanvas.resumeGame()
+        }
+        this.renderPongGameState(gameContainer, this.currentPongMode || '', this.currentPongDifficulty || undefined)
+      })
+    }
+  }
+
+  // Properties to track current game state
+  private currentPongMode: string | null = null
+  private currentPongDifficulty: string | undefined = undefined
+  private currentPongSettings: GameSettings | null = null
+  private currentPongCanvas: PongCanvas | null = null
+  private currentMatchId: string | null = null
 
   private renderBreakoutPage() {
     const contentElement = document.getElementById('content')
@@ -301,27 +887,400 @@ export class App {
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">BREAKOUT CYBER</h1>
-        <div class="flex flex-col items-center">
-          <div id="breakout-canvas-container" class="w-full max-w-2xl h-96 bg-cyber-black border border-cyber-green mb-4">
-            <!-- 3D Canvas will be rendered here -->
-          </div>
-          
-          <div class="cyber-card w-full max-w-2xl">
-            <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">1 VS 1</h2>
-            <p class="terminal-text text-sm mb-4 text-center">Sfida un altro giocatore sullo stesso dispositivo</p>
-            <button id="start-breakout" class="cyber-button w-full">Inizia Partita</button>
-          </div>
-          
-          <div class="mt-4">
-            <button id="breakout-settings" class="cyber-button">Impostazioni</button>
-          </div>
+        
+        <!-- Game State Container -->
+        <div id="breakout-game-container" class="flex flex-col items-center">
+          <!-- Content will be dynamically rendered based on game state -->
         </div>
       </div>
     `
     
-    // Initialize Breakout game
-    this.initializeBreakoutGame()
+    // Initialize Breakout game with state management
+    this.initializeBreakoutGameWithStates()
   }
+
+  private initializeBreakoutGameWithStates() {
+    const gameContainer = document.getElementById('breakout-game-container')
+    if (!gameContainer) return
+
+    // Define game modes (only 1vs1 for Breakout)
+    const gameModes: GameMode[] = [
+      {
+        id: 'pvp',
+        name: '1 VS 1',
+        description: 'Sfida un altro giocatore sullo stesso dispositivo',
+        icon: 'fas fa-users'
+      }
+    ]
+
+    // Start with selection state
+    this.renderBreakoutSelectionState(gameContainer, gameModes)
+  }
+
+  private renderBreakoutSelectionState(
+    container: HTMLElement, 
+    gameModes: GameMode[]
+  ) {
+    container.innerHTML = ''
+
+    // Create and render game mode selector
+    const gameModeSelector = new GameModeSelector(
+      gameModes,
+      undefined, // No bot difficulties for Breakout
+      (modeId) => {
+        this.onBreakoutModeSelected(modeId)
+      }
+    )
+    gameModeSelector.render(container)
+  }
+
+  private renderBreakoutPreparationState(container: HTMLElement, mode: string) {
+    container.innerHTML = `
+      <div class="w-full flex flex-col items-center justify-center py-8">
+        <!-- Title -->
+        <div class="text-center mb-6">
+          <h2 class="text-3xl font-bold text-cyber-green">PARTITA 1 VS 1</h2>
+        </div>
+        
+        <!-- Game Preview -->
+        <div class="cyber-card w-full max-w-6xl mb-6">
+          <h3 class="text-lg font-bold text-cyber-green mb-4 text-center">ANTEPRIMA GIOCO</h3>
+          <div id="breakout-canvas-container" class="w-full h-[500px] bg-cyber-black border border-cyber-green">
+            <!-- 3D Canvas will be rendered here -->
+          </div>
+          </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex justify-center space-x-4">
+          <button id="start-breakout-game" class="cyber-button px-8 py-3 text-lg">Inizia Partita</button>
+          <button id="back-to-selection" class="cyber-button-secondary px-8 py-3 text-lg">Indietro</button>
+        </div>
+      </div>
+    `
+    
+    // Initialize canvas
+    const canvasContainer = document.getElementById('breakout-canvas-container')
+    if (canvasContainer) {
+      this.currentBreakoutCanvas = new BreakoutCanvas()
+      this.currentBreakoutCanvas.render(canvasContainer)
+      this.currentBreakoutCanvas.setGameMode('pvp')
+    }
+
+    // Setup event listeners
+    const startButton = document.getElementById('start-breakout-game')
+    if (startButton) {
+      startButton.addEventListener('click', () => {
+        this.startBreakoutGame(mode)
+      })
+    }
+
+    const backButton = document.getElementById('back-to-selection')
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        this.initializeBreakoutGameWithStates()
+      })
+    }
+  }
+
+  private renderBreakoutGameState(container: HTMLElement, mode: string) {
+    container.innerHTML = `
+      <div class="w-full h-full flex flex-col items-center justify-center py-8">
+        <!-- Game Title -->
+        <div class="text-center mb-6">
+          <h2 class="text-3xl font-bold text-cyber-green">PARTITA 1 VS 1</h2>
+        </div>
+        
+        <!-- Game Canvas -->
+        <div class="w-full max-w-6xl">
+          <div id="breakout-canvas-container" class="w-full h-[600px] bg-cyber-black border-2 border-cyber-green">
+            <!-- 3D Canvas will be rendered here -->
+          </div>
+        </div>
+        
+        <!-- Game Controls -->
+        <div class="flex justify-center space-x-4 mt-4">
+          <button id="pause-breakout-btn" class="cyber-button">Pausa</button>
+          <button id="resume-breakout-btn" class="cyber-button hidden">Riprendi</button>
+          <button id="restart-breakout-btn" class="cyber-button">Restart</button>
+          <button id="exit-breakout-btn" class="cyber-button">Esci</button>
+        </div>
+      </div>
+    `
+
+    // Initialize canvas
+    const canvasContainer = document.getElementById('breakout-canvas-container')
+    if (canvasContainer) {
+      // Create a new canvas instance for the game state
+      const breakoutCanvas = new BreakoutCanvas()
+      breakoutCanvas.render(canvasContainer)
+      
+      // Set the game mode
+      breakoutCanvas.setGameMode('pvp')
+      
+      // Store the canvas instance
+      this.currentBreakoutCanvas = breakoutCanvas
+      
+      // Set score callback
+      breakoutCanvas.updateScore = (score: number, level: number, lives: number) => {
+        // Handle score updates
+        this.handleBreakoutScoreUpdate(score, level, lives)
+      }
+      
+      // Start the game after a short delay
+      setTimeout(() => {
+        breakoutCanvas.startGame()
+      }, 100)
+    }
+
+    // Setup event listeners for controls
+    const pauseBtn = document.getElementById('pause-breakout-btn')
+    const resumeBtn = document.getElementById('resume-breakout-btn')
+    const restartBtn = document.getElementById('restart-breakout-btn')
+    const exitBtn = document.getElementById('exit-breakout-btn')
+    
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', () => {
+        this.pauseBreakoutGame()
+        pauseBtn.classList.add('hidden')
+        resumeBtn?.classList.remove('hidden')
+      })
+    }
+    
+    if (resumeBtn) {
+      resumeBtn.addEventListener('click', () => {
+        this.resumeBreakoutGame()
+        resumeBtn.classList.add('hidden')
+        pauseBtn?.classList.remove('hidden')
+      })
+    }
+    
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => {
+        this.restartBreakoutGame()
+      })
+    }
+    
+    if (exitBtn) {
+      exitBtn.addEventListener('click', () => {
+        this.exitBreakoutGame()
+      })
+    }
+  }
+
+  private onBreakoutModeSelected(modeId: string) {
+    const gameContainer = document.getElementById('breakout-game-container')
+    if (!gameContainer) return
+
+    this.currentBreakoutMode = modeId
+
+    // Move to preparation state
+    this.renderBreakoutPreparationState(gameContainer, modeId)
+  }
+
+  private onBreakoutSettingsChanged(settings: GameSettings) {
+    this.currentBreakoutSettings = settings
+  }
+
+  private async startBreakoutGame(mode: string) {
+    const gameContainer = document.getElementById('breakout-game-container')
+    if (!gameContainer) return
+
+    try {
+      // Create a match in the backend
+      const matchResponse = await this.apiService.createMatch('breakout')
+      
+      if (matchResponse.success && matchResponse.data) {
+        // Store the match ID for later use
+        this.currentBreakoutMatchId = matchResponse.data.id
+        
+        // Move to game state and start the game
+        this.renderBreakoutGameState(gameContainer, mode)
+        this.showNotification(`Partita Breakout avviata: 1 vs 1!`, 'success')
+      } else {
+        this.showNotification('Errore nella creazione della partita', 'error')
+      }
+    } catch (error) {
+      console.error('Error creating match:', error)
+      // Continue with local game if API fails
+      this.renderBreakoutGameState(gameContainer, mode)
+      this.showNotification(`Partita Breakout avviata localmente: 1 vs 1!`, 'info')
+    }
+  }
+
+  private async handleBreakoutScoreUpdate(score: number, level: number, lives: number) {
+    // Update score in backend if we have a match ID
+    if (this.currentBreakoutMatchId) {
+      try {
+        await this.apiService.updateMatchScore(this.currentBreakoutMatchId, {
+          score: score,
+          level: level,
+          lives: lives
+        })
+      } catch (error) {
+        console.error('Error updating match score:', error)
+      }
+    }
+    
+    // Check for game over
+    if (lives <= 0) {
+      this.showNotification(`Game Over! Punteggio finale: ${score}`, 'error')
+      
+      // Handle game over
+      setTimeout(() => {
+        this.handleBreakoutGameOver(score)
+      }, 2000)
+    }
+  }
+
+  private async handleBreakoutGameOver(finalScore: number) {
+    // First, stop the game to prevent it from continuing
+    if (this.currentBreakoutCanvas) {
+      this.currentBreakoutCanvas.pauseGame()
+      this.currentBreakoutCanvas.dispose()
+      this.currentBreakoutCanvas = null
+    }
+    
+    // Finish match in backend if we have a match ID
+    if (this.currentBreakoutMatchId) {
+      try {
+        await this.apiService.finishMatch(this.currentBreakoutMatchId, {
+          final_score: finalScore
+        })
+      } catch (error) {
+        console.error('Error finishing match:', error)
+      }
+    }
+    
+    // Show game over dialog
+    const gameContainer = document.getElementById('breakout-game-container')
+    if (!gameContainer) return
+
+    gameContainer.innerHTML = `
+      <div class="cyber-card max-w-md mx-auto text-center">
+        <h2 class="text-2xl font-bold text-cyber-green mb-4">PARTITA TERMINATA</h2>
+        <p class="text-xl mb-6">Punteggio finale: ${finalScore}</p>
+        <div class="flex justify-center space-x-4">
+          <button id="play-again" class="cyber-button">Gioca Ancora</button>
+          <button id="back-to-menu" class="cyber-button-secondary">Menu Principale</button>
+        </div>
+      </div>
+    `
+    
+    // Clear the match ID
+    this.currentBreakoutMatchId = null
+
+    // Setup event listeners
+    const playAgainButton = document.getElementById('play-again')
+    if (playAgainButton) {
+      playAgainButton.addEventListener('click', () => {
+        this.initializeBreakoutGameWithStates()
+      })
+    }
+
+    const backToMenuButton = document.getElementById('back-to-menu')
+    if (backToMenuButton) {
+      backToMenuButton.addEventListener('click', () => {
+        this.router.navigate('/games')
+      })
+    }
+  }
+
+  private pauseBreakoutGame() {
+    // Pause game
+    if (this.currentBreakoutCanvas) {
+      this.currentBreakoutCanvas.pauseGame()
+      this.showNotification('Gioco in pausa', 'info')
+    }
+  }
+
+  private resumeBreakoutGame() {
+    // Resume game
+    if (this.currentBreakoutCanvas) {
+      this.currentBreakoutCanvas.resumeGame()
+      this.showNotification('Gioco ripreso', 'info')
+    }
+  }
+
+  private restartBreakoutGame() {
+    // Restart game with current settings
+    if (this.currentBreakoutCanvas) {
+      // Reset the game
+      this.currentBreakoutCanvas.resetGame()
+      // Start it again
+      this.currentBreakoutCanvas.startGame()
+      this.showNotification('Partita riavviata!', 'info')
+    }
+  }
+
+  private async exitBreakoutGame() {
+    // Pause the game while showing confirmation
+    if (this.currentBreakoutCanvas) {
+      this.currentBreakoutCanvas.pauseGame()
+    }
+    
+    // Show confirmation dialog
+    const gameContainer = document.getElementById('breakout-game-container')
+    if (!gameContainer) return
+
+    gameContainer.innerHTML = `
+      <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="cyber-card max-w-md mx-auto p-6">
+          <h2 class="text-xl font-bold text-cyber-green mb-4">CONFERMA USCITA</h2>
+          <p class="text-center mb-6">Sei sicuro di voler uscire dalla partita?</p>
+          <div class="flex justify-center space-x-4">
+            <button id="confirm-exit" class="cyber-button">Esci</button>
+            <button id="cancel-exit" class="cyber-button-secondary">Annulla</button>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Setup event listeners
+    const confirmButton = document.getElementById('confirm-exit')
+    if (confirmButton) {
+      confirmButton.addEventListener('click', async () => {
+        // Finish the match if we have a match ID
+        if (this.currentBreakoutMatchId) {
+          try {
+            await this.apiService.finishMatch(this.currentBreakoutMatchId, {
+              status: 'abandoned'
+            })
+          } catch (error) {
+            console.error('Error finishing match:', error)
+          }
+        }
+        
+        // Dispose of the canvas
+        if (this.currentBreakoutCanvas) {
+          this.currentBreakoutCanvas.dispose()
+          this.currentBreakoutCanvas = null
+        }
+        
+        // Clear the match ID
+        this.currentBreakoutMatchId = null
+        
+        // Go back to selection
+        this.initializeBreakoutGameWithStates()
+      })
+    }
+
+    const cancelButton = document.getElementById('cancel-exit')
+    if (cancelButton) {
+      cancelButton.addEventListener('click', () => {
+        // Resume the game and go back to game state
+        if (this.currentBreakoutCanvas) {
+          this.currentBreakoutCanvas.resumeGame()
+        }
+        this.renderBreakoutGameState(gameContainer, this.currentBreakoutMode || '')
+      })
+    }
+  }
+
+  // Properties to track current game state
+  private currentBreakoutMode: string | null = null
+  private currentBreakoutSettings: GameSettings | null = null
+  private currentBreakoutCanvas: BreakoutCanvas | null = null
+  private currentBreakoutMatchId: string | null = null
 
   private renderTournamentsPage() {
     const contentElement = document.getElementById('content')
@@ -1020,79 +1979,6 @@ export class App {
     }
   }
 
-  private initializePongGame() {
-    const canvasContainer = document.getElementById('pong-canvas-container')
-    if (!canvasContainer) return
-    
-    // Create and initialize PongCanvas
-    const pongCanvas = new PongCanvas()
-    pongCanvas.render(canvasContainer)
-    
-    // Set score callback
-    pongCanvas.updateScore = (player1Score: number, player2Score: number) => {
-      const player1ScoreElement = document.getElementById('player1-score')
-      const player2ScoreElement = document.getElementById('player2-score')
-      
-      if (player1ScoreElement) player1ScoreElement.textContent = player1Score.toString()
-      if (player2ScoreElement) player2ScoreElement.textContent = player2Score.toString()
-      
-      // Check for game over
-      if (player1Score >= 5 || player2Score >= 5) {
-        const winner = player1Score >= 5 ? 'PLAYER 1' : 'PLAYER 2'
-        this.showNotification(`Vincitore: ${winner}!`, 'success')
-      }
-    }
-    
-    // Add event listeners for game controls
-    const startPvPButton = document.getElementById('start-pvp')
-    if (startPvPButton) {
-      startPvPButton.addEventListener('click', () => {
-        console.log('Starting Pong PvP game...')
-        this.startPongGame('pvp')
-      })
-    }
-    
-    const startPvEEasyButton = document.getElementById('start-pve-easy')
-    if (startPvEEasyButton) {
-      startPvEEasyButton.addEventListener('click', () => {
-        console.log('Starting Pong PvE easy game...')
-        this.startPongGame('pve', 'easy')
-      })
-    }
-    
-    const startPvEMediumButton = document.getElementById('start-pve-medium')
-    if (startPvEMediumButton) {
-      startPvEMediumButton.addEventListener('click', () => {
-        console.log('Starting Pong PvE medium game...')
-        this.startPongGame('pve', 'medium')
-      })
-    }
-    
-    const startPvEHardButton = document.getElementById('start-pve-hard')
-    if (startPvEHardButton) {
-      startPvEHardButton.addEventListener('click', () => {
-        console.log('Starting Pong PvE hard game...')
-        this.startPongGame('pve', 'hard')
-      })
-    }
-    
-    const settingsButton = document.getElementById('game-settings')
-    if (settingsButton) {
-      settingsButton.addEventListener('click', () => {
-        this.router.navigate('/settings')
-      })
-    }
-  }
-
-  private startPongGame(mode: 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
-    // Start the game with the specified mode and difficulty
-    const gameMode = mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`
-    this.showNotification(`Partita avviata: ${gameMode}!`, 'success')
-    
-    // Here you would initialize the actual game with the specified mode and difficulty
-    // For now, we'll just show a notification
-  }
-
   private initializeBreakoutGame() {
     const canvasContainer = document.getElementById('breakout-canvas-container')
     if (!canvasContainer) return
@@ -1123,7 +2009,7 @@ export class App {
     if (startButton) {
       startButton.addEventListener('click', () => {
         console.log('Starting Breakout game...')
-        this.startBreakoutGame()
+        this.startBreakoutGame('pvp')
       })
     }
     
@@ -1133,14 +2019,6 @@ export class App {
         this.router.navigate('/settings')
       })
     }
-  }
-
-  private startBreakoutGame() {
-    // Start the Breakout game
-    this.showNotification('Partita Breakout avviata!', 'success')
-    
-    // Here you would initialize the actual game
-    // For now, we'll just show a notification
   }
 
   private initializeTournamentsPage() {

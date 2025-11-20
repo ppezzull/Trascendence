@@ -17,33 +17,6 @@ export class BreakoutCanvas {
   render(container: HTMLElement) {
     container.innerHTML = `
       <div class="relative w-full h-full">
-        <!-- Game Mode Selection -->
-        <div id="breakout-game-mode-selection" class="absolute inset-0 bg-cyber-black/90 flex items-center justify-center z-50">
-          <div class="cyber-panel p-8 max-w-md w-full">
-            <h2 class="cyber-title text-2xl mb-6 text-center">SELEZIONA MODALITÀ</h2>
-            
-            <div class="space-y-4 mb-6">
-              <button id="breakout-solo-mode" class="cyber-button w-full">SOLO (Classico)</button>
-              <button id="breakout-pvp-mode" class="cyber-button w-full">1 VS 1 (Locale)</button>
-              <button id="breakout-pve-mode" class="cyber-button w-full">1 VS BOT</button>
-            </div>
-            
-            <!-- Bot Difficulty Selection (hidden by default) -->
-            <div id="breakout-bot-difficulty" class="hidden space-y-4 mb-6">
-              <h3 class="text-cyber-green text-lg font-bold text-center">Seleziona Difficoltà BOT</h3>
-              <div class="grid grid-cols-3 gap-2">
-                <button id="breakout-bot-easy" class="cyber-button text-sm">Facile</button>
-                <button id="breakout-bot-medium" class="cyber-button text-sm">Medio</button>
-                <button id="breakout-bot-hard" class="cyber-button text-sm">Difficile</button>
-              </div>
-            </div>
-            
-            <div class="text-center">
-              <button id="breakout-start-selected-mode" class="cyber-button hidden">Inizia Partita</button>
-            </div>
-          </div>
-        </div>
-        
         <canvas id="breakout-canvas" class="w-full h-full rounded border border-cyber-green"></canvas>
         
         <!-- Game HUD -->
@@ -471,7 +444,7 @@ export class BreakoutCanvas {
     }
   }
 
-  private startGame() {
+  public startGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -483,7 +456,19 @@ export class BreakoutCanvas {
     document.getElementById('breakout-change-mode-btn')?.classList.add('hidden')
   }
 
-  private pauseGame() {
+  public setGameMode(mode: 'solo' | 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
+    this.gameMode = mode
+    if (difficulty) {
+      this.botDifficulty = difficulty
+    }
+    
+    // Update game mode in the game instance
+    if (this.game) {
+      this.game.setGameMode(mode, difficulty)
+    }
+  }
+
+  public pauseGame() {
     if (!this.game) return
     
     this.isRunning = false
@@ -494,7 +479,7 @@ export class BreakoutCanvas {
     document.getElementById('resume-breakout-btn')?.classList.remove('hidden')
   }
 
-  private resumeGame() {
+  public resumeGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -505,7 +490,7 @@ export class BreakoutCanvas {
     document.getElementById('pause-breakout-btn')?.classList.remove('hidden')
   }
 
-  private resetGame() {
+  public resetGame() {
     if (!this.game) return
     
     this.isRunning = false
@@ -525,6 +510,32 @@ export class BreakoutCanvas {
     if (scoreElement) scoreElement.textContent = '0'
     if (levelElement) levelElement.textContent = '1'
     if (livesElement) livesElement.textContent = '3'
+  }
+  
+  public dispose() {
+    // Stop the game
+    if (this.game) {
+      this.game.pause()
+    }
+    
+    // Dispose of Babylon.js resources
+    if (this.scene) {
+      this.scene.dispose()
+    }
+    
+    if (this.engine) {
+      this.engine.dispose()
+    }
+    
+    // Clear references
+    this.game = null
+    this.scene = null
+    this.engine = null
+    this.canvas = null
+    
+    // Remove event listeners if any
+    window.removeEventListener('keydown', this.handleKeyDown)
+    window.removeEventListener('keyup', this.handleKeyUp)
   }
 
   updateScore(score: number, level: number, lives: number) {
