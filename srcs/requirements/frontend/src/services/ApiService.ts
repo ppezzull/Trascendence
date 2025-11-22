@@ -105,7 +105,8 @@ export class ApiService {
       // Handle HTTP errors
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        const errMsg = errorData.message || errorData.error || `HTTP error! status: ${response.status}`
+        throw new Error(errMsg)
       }
 
       return await response.json()
@@ -343,10 +344,11 @@ export class ApiService {
     }
   }
 
-  async readyMatch(matchId: string): Promise<ApiResponse> {
+  async readyMatch(matchId: string, userId: number, ready: boolean = true): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}/ready`, {
         method: 'POST',
+        body: JSON.stringify({ user_id: userId, ready })
       })
     } catch (error) {
       console.error('Ready match error:', error)
@@ -379,34 +381,25 @@ export class ApiService {
   }
 
   // Matchmaking
-  async findMatch(gameId: string): Promise<ApiResponse> {
-    try {
-      return await this.gameRequest<ApiResponse>('/api/matchmaking/find', {
-        method: 'POST',
-        body: JSON.stringify({ gameId }),
-      })
-    } catch (error) {
-      console.error('Find match error:', error)
-      return { success: false, message: 'Failed to find match' }
-    }
+  async findMatch(gameId: string, eloRange: number = 200): Promise<ApiResponse> {
+    return await this.gameRequest<ApiResponse>('/api/matchmaking/find', {
+      method: 'POST',
+      body: JSON.stringify({ game_id: parseInt(gameId), elo_range: eloRange }),
+    })
   }
 
   async joinMatchmaking(gameId: string): Promise<ApiResponse> {
-    try {
-      return await this.gameRequest<ApiResponse>('/api/matchmaking/join', {
-        method: 'POST',
-        body: JSON.stringify({ gameId }),
-      })
-    } catch (error) {
-      console.error('Join matchmaking error:', error)
-      return { success: false, message: 'Failed to join matchmaking' }
-    }
+    return await this.gameRequest<ApiResponse>('/api/matchmaking/join', {
+      method: 'POST',
+      body: JSON.stringify({ game_id: parseInt(gameId) }),
+    })
   }
 
-  async leaveMatchmaking(): Promise<ApiResponse> {
+  async leaveMatchmaking(gameId?: string): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>('/api/matchmaking/leave', {
         method: 'POST',
+        body: JSON.stringify(gameId ? { game_id: parseInt(gameId) } : {}) // body JSON richiesto
       })
     } catch (error) {
       console.error('Leave matchmaking error:', error)

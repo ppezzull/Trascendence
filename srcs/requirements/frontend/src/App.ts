@@ -568,13 +568,39 @@ export class App {
     }
   }
 
-  private renderPongGameState(container: HTMLElement, mode: string, difficulty?: string) {
+  private async renderPongGameState(
+    container: HTMLElement,
+    mode: string,
+    difficulty?: string,
+    options?: { autoStart?: boolean; player1Name?: string; player2Name?: string }
+  ) {
+    // Get player names for PvP
+    let player1Name = options?.player1Name || 'PLAYER 1'
+    let player2Name = options?.player2Name || (mode === 'pvp' ? 'PLAYER 2' : `BOT (${difficulty?.toUpperCase()})`)
+    
+    if (mode === 'pvp' && this.currentMatchId) {
+      try {
+        const authState = authService.getState()
+        player1Name = options?.player1Name || authState.user?.username || 'PLAYER 1'
+        
+        // Get opponent info if available
+        if (this.currentOpponentId) {
+          const opponentResponse = await this.apiService.getUserById(this.currentOpponentId)
+          if (opponentResponse.success && opponentResponse.data) {
+            player2Name = options?.player2Name || opponentResponse.data.username || 'PLAYER 2'
+          }
+        }
+      } catch (error) {
+        console.error('Error getting player names:', error)
+      }
+    }
+
     container.innerHTML = `
       <div class="w-full h-full flex flex-col items-center justify-center py-8">
         <!-- Game Title -->
         <div class="text-center mb-6">
           <h2 class="text-3xl font-bold text-cyber-green">
-            ${mode === 'pvp' ? 'PARTITA 1 VS 1' : `PARTITA 1 VS BOT (${difficulty?.toUpperCase()})`}
+            ${mode === 'pvp' ? `${player1Name} VS ${player2Name}` : `PARTITA 1 VS BOT (${difficulty?.toUpperCase()})`}
           </h2>
         </div>
         
@@ -587,6 +613,7 @@ export class App {
         
         <!-- Game Controls -->
         <div class="flex justify-center space-x-4 mt-4">
+          <button id="start-game-btn-in-state" class="cyber-button ${options?.autoStart === false ? '' : 'hidden'}">Inizia Partita</button>
           <button id="pause-game-btn" class="cyber-button">Pausa</button>
           <button id="resume-game-btn" class="cyber-button hidden">Riprendi</button>
           <button id="restart-game-btn" class="cyber-button">Restart</button>
@@ -607,6 +634,9 @@ export class App {
       
       // Store the canvas instance
       this.currentPongCanvas = pongCanvas
+      // Reset last reported scores at game screen render
+      this.lastReportedPongScoreP1 = 0
+      this.lastReportedPongScoreP2 = 0
       
       // Set score callback
       pongCanvas.updateScore = (player1Score: number, player2Score: number) => {
@@ -614,17 +644,29 @@ export class App {
         this.handlePongScoreUpdate(player1Score, player2Score)
       }
       
-      // Start the game after a short delay
-      setTimeout(() => {
-        pongCanvas.startGame()
-      }, 100)
+      // Start only if autoStart is not disabled
+      if (options?.autoStart !== false) {
+        setTimeout(() => {
+          pongCanvas.startGame()
+        }, 100)
+      }
     }
 
     // Setup event listeners for controls
+    const startBtnInState = document.getElementById('start-game-btn-in-state')
     const pauseBtn = document.getElementById('pause-game-btn')
     const resumeBtn = document.getElementById('resume-game-btn')
     const restartBtn = document.getElementById('restart-game-btn')
     const exitBtn = document.getElementById('exit-game-btn')
+    
+    if (startBtnInState) {
+      startBtnInState.addEventListener('click', () => {
+        if (this.currentPongCanvas) {
+          this.currentPongCanvas.startGame()
+          startBtnInState.classList.add('hidden')
+        }
+      })
+    }
     
     if (pauseBtn) {
       pauseBtn.addEventListener('click', () => {
@@ -674,38 +716,230 @@ export class App {
     const gameContainer = document.getElementById('pong-game-container')
     if (!gameContainer) return
 
+    if (mode === 'pvp') {
+      // For PvP, start matchmaking flow
+      this.renderPongMatchmakingState(gameContainer)
+    } else {
+      // For PvE (vs BOT), it's a local game
+      this.renderPongGameState(gameContainer, mode, difficulty)
+      this.showNotification(`Partita locale avviata: 1 vs BOT (${difficulty})!`, 'success')
+    }
+  }
+
+  private async renderPongMatchmakingState(container: HTMLElement) {
+    container.innerHTML = `
+      <div class="w-full flex flex-col items-center justify-center py-8">
+        <div class="cyber-card w-full max-w-2xl">
+          <h2 class="text-2xl font-bold text-cyber-green mb-6 text-center">RICERCA AVVERSARIO</h2>
+          
+          <div id="matchmaking-content" class="text-center">
+            <!-- Initial state: Joining queue -->
+            <div class="mb-8">
+              <i class="fas fa-spinner fa-spin text-4xl text-cyber-green mb-4"></i>
+              <p class="text-lg text-cyber-green">Connessione al matchmaking...</p>
+            </div>
+          </div>
+          
+          <div class="flex justify-center space-x-4 mt-6">
+            <button id="cancel-matchmaking" class="cyber-button-secondary">Annulla</button>
+            <button id="back-to-modes" class="cyber-button-secondary">Indietro</button>
+          </div>
+        </div>
+      </div>
+    `
+
+    // Setup event listeners
+    const cancelButton = document.getElementById('cancel-matchmaking')
+    const backButton = document.getElementById('back-to-modes')
+    
+    if (cancelButton) {
+      cancelButton.addEventListener('click', () => {
+        this.cancelPongMatchmaking()
+      })
+    }
+    
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        this.cancelPongMatchmaking()
+        this.initializePongGameWithStates()
+      })
+    }
+
+    // Start matchmaking process
+    await this.startPongMatchmaking()
+  }
+
+  private showMatchmakingError(contentElement: HTMLElement, message: string) {
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-times-circle text-4xl text-cyber-magenta mb-4"></i>
+        <p class="text-lg text-cyber-magenta mb-2">Errore</p>
+        <p class="text-sm text-gray-400">${message}</p>
+      </div>
+    `
+  }
+
+  private async cancelPongMatchmaking() {
     try {
-      // Create a match in the backend
-      const matchResponse = await this.apiService.createMatch('pong')
+      this.matchmakingCancelled = true
+      // Leave matchmaking queue
+      await this.apiService.leaveMatchmaking()
+      this.showNotification('Matchmaking annullato', 'info')
+    } catch (error) {
+      console.error('Error leaving matchmaking:', error)
+    }
+  }
+
+  private async setPlayerReady() {
+    if (!this.currentMatchId) return
+
+    try {
+      const authState = authService.getState()
+      if (!authState.user?.id) return
+
+      const response = await this.apiService.readyMatch(
+        this.currentMatchId.toString(),
+        Number(authState.user.id),
+        true
+      )
       
-      if (matchResponse.success && matchResponse.data) {
-        // Store the match ID for later use
-        this.currentMatchId = matchResponse.data.id
-        
-        // Move to game state and start the game
-        this.renderPongGameState(gameContainer, mode, difficulty)
-        this.showNotification(`Partita avviata: ${mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`}!`, 'success')
+      if (response.success) {
+        // Update UI to show player is ready
+        const readyButton = document.getElementById('ready-button')
+        if (readyButton) {
+          readyButton.textContent = 'Pronto! ✓'
+          readyButton.setAttribute('disabled', 'true')
+          readyButton.classList.add('opacity-50')
+        }
+
+        // Check if both players are ready
+        this.checkMatchReady()
       } else {
-        this.showNotification('Errore nella creazione della partita', 'error')
+        this.showNotification('Errore nel segnalarsi pronto', 'error')
       }
     } catch (error) {
-      console.error('Error creating match:', error)
-      // Continue with local game if API fails
-      this.renderPongGameState(gameContainer, mode, difficulty)
-      this.showNotification(`Partita avviata localmente: ${mode === 'pvp' ? '1 vs 1' : `1 vs BOT (${difficulty})`}!`, 'info')
+      console.error('Error setting ready:', error)
+      this.showNotification('Errore nel segnalarsi pronto', 'error')
+    }
+  }
+
+  private async checkMatchReady() {
+    if (!this.currentMatchId) return
+
+    try {
+      const response = await this.apiService.getMatch(this.currentMatchId.toString())
+      
+      if (response.success && response.data) {
+        const match = response.data
+        const allPlayersReady = match.players?.every((p: any) => p.is_ready)
+        
+        if (allPlayersReady && match.status === 'in_progress') {
+          const authState = authService.getState()
+          const myIdNum: number | null = authState.user?.id ? Number(authState.user.id) : null
+          const oppIdNum: number | null = this.currentOpponentId ? Number(this.currentOpponentId) : null
+          const meName = authState.user?.username || 'PLAYER 1'
+          const oppName = this.currentOpponentUsername || 'PLAYER 2'
+
+          if (myIdNum && oppIdNum) {
+            const hostId = Math.min(myIdNum, oppIdNum)
+            const amIHost = myIdNum === hostId
+            const gameContainer = document.getElementById('pong-game-container')
+
+            // Save mapping for score updates
+            this.currentPongPlayer1Id = myIdNum
+            this.currentPongPlayer2Id = oppIdNum
+
+            if (amIHost && gameContainer) {
+              this.currentMatchHost = String(hostId)
+              // Render game screen but do NOT auto-start; show Start button
+              await this.renderPongGameState(gameContainer, 'pvp', undefined, {
+                autoStart: false,
+                player1Name: meName,
+                player2Name: oppName
+              })
+              this.showNotification('Entrambi pronti. Puoi iniziare la partita.', 'success')
+            } else {
+              // Non-host, show info message
+              this.showMatchHostedByOther(amIHost ? meName : oppName)
+            }
+          }
+        } else {
+          // Not all players ready yet, poll again after a delay
+          setTimeout(() => this.checkMatchReady(), 2000)
+        }
+      }
+    } catch (error) {
+      console.error('Error checking match ready:', error)
+    }
+  }
+
+  private showMatchHostedByOther(hostUsername: string) {
+    const contentElement = document.getElementById('matchmaking-content')
+    if (!contentElement) return
+
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-gamepad text-4xl text-cyber-yellow mb-4"></i>
+        <p class="text-xl text-cyber-green mb-2">Partita in corso</p>
+        <p class="text-lg mb-4">La partita è in corso da <span class="text-cyber-cyan">${hostUsername}</span></p>
+        <p class="text-sm text-gray-400">Gioca sul PC di ${hostUsername} per partecipare alla partita</p>
+      </div>
+      <div class="flex justify-center">
+        <button id="back-to-menu" class="cyber-button">Torna al Menu</button>
+      </div>
+    `
+
+    const backButton = document.getElementById('back-to-menu')
+    if (backButton) {
+      backButton.addEventListener('click', () => {
+        this.currentMatchId = null
+        this.currentOpponentId = null
+        this.initializePongGameWithStates()
+      })
+    }
+  }
+
+  private async abandonMatch() {
+    if (!this.currentMatchId) return
+
+    try {
+      // Finish the match as abandoned
+      await this.apiService.finishMatch(this.currentMatchId.toString(), {
+        status: 'abandoned'
+      })
+      
+      this.currentMatchId = null
+      this.currentOpponentId = null
+      
+      this.showNotification('Partita abbandonata', 'info')
+      this.initializePongGameWithStates()
+    } catch (error) {
+      console.error('Error abandoning match:', error)
+      this.showNotification('Errore nell\'abbandonare la partita', 'error')
     }
   }
 
   private async handlePongScoreUpdate(player1Score: number, player2Score: number) {
     const maxScore = this.currentPongSettings?.maxScore || 5
     
-    // Update score in backend if we have a match ID
-    if (this.currentMatchId) {
+    // Update score in backend only if we have a match ID (PvP games)
+    if (this.currentMatchId && this.currentPongMode === 'pvp') {
       try {
-        await this.apiService.updateMatchScore(this.currentMatchId, {
-          player1_score: player1Score,
-          player2_score: player2Score
-        })
+        // Send an update only when a player's score increases
+        if (player1Score > this.lastReportedPongScoreP1 && this.currentPongPlayer1Id) {
+          await this.apiService.updateMatchScore(this.currentMatchId, {
+            user_id: this.currentPongPlayer1Id,
+            score: player1Score
+          })
+          this.lastReportedPongScoreP1 = player1Score
+        }
+        if (player2Score > this.lastReportedPongScoreP2 && this.currentPongPlayer2Id) {
+          await this.apiService.updateMatchScore(this.currentMatchId, {
+            user_id: this.currentPongPlayer2Id,
+            score: player2Score
+          })
+          this.lastReportedPongScoreP2 = player2Score
+        }
       } catch (error) {
         console.error('Error updating match score:', error)
       }
@@ -731,10 +965,13 @@ export class App {
       this.currentPongCanvas = null
     }
     
-    // Finish match in backend if we have a match ID
-    if (this.currentMatchId) {
+    // Finish match in backend only for PvP games
+    if (this.currentMatchId && this.currentPongMode === 'pvp') {
       try {
-        const winnerId = winner === 'PLAYER 1' ? '1' : '2' // You might need to get actual user IDs
+        const authState = authService.getState()
+        const currentUserId = authState.user?.id
+        const winnerId = winner === 'PLAYER 1' ? currentUserId : this.currentOpponentId
+        
         await this.apiService.finishMatch(this.currentMatchId, {
           winner_id: winnerId,
           final_scores: {
@@ -836,8 +1073,8 @@ export class App {
     const confirmButton = document.getElementById('confirm-exit')
     if (confirmButton) {
       confirmButton.addEventListener('click', async () => {
-        // Finish the match if we have a match ID
-        if (this.currentMatchId) {
+        // Finish the match only for PvP games
+        if (this.currentMatchId && this.currentPongMode === 'pvp') {
           try {
             await this.apiService.finishMatch(this.currentMatchId, {
               status: 'abandoned'
@@ -879,6 +1116,14 @@ export class App {
   private currentPongSettings: GameSettings | null = null
   private currentPongCanvas: PongCanvas | null = null
   private currentMatchId: string | null = null
+  private currentOpponentId: string | null = null
+  private currentMatchHost: string | null = null
+  private currentOpponentUsername: string | null = null
+  private currentPongPlayer1Id: number | null = null
+  private currentPongPlayer2Id: number | null = null
+  private lastReportedPongScoreP1: number = 0
+  private lastReportedPongScoreP2: number = 0
+  private matchmakingCancelled: boolean = false
 
   private renderBreakoutPage() {
     const contentElement = document.getElementById('content')
@@ -931,7 +1176,7 @@ export class App {
         this.onBreakoutModeSelected(modeId)
       }
     )
-    gameModeSelector.render(container)
+    ;(gameModeSelector as any).render(container)
   }
 
   private renderBreakoutPreparationState(container: HTMLElement, mode: string) {
@@ -2224,4 +2469,231 @@ export class App {
       }
     }, 3000)
   }
+
+  private async checkForPendingMatch(): Promise<any> {
+    try {
+      const authState = authService.getState()
+      const userId = authState.user?.id?.toString()
+      if (!userId) return false
+      
+      console.log('Checking for pending matches for user:', userId)
+      const myMatches = await this.apiService.getUserMatchHistory(userId)
+      console.log('Match history response:', myMatches)
+      const matchesArray = myMatches.data.matches || myMatches.data
+      // Trova il match pending più recente (con l'ID più grande)
+      const recentPending = (matchesArray as any).find((m: any) => m.status === 'pending' && Number(m.game_id) === 1)
+      
+      if (recentPending) {
+        console.log('Found pending match:', recentPending)
+        this.currentMatchId = String(recentPending.id)
+        // ricaviamo opponent_id dai players
+        const meId = authState.user?.id
+        if (recentPending.players && Array.isArray(recentPending.players)) {
+          const opponentPlayer = recentPending.players.find((p: any) => String(p.user_id) !== String(meId))
+          if (opponentPlayer) {
+            this.currentOpponentId = String(opponentPlayer.user_id)
+            try {
+              const opp = await this.apiService.getUserById(this.currentOpponentId)
+              if (opp.success && opp.data) this.currentOpponentUsername = opp.data.username || null
+            } catch {}
+          }
+        }
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('Error checking for pending match:', err)
+      return false
+    }
+  }
+
+  private async startPongMatchmaking() {
+    const contentElement = document.getElementById('matchmaking-content')
+    if (!contentElement) return
+
+    try {
+      // Best-effort: ensure we are not stuck from a previous queue
+      try {
+        await this.apiService.leaveMatchmaking('1')
+      } catch {}
+      // Step 1: Join matchmaking queue
+      let joinedOk = true
+      try {
+        const joinResponse = await this.apiService.joinMatchmaking('1') // game_id 1 for Pong
+        joinedOk = !!joinResponse.success
+      } catch (e) {
+        // If already in queue, many backends reply 400; we proceed to find anyway
+        joinedOk = false
+      }
+
+      // Reset flags and update UI to show searching
+      this.matchmakingCancelled = false
+      contentElement.innerHTML = `
+        <div class="mb-8">
+          <i class="fas fa-search text-4xl text-cyber-green mb-4 animate-pulse"></i>
+          <p class="text-lg text-cyber-green mb-2">Ricerca avversario in corso...</p>
+          <p class="text-sm text-gray-400">Potrebbero volerci alcuni secondi</p>
+        </div>
+      `
+
+      // Step 2: Poll for match
+      const pollFind = async () => {
+        if (this.matchmakingCancelled) return
+          
+        // First check if we already have a pending match
+        const hasPendingMatch = await this.checkForPendingMatch()
+
+        console.log('hasPendingMatch:', hasPendingMatch)
+        
+
+
+
+        if (hasPendingMatch) {
+          console.log('Found pending match at start of polling!')
+          const contentElement = document.getElementById('matchmaking-content')
+          if (contentElement) {
+            const authState = authService.getState()
+            const meName = authState.user?.username || 'PLAYER 1'
+            const oppName = this.currentOpponentUsername || 'PLAYER 2'
+            contentElement.innerHTML = `
+              <div class="mb-8">
+                <i class="fas fa-check-circle text-4xl text-cyber-green mb-4"></i>
+                <p class="text-xl text-cyber-green mb-2">Avversario trovato!</p>
+                <p class="text-lg mb-4">${meName} <span class="text-cyber-cyan">VS</span> ${oppName} stocazzo</p>
+                <div id="ready-status" class="space-y-2">
+                  <p class="text-sm">In attesa che entrambi i giocatori siano pronti... stocazzo</p>
+                </div>
+              </div>
+              <div class="flex justify-center space-x-4">
+                <button id="ready-button" class="cyber-button">Sono Pronto</button>
+                <button id="abandon-match" class="cyber-button-secondary">Abbandona</button>
+              </div>
+            `
+            document.getElementById('ready-button')?.addEventListener('click', () => this.setPlayerReady())
+            document.getElementById('abandon-match')?.addEventListener('click', () => this.abandonMatch())
+            // Start checking ready status
+            this.checkMatchReady()
+          }
+          return
+        }
+        
+        try {
+          console.log('Calling findMatch...')
+          const findResponse = await this.apiService.findMatch('1')
+          console.log('findResponse:', findResponse)
+          
+          // Check if response contains a match (either we created it or opponent did)
+          // Note: When backend finds a match, it returns status 201 with {message: 'Match found!', match: {...}, opponent_id: ...}
+          // This doesn't have a 'success' field, so we need to check for the match directly
+          if (findResponse.data?.match || (findResponse as any).match || (findResponse.message && findResponse.message.includes('Match found!'))) {
+            console.log('Match found in response!')
+            // Match found
+            const matchData = findResponse.data?.match || (findResponse as any).match
+            this.currentMatchId = matchData.id?.toString() || null
+            this.currentOpponentId = findResponse.data?.opponent_id?.toString() || (findResponse as any).opponent_id?.toString() || null
+            // Fetch opponent username (best effort)
+            if (this.currentOpponentId) {
+              try {
+                const opp = await this.apiService.getUserById(this.currentOpponentId)
+                if (opp.success && opp.data) {
+                  this.currentOpponentUsername = opp.data.username || null
+                }
+              } catch {}
+            }
+            // Show match found UI
+            const authState = authService.getState()
+            const me = authState.user?.username || 'PLAYER 1'
+            const oppName = this.currentOpponentUsername || 'PLAYER 2'
+            const contentElement = document.getElementById('matchmaking-content')
+            if (contentElement) {
+              contentElement.innerHTML = `
+                <div class="mb-8">
+                  <i class="fas fa-check-circle text-4xl text-cyber-green mb-4"></i>
+                  <p class="text-xl text-cyber-green mb-2">Avversario trovato!</p>
+                  <p class="text-lg mb-4">${me} <span class="text-cyber-cyan">VS</span> ${oppName}</p>
+                  <div id="ready-status" class="space-y-2">
+                    <p class="text-sm">In attesa che entrambi i giocatori siano pronti... stocazo22222222</p>
+                  </div>
+                </div>
+                <div class="flex justify-center space-x-4">
+                  <button id="ready-button" class="cyber-button">Sono Pronto</button>
+                  <button id="abandon-match" class="cyber-button-secondary">Abbandona</button>
+                </div>
+              `
+              // Wire buttons
+              document.getElementById('ready-button')?.addEventListener('click', () => this.setPlayerReady())
+              document.getElementById('abandon-match')?.addEventListener('click', () => this.abandonMatch())
+              // Start checking ready status
+              this.checkMatchReady()
+            }
+            return // Stop polling, match found!
+          }
+          
+          // Still in queue, continue polling
+          console.log('Still in queue, continuing polling...')
+          setTimeout(pollFind, 2000)
+          
+        } catch (err: any) {
+          console.error('Find match polling error:', err)
+          console.error('Error message:', err.message)
+          // If we get "Not in queue" check the pending list.
+          if (err.message?.includes('Not in queue')) {
+            const rejoinResponse = await this.apiService.joinMatchmaking('1')
+            setTimeout(pollFind, 2000)
+            if (rejoinResponse.success || rejoinResponse.message === 'Already in queue') {
+            } else {
+              this.showMatchmakingError(contentElement, 'Errore: non in coda e non posso rientrare.')
+              return
+            }
+          } else {
+            // Some other error, continue polling
+            setTimeout(pollFind, 2000)
+          }
+          // Questo if qui sopra ha una parte mancante, non viene riconosciuto se s'è
+        }
+      }
+      await pollFind()
+      
+    } catch (error) {
+      console.error('Matchmaking error:', error)
+      this.showMatchmakingError(contentElement, 'Errore durante il matchmaking')
+    }
+  }
 }
+
+/*
+if (err.message?.includes('Not in queue')) {
+  // Controlla subito se c'è un match pending
+  const hasPendingMatch = await this.checkForPendingMatch()
+  if (hasPendingMatch) {
+    // Mostra UI del match trovato
+    const contentElement = document.getElementById('matchmaking-content')
+    if (contentElement) {
+      const authState = authService.getState()
+      const meName = authState.user?.username || 'PLAYER 1'
+      const oppName = this.currentOpponentUsername || 'PLAYER 2'
+      contentElement.innerHTML = `
+        <div class="mb-8">
+          <i class="fas fa-check-circle text-4xl text-cyber-green mb-4"></i>
+          <p class="text-xl text-cyber-green mb-2">Avversario trovato!</p>
+          <p class="text-lg mb-4">${meName} <span class="text-cyber-cyan">VS</span> ${oppName}</p>
+          <div id="ready-status" class="space-y-2">
+            <p class="text-sm">In attesa che entrambi i giocatori siano pronti...</p>
+          </div>
+        </div>
+        <div class="flex justify-center space-x-4">
+          <button id="ready-button" class="cyber-button">Sono Pronto</button>
+          <button id="abandon-match" class="cyber-button-secondary">Abbandona</button>
+        </div>
+      `
+      document.getElementById('ready-button')?.addEventListener('click', () => this.setPlayerReady())
+      document.getElementById('abandon-match')?.addEventListener('click', () => this.abandonMatch())
+      this.checkMatchReady()
+    }
+    return
+  }
+  
+  // Se non c'è un match pending, mostra errore
+  this.showMatchmakingError(contentElement, 'Nessun match trovato. Riprova.')
+}
+*/

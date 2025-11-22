@@ -590,20 +590,5 @@ export class BreakoutCanvas {
     }
   }
 
-  public dispose() {
-    if (this.game) {
-      this.game.dispose()
-    }
-    
-    if (this.scene) {
-      this.scene.dispose()
-    }
-    
-    if (this.engine) {
-      this.engine.dispose()
-    }
-    
-    window.removeEventListener('resize', this.handleResize.bind(this))
-  }
 }
 
