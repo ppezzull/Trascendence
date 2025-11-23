@@ -34,7 +34,7 @@ export class PongGame {
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
     this.paddle1.setControlMode('ai')
-    this.paddle1.setSpeed(0.3)
+    this.paddle1.setSpeed(0.03)
     
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)

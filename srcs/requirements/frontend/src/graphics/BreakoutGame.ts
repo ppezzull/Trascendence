@@ -325,7 +325,7 @@ export class BreakoutGame {
         ballPosition.z > brickPosition.z - brickDepth / 2 &&
        ballPosition.z < brickPosition.z + brickDepth / 2
       ) {
-        this.ball?.setVelocity(this.ball.getVelocity().scale(-1))
+        this.ball?.setVelocity(new BABYLON.Vector3(this.ball?.getVelocity().x, this.ball?.getVelocity().y, -this.ball?.getVelocity().z))
         // Brick hit!
         brick.hits++
         
@@ -472,8 +472,8 @@ export class BreakoutGame {
       if (
         ballPosition.x > powerUpPosition.x - powerUpSize / 2 &&
         ballPosition.x < powerUpPosition.x + powerUpSize / 2 &&
-        ballPosition.y > powerUpPosition.y - powerUpSize / 2 &&
-        ballPosition.y < powerUpPosition.y + powerUpSize / 2
+        ballPosition.z > powerUpPosition.z - powerUpSize / 2 &&
+        ballPosition.z < powerUpPosition.z + powerUpSize / 2
       ) {
         // Power-up collected!
         powerUp.isActive = true
@@ -565,7 +565,7 @@ export class BreakoutGame {
       // Level complete
       this.level++
       this.resetBricks()
-      this.ball.reset()
+      this.ball?.reset()
       
       // Add bonus score for completing level
       this.score += 100 * this.level
