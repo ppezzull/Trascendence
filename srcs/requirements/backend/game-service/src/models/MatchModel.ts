@@ -215,7 +215,7 @@ export class MatchModel {
     const stmt = db.prepare(`
       UPDATE matches
       SET status = 'cancelled'
-      WHERE id = ? AND status IN ('pending', 'in_progress')
+      WHERE id = ? AND status = 'pending'
     `);
 
     const result = stmt.run(matchId);

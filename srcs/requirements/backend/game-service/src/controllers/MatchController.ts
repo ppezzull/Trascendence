@@ -220,6 +220,49 @@ export class MatchController {
   }
 
   /**
+   * Cancella una partita
+   */
+  async cancelMatch(
+    request: FastifyRequest<{
+      Params: { matchId: string };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const matchId = parseInt(request.params.matchId);
+
+      const match = MatchModel.findById(matchId);
+      if (!match) {
+        return reply.status(404).send({ error: "Match not found" });
+      }
+
+      // Verifica che la partita sia in stato pending (prima che i giocatori siano pronti)
+      if (match.status !== "pending") {
+        return reply.status(400).send({ 
+          error: "Cannot cancel match",
+          details: `Match is already ${match.status}. Only pending matches can be cancelled.`
+        });
+      }
+
+      // Annulla la partita
+      const success = MatchModel.cancelMatch(matchId);
+
+      if (!success) {
+        return reply.status(500).send({ error: "Failed to cancel match" });
+      }
+
+      const updatedMatch = MatchModel.getMatchWithPlayers(matchId);
+      return reply.send({
+        ...updatedMatch,
+        message: "Match successfully cancelled"
+      });
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ error: "Internal server error" });
+    }
+  }
+
+  /**
    * Ottieni lo storico partite di un utente
    */
   async getUserMatches(

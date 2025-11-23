@@ -185,6 +185,52 @@ async function gameRoutes(fastify: FastifyInstance) {
     matchController.finishMatch.bind(matchController)
   );
 
+  fastify.post<{
+    Params: { matchId: string };
+  }>(
+    "/matches/:matchId/cancel",
+    {
+      schema: {
+        description: "Annulla una partita prima che inizi",
+        tags: ["Matches"],
+        params: {
+          type: "object",
+          properties: {
+            matchId: { type: "string" },
+          },
+        },
+        response: {
+          200: {
+            description: "Partita annullata",
+            type: "object",
+            properties: {
+              id: { type: "number" },
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          400: {
+            description: "Impossibile annullare la partita",
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              details: { type: "string" },
+            },
+          },
+          404: {
+            description: "Partita non trovata",
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+      onRequest: [fastify.authenticate],
+    },
+    matchController.cancelMatch.bind(matchController)
+  );
+
   fastify.get<{
     Params: { userId: string };
     Querystring: { game_id?: string; limit?: string };
