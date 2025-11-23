@@ -195,6 +195,8 @@ export class ApiService {
 
   async getUserById(userId: string): Promise<ApiResponse<User>> {
     try {
+      const url = `${this.userBaseUrl}/api/users/${userId}`;
+      console.log(`Getting user by ID ${userId} from URL: ${url}`);
       return await this.userRequest<User>(`/api/users/${userId}`)
     } catch (error) {
       console.error('Get user error:', error)

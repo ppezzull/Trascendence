@@ -26,8 +26,8 @@ const fastify: FastifyInstance = Fastify({
     },
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
     base: {
-      service: process.env.SERVICE_NAME || 'user-service',
-      environment: process.env.NODE_ENV || 'development',
+      service: process.env.SERVICE_NAME || "user-service",
+      environment: process.env.NODE_ENV || "development",
     },
   },
 });
@@ -36,12 +36,14 @@ const fastify: FastifyInstance = Fastify({
 async function registerPlugins() {
   // Abilita CORS
   const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+    : ["http://localhost:3000", "http://127.0.0.1:3000"];
 
   await fastify.register(cors, {
     origin: corsOrigins,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Abilita Helmet per la sicurezza
@@ -100,7 +102,7 @@ async function registerPlugins() {
 
   // Registra Prometheus metrics endpoint
   await fastify.register(metricsPlugin, {
-    endpoint: '/metrics',
+    endpoint: "/metrics",
     defaultMetrics: { enabled: true },
     routeMetrics: { enabled: true },
   });
@@ -128,7 +130,7 @@ async function start() {
 
     // Avvia il server
     const port = parseInt(process.env.PORT || "3001", 10);
-    const host = process.env.HOST || "127.0.0.1";
+    const host = process.env.HOST || "localhost";
 
     await fastify.listen({ port, host });
     fastify.log.info(`Server in ascolto su http://${host}:${port}`);

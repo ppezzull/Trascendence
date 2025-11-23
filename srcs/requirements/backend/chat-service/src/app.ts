@@ -50,6 +50,8 @@ async function registerPlugins() {
   await fastify.register(cors, {
     origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Abilita Helmet per la sicurezza (con eccezione per WebSocket)
@@ -244,7 +246,7 @@ async function start() {
 
     // Avvia il server
     const port = parseInt(process.env.PORT || "3002", 10);
-    const host = process.env.HOST || "127.0.0.1";
+    const host = process.env.HOST || "localhost";
 
     await fastify.listen({ port, host });
 
