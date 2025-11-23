@@ -143,7 +143,7 @@ urls:
 	@echo ""
 	@echo "DevOps Monitoring UIs:"
 	@echo "  Kibana:     https://localhost:8090/kibana/"
-	@echo "  Grafana:    https://localhost:8090/grafana/  (admin/admin123)"
+	@echo "  Grafana:    https://localhost:8090/grafana/  (admin/see .env file)"
 	@echo "  Prometheus: https://localhost:8090/prometheus/"
 	@echo ""
 	@echo "API Documentation (Swagger UI):"
