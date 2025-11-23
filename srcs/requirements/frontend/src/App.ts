@@ -837,11 +837,6 @@ export class App {
               <p class="text-sm text-gray-400">Verifica se ci sono partite pending</p>
             </div>
           </div>
-          
-          <div class="flex justify-center space-x-4 mt-6">
-            <button id="cancel-matchmaking" class="cyber-button-secondary">Annulla</button>
-            <button id="back-to-modes" class="cyber-button-secondary">Indietro</button>
-          </div>
         </div>
       </div>
     `;
@@ -1369,6 +1364,8 @@ export class App {
         true
       );
 
+      console.log("Ready match response:", response);
+
       if (response.success) {
         // Update UI to show player is ready
         const readyButton = document.getElementById("ready-button");
@@ -1480,15 +1477,27 @@ export class App {
     if (!this.currentMatchId) return;
 
     try {
-      // Finish the match as abandoned
-      await this.apiService.finishMatch(this.currentMatchId.toString(), {
-        status: "abandoned",
-      });
+      // Cancel the match using the new cancel API
+      const response = await this.apiService.cancelMatch(
+        this.currentMatchId.toString()
+      );
+      console.log("Cancel match response:", response);
 
+      if (response.success) {
+        this.showNotification("Partita abbandonata con successo", "info");
+      } else {
+        this.showNotification(
+          response.message || "Errore nell'abbandonare la partita",
+          "error"
+        );
+      }
+
+      // Reset match data
       this.currentMatchId = null;
       this.currentOpponentId = null;
+      this.currentOpponentUsername = null;
 
-      this.showNotification("Partita abbandonata", "info");
+      // Go back to game selection
       this.initializePongGameWithStates();
     } catch (error) {
       console.error("Error abandoning match:", error);
