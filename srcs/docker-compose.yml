@@ -40,18 +40,24 @@ volumes:
     driver: local
     name: trascendence_grafana_data
 
-  # Application database volumes
-  user_data:
-    driver: local
-    name: trascendence_user_data
+  # Application database volumes - Using bind mounts instead
+  # Databases are now stored directly in the project directory:
+  # - user-service/data/users.db
+  # - game-service/data/games.db
+  # - chat-service/data/chat.db
+  # This allows direct access for DBeaver and other tools
 
-  game_data:
-    driver: local
-    name: trascendence_game_data
-
-  chat_data:
-    driver: local
-    name: trascendence_chat_data
+  # user_data:  # Disabled - using bind mount
+  #   driver: local
+  #   name: trascendence_user_data
+  #
+  # game_data:  # Disabled - using bind mount
+  #   driver: local
+  #   name: trascendence_game_data
+  #
+  # chat_data:  # Disabled - using bind mount
+  #   driver: local
+  #   name: trascendence_chat_data
 
 # ==============================================================================
 # NETWORKS - Service Communication
@@ -329,7 +335,7 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-https://localhost:8090/api/auth/google/callback}
     volumes:
-      - user_data:/app/data
+      - ./requirements/backend/user-service/data:/app/data
     networks:
       - internal
     # No direct port exposure - access only through Nginx (single entry point)
@@ -364,7 +370,7 @@ services:
       # Service communication
       - USER_SERVICE_URL=http://user-service:3001
     volumes:
-      - game_data:/app/data
+      - ./requirements/backend/game-service/data:/app/data
     networks:
       - internal
     # No direct port exposure - access only through Nginx (single entry point)
@@ -396,7 +402,7 @@ services:
       - USER_SERVICE_URL=http://user-service:3001
       - GAME_SERVICE_URL=http://game-service:3003
     volumes:
-      - chat_data:/app/data
+      - ./requirements/backend/chat-service/data:/app/data
     networks:
       - internal
     # No direct port exposure - access only through Nginx (single entry point)
