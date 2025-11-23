@@ -17,6 +17,7 @@ RUN corepack enable
 COPY package*.json ./
 COPY yarn.lock* ./
 COPY .yarnrc.yml ./
+COPY .env ./
 
 # Install dependencies
 # Support both npm and yarn
