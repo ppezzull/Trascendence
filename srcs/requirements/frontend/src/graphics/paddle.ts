@@ -4,7 +4,7 @@ export class Paddle {
   private mesh: BABYLON.Mesh
   private scene: BABYLON.Scene
   private direction: 'up' | 'down' | null = null
-  private speed = 0.3
+  private speed = 0.2
 
   private lastZ = 0
   private velocityZ = 0
@@ -13,6 +13,9 @@ export class Paddle {
   private width = 1   // lungo X → spessore
   private height = 1.5  // lungo Y → quasi nullo
   private depth = 4.0   // lungo Z → lunghezza visibile
+
+  private controlMode: 'manual' | 'ai' = 'manual'
+  private aiTargetZ: number = 0
 
   constructor(name: string, scene: BABYLON.Scene) {
     this.scene = scene
@@ -31,6 +34,18 @@ export class Paddle {
     this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
   }
 
+  public setSpeed(speed: number): void {
+    this.speed = speed
+  }
+
+  public setControlMode(mode: 'manual' | 'ai'): void {
+    this.controlMode = mode
+  }
+
+  public setAITarget(z: number): void {
+    this.aiTargetZ = z
+  }
+
   public setPosition(x: number, y: number, z: number): void {
     this.mesh.position.set(x, y, z)
   }
@@ -47,10 +62,19 @@ export class Paddle {
     // Calcola velocità Z rispetto al frame precedente
     const prevZ = this.mesh.position.z
 
-    if (this.direction === 'up') {
-      this.mesh.position.z -= this.speed
-    } else if (this.direction === 'down') {
-      this.mesh.position.z += this.speed
+    if (this.controlMode === 'manual') {
+      if (this.direction === 'up') {
+        this.mesh.position.z -= this.speed
+      } else if (this.direction === 'down') {
+        this.mesh.position.z += this.speed
+      }
+    } else if (this.controlMode === 'ai') {
+      // Semplice IA: muovi verso aiTargetZ
+      if (this.mesh.position.z < this.aiTargetZ - 0.1) {
+        this.mesh.position.z += this.speed
+      } else if (this.mesh.position.z > this.aiTargetZ + 0.1) {
+        this.mesh.position.z -= this.speed
+      }
     }
 
     // Clampa posizione

@@ -33,10 +33,13 @@ export class PongGame {
     // Create paddles
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
+    this.paddle1.setControlMode('ai')
+    this.paddle1.setSpeed(0.3)
     
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)
-    
+    this.paddle2.setControlMode('manual')
+
     // Create ball
     this.ball = new Ball('ball', this.scene)
     this.ball.reset()
@@ -130,6 +133,8 @@ export class PongGame {
     this.paddle1?.update()
     this.paddle2?.update()
     this.ball?.update()
+
+    this.paddle1?.setAITarget(this.ball!.getPosition().z);
     
     // Check collisions
     this.checkCollisions()

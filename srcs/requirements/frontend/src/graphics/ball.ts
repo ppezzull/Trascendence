@@ -185,7 +185,7 @@ public handlePaddleHit(paddle: Paddle): void {
 
   // Angolo massimo del rimbalzo (45°)
   const maxBounceAngle = Math.PI / 4
-  const bounceAngle = normalizedImpact * maxBounceAngle
+  const bounceAngle = -normalizedImpact * maxBounceAngle
 
   // Direzione lungo X (sinistra/destra)
   const direction = paddlePosition.x < 0 ? 1 : -1
@@ -204,7 +204,7 @@ public handlePaddleHit(paddle: Paddle): void {
   const paddleSpeedFactor =
     boostSign > 0
       ? 1 + absVel * 2.5 // spinta più forte se il paddle si muove contro la palla
-      : 1 + absVel * 0.5 // effetto molto più debole se si muove nella stessa direzione
+      : 1 + absVel * 0.8 // effetto molto più debole se si muove nella stessa direzione
 
   const finalSpeed = baseSpeed * edgeSpeedBoost * paddleSpeedFactor
 
