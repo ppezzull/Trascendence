@@ -1,6 +1,5 @@
 import * as BABYLON from '@babylonjs/core'
 import { Paddle } from './breakPaddle'
-import { Brick } from './BreakoutGame'
 
 export class Ball {
   
@@ -32,10 +31,6 @@ export class Ball {
 	  { diameter: 0.5, segments: 16 },
 	  this.scene
 	)
-
-	//testing collision
-	this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
-	this.mesh.showBoundingBox = true
 	
 	// Create cyber material with glow effect
 	const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)
@@ -158,49 +153,6 @@ public checkWallCollision(): void {
 	return false
   }
 
-  public checkBrickCollision(brick: Brick): boolean {
-    if (!this.mesh || brick.isDestroyed) return false
-    
-    const ballPosition = this.mesh.position
-    const brickPosition = brick.mesh.position
-    
-    // Get brick dimensions (assuming standard brick size)
-    const brickWidth = 1.8
-    const brickHeight = 0.8
-    const brickDepth = 0.5
-    const ballRadius = 0.25
-    
-    // Check if ball is within brick bounds
-    const xOverlap = Math.abs(ballPosition.x - brickPosition.x) < (ballRadius + brickWidth / 2)
-    const yOverlap = Math.abs(ballPosition.y - brickPosition.y) < (ballRadius + brickHeight / 2)
-    const zOverlap = Math.abs(ballPosition.z - brickPosition.z) < (ballRadius + brickDepth / 2)
-    
-    if (xOverlap && yOverlap && zOverlap) {
-      // Calculate bounce direction based on which face of the brick was hit
-      const dx = ballPosition.x - brickPosition.x
-      const dy = ballPosition.y - brickPosition.y
-      const dz = ballPosition.z - brickPosition.z
-      
-      // Determine which face was hit based on the largest overlap
-      const xOverlapAmount = (ballRadius + brickWidth / 2) - Math.abs(dx)
-      const yOverlapAmount = (ballRadius + brickHeight / 2) - Math.abs(dy)
-      const zOverlapAmount = (ballRadius + brickDepth / 2) - Math.abs(dz)
-      
-      // Bounce off the face with the smallest overlap
-      if (xOverlapAmount < yOverlapAmount && xOverlapAmount < zOverlapAmount) {
-        this.velocity.x *= -1
-      } else if (yOverlapAmount < xOverlapAmount && yOverlapAmount < zOverlapAmount) {
-        this.velocity.y *= -1
-      } else {
-        this.velocity.z *= -1
-      }
-      
-      return true
-    }
-    
-    return false
-  }
-
 public handlePaddleHit(paddle: Paddle): void {
   if (!this.mesh) return
 
@@ -214,7 +166,7 @@ public handlePaddleHit(paddle: Paddle): void {
 
   // Angolo massimo del rimbalzo (45°)
   const maxBounceAngle = Math.PI / 4
-  const bounceAngle = normalizedImpact * maxBounceAngle
+  const bounceAngle = -normalizedImpact * maxBounceAngle
 
   // Recupera velocità X del paddle (usata per boost + spin)
   const paddleVelocityX = paddle.getCurrentVelocityX ? paddle.getCurrentVelocityX() : 0
@@ -230,7 +182,7 @@ public handlePaddleHit(paddle: Paddle): void {
   const paddleSpeedFactor =
     boostSign > 0
       ? 1 + absVel * 2.5 // se il paddle si muove "contro" l'impatto (verso +X), più spinta
-      : 1 + absVel * 0.5 // se si muove "via" (verso -X), effetto più debole
+      : 1 + absVel * 0.8 // se si muove "via" (verso -X), effetto più debole
 
   const finalSpeed = baseSpeed * edgeSpeedBoost * paddleSpeedFactor
 
@@ -313,12 +265,6 @@ public handlePaddleHit(paddle: Paddle): void {
 
   public setVelocity(velocity: BABYLON.Vector3): void {
 	this.velocity = velocity.clone()
-  }
-
-  public increaseSpeed(): void {
-    // Increase ball speed by 10% for each level
-    const speedIncrease = 1.1
-    this.velocity = this.velocity.scale(speedIncrease)
   }
 
   public dispose(): void {

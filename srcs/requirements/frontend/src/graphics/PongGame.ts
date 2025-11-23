@@ -1,6 +1,7 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './paddle'
-import { Ball } from './ball'
+import { Paddle } from './Paddle'
+import { Ball } from './Ball'
+import { PongCanvas } from '@/components/PongCanvas' 
 
 export class PongGame {
   private scene: BABYLON.Scene | null = null
@@ -55,10 +56,20 @@ export class PongGame {
     // Create paddles
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
-    
+    this.paddle1.setControlMode('ai')
+    if (this.botDifficulty === 'easy') {
+      this.paddle1.setSpeed(0.03)
+    }
+    else if (this.botDifficulty=== 'medium') {
+      this.paddle1.setSpeed(0.05)
+    }
+    else if (this.botDifficulty === 'hard') {
+      this.paddle1.setSpeed(0.07)
+    }
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)
-    
+    this.paddle2.setControlMode('manual')
+
     // Create ball
     this.ball = new Ball('ball', this.scene)
     this.ball.reset()
@@ -154,12 +165,9 @@ export class PongGame {
     this.paddle1?.update()
     this.paddle2?.update()
     this.ball?.update()
-    
-    // Update bot if in PvE mode
-    if (this.gameMode === 'pve') {
-      this.updateBot()
-    }
-    
+
+    this.paddle1?.setAITarget(this.ball!.getPosition().z);
+
     // Check collisions
     this.checkCollisions()
     
@@ -168,57 +176,6 @@ export class PongGame {
     
     // Continue game loop
     this.gameLoop = requestAnimationFrame(() => this.update())
-  }
-
-  private updateBot(): void {
-    if (!this.paddle2 || !this.ball) return
-    
-    // Only update bot at certain intervals based on difficulty
-    this.botUpdateCounter++
-    if (this.botUpdateCounter < this.botReactionTime) return
-    this.botUpdateCounter = 0
-    
-    // Get ball position
-    const ballPosition = this.ball.getPosition()
-    const paddlePosition = this.paddle2.getPosition()
-    
-    // Calculate where the ball will be when it reaches the paddle's x position
-    let targetY = ballPosition.y
-    
-    // Add some randomness based on difficulty (less randomness = harder)
-    let errorMargin = 0.5
-    switch (this.botDifficulty) {
-      case 'easy':
-        errorMargin = 1.0 // More error
-        break
-      case 'medium':
-        errorMargin = 0.5 // Medium error
-        break
-      case 'hard':
-        errorMargin = 0.2 // Less error
-        break
-    }
-    
-    // Add random error to make the bot beatable
-    targetY += (Math.random() - 0.5) * errorMargin * 2
-    
-    // Move paddle towards target position
-    if (Math.abs(paddlePosition.y - targetY) > 0.5) {
-      if (paddlePosition.y < targetY) {
-        this.paddle2.startMoving('up')
-      } else {
-        this.paddle2.startMoving('down')
-      }
-    } else {
-      this.paddle2.stopMoving()
-    }
-    
-    // Only react when ball is moving towards the bot
-    const ballVelocity = this.ball.getVelocity()
-    if (ballVelocity.x < 0) {
-      // Ball is moving away from bot, stop moving
-      this.paddle2.stopMoving()
-    }
   }
 
   private checkCollisions(): void {

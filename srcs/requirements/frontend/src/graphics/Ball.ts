@@ -1,5 +1,5 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './paddle'
+import { Paddle } from './Paddle'
 
 export class Ball {
   
@@ -13,8 +13,8 @@ export class Ball {
     maxX: 9,
     minY: -4.5,
     maxY: 4.5,
-    minZ: -14,
-    maxZ: 14
+    minZ: -10,
+    maxZ: 10
   }
 
 
@@ -51,10 +51,6 @@ export class Ball {
       { diameter: 0.5, segments: 16 },
       this.scene
     )
-
-    //testing collision
-    this.mesh.setPivotPoint(BABYLON.Vector3.Zero())
-    this.mesh.showBoundingBox = true
     
     // Create cyber material with glow effect
     const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)
@@ -189,7 +185,7 @@ public handlePaddleHit(paddle: Paddle): void {
 
   // Angolo massimo del rimbalzo (45°)
   const maxBounceAngle = Math.PI / 4
-  const bounceAngle = normalizedImpact * maxBounceAngle
+  const bounceAngle = -normalizedImpact * maxBounceAngle
 
   // Direzione lungo X (sinistra/destra)
   const direction = paddlePosition.x < 0 ? 1 : -1
@@ -208,7 +204,7 @@ public handlePaddleHit(paddle: Paddle): void {
   const paddleSpeedFactor =
     boostSign > 0
       ? 1 + absVel * 2.5 // spinta più forte se il paddle si muove contro la palla
-      : 1 + absVel * 0.5 // effetto molto più debole se si muove nella stessa direzione
+      : 1 + absVel * 0.8 // effetto molto più debole se si muove nella stessa direzione
 
   const finalSpeed = baseSpeed * edgeSpeedBoost * paddleSpeedFactor
 
