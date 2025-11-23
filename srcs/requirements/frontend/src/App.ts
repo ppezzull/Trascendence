@@ -2460,6 +2460,18 @@ export class App {
         <div class="flex h-80">
           <div id="chat-sidebar" class="w-1/3 border-r border-cyber-green pr-4">
             <h2 class="text-lg font-bold text-cyber-green mb-4">Utenti Online</h2>
+            <div class="mb-3">
+              <input
+                type="text"
+                id="user-search-input"
+                class="cyber-input w-full text-sm"
+                placeholder="Cerca utenti..."
+                maxlength="50"
+              >
+            </div>
+            <div id="search-results" class="space-y-2 mb-3 hidden">
+              <!-- Search results will be rendered here -->
+            </div>
             <div id="users-list" class="space-y-2">
               <!-- Users list will be rendered here -->
             </div>
