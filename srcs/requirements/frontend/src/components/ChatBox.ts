@@ -27,6 +27,9 @@ export class ChatBox {
   private messageContainer: HTMLElement | null = null
   private currentUserId: number | null = null
   private wsUnsubscribers: Array<() => void> = []
+  private searchResults: any[] = []
+  private chatThreads: any[] = []
+  private searchDebounceTimer: number | null = null
 
   constructor() {
     this.apiService = new ApiService()
@@ -58,7 +61,7 @@ export class ChatBox {
   private loadCurrentUser() {
     const authState = authService.getState()
     if (authState.isAuthenticated && authState.user) {
-      this.currentUserId = authState.user.id
+      this.currentUserId = parseInt(authState.user.id.toString())
     }
   }
 
@@ -110,9 +113,9 @@ export class ChatBox {
         <div class="flex flex-1 overflow-hidden">
           <!-- Users Sidebar -->
           <div class="w-1/3 border-r border-cyber-green pr-4 overflow-y-auto">
-            <h3 class="text-cyber-green font-bold mb-3">UTENTI ONLINE</h3>
-            <div id="users-list" class="space-y-2">
-              <!-- Users will be rendered here -->
+            <h3 class="text-cyber-green font-bold mb-3">Le tue chat</h3>
+            <div id="chat-threads-list" class="space-y-2">
+              <!-- Chat threads will be rendered here -->
             </div>
           </div>
 
@@ -159,6 +162,7 @@ export class ChatBox {
   private addEventListeners() {
     const sendButton = document.getElementById('send-button')
     const messageInput = document.getElementById('message-input') as HTMLInputElement
+    const searchInput = document.getElementById('user-search-input') as HTMLInputElement
     
     if (sendButton && messageInput) {
       sendButton.addEventListener('click', () => this.sendMessage())
@@ -169,22 +173,22 @@ export class ChatBox {
         }
       })
     }
+    
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = (e.target as HTMLInputElement).value.trim()
+        this.handleUserSearch(query)
+      })
+    }
   }
 
   private async loadUsers() {
     try {
-      // For now, we'll use a mix of mock data and online presence
-      // In a real implementation, this would fetch users from API and filter by online status
-      this.users = [
-        { id: '1', username: 'CyberPlayer', status: 'online' },
-        { id: '2', username: 'NeonRider', status: 'online' },
-        { id: '3', username: 'PixelWarrior', status: 'away' },
-        { id: '4', username: 'DigitalNinja', status: 'offline' }
-      ]
-
+      // Load chat threads instead of users
+      await this.loadChatThreads()
       this.renderUsers()
     } catch (error) {
-      console.error('Error loading users:', error)
+      console.error('Error loading chat threads:', error)
     }
   }
 
@@ -245,36 +249,42 @@ export class ChatBox {
   }
 
   private renderUsers() {
-    const usersList = document.getElementById('users-list')
-    if (!usersList) return
+    const chatThreadsList = document.getElementById('chat-threads-list')
+    if (!chatThreadsList) return
     
-    usersList.innerHTML = this.users.map(user => `
-      <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-user-id="${user.id}">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <div class="w-2 h-2 rounded-full ${
-              user.status === 'online' ? 'bg-cyber-green' :
-              user.status === 'away' ? 'bg-cyber-yellow' :
-              'bg-cyber-dark'
-            }"></div>
-            <span class="text-cyber-green text-sm">${user.username}</span>
-          </div>
-          <div class="flex space-x-1">
-            <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.inviteToGame('${user.id}')">Invita</button>
-            <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="chatBox.toggleBlockUser('${user.id}')">${user.isBlocked ? 'Sblocca' : 'Blocca'}</button>
+    if (this.chatThreads.length === 0) {
+      chatThreadsList.innerHTML = '<div class="text-cyber-green/50 text-sm text-center py-4">Nessuna chat trovata</div>'
+      return
+    }
+    
+    chatThreadsList.innerHTML = this.chatThreads.map(thread => {
+      // Find other participant (not the current user)
+      const otherParticipantId = thread.members.find((id: number) => id !== this.currentUserId)
+      const lastMessage = thread.lastMessage
+      const lastMessagePreview = lastMessage ? 
+        (lastMessage.content.length > 15 ? lastMessage.content.substring(0, 15) + '...' : lastMessage.content) : 
+        'Nessun messaggio'
+      
+      return `
+        <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-thread-id="${thread.id}">
+          <div class="flex justify-between items-center">
+            <div class="flex-1">
+              <div class="text-cyber-green text-sm font-medium">Chat con utente ${otherParticipantId}</div>
+              <div class="text-cyber-green/50 text-xs mt-1">${lastMessagePreview}</div>
+            </div>
+            <div class="text-cyber-green/30 text-xs">
+              ${lastMessage ? this.formatTime(new Date(lastMessage.created_at)) : ''}
+            </div>
           </div>
         </div>
-      </div>
-    `).join('')
+      `
+    }).join('')
     
-    // Add click event to open chat with user
-    usersList.querySelectorAll('[data-user-id]').forEach(userElement => {
-      userElement.addEventListener('click', (e) => {
-        // Don't open chat if clicking on buttons
-        if ((e.target as HTMLElement).tagName === 'BUTTON') return
-        
-        const userId = userElement.getAttribute('data-user-id')
-        if (userId) this.openChatWithUser(userId)
+    // Add click event to open chat thread
+    chatThreadsList.querySelectorAll('[data-thread-id]').forEach(threadElement => {
+      threadElement.addEventListener('click', () => {
+        const threadId = threadElement.getAttribute('data-thread-id')
+        if (threadId) this.openChatThread(parseInt(threadId))
       })
     })
   }
@@ -336,13 +346,13 @@ export class ChatBox {
 
     try {
       // Create or get existing DM thread
-      const response = await this.apiService.createDMThread(parseInt(userId))
+      const response = await this.apiService.createDirectMessageThread(userId)
 
       if (response.success && response.data) {
         this.currentThreadId = response.data.id
         this.updateThreadInfo(user.username)
         this.enableMessageInput()
-        await this.loadMessages(this.currentThreadId)
+        await this.loadMessages(this.currentThreadId || undefined)
         this.showNotification(`Chat aperta con ${user.username}`, 'success')
       } else {
         this.showNotification('Impossibile aprire la chat', 'error')
@@ -388,7 +398,7 @@ export class ChatBox {
 
     try {
       // Send game invitation via API
-      const response = await this.apiService.sendGameInvitation(parseInt(userId))
+      const response = await this.apiService.sendGameInvitation(userId, "default")
 
       if (response.success) {
         this.showNotification(`Invito di gioco inviato a ${user.username}`, 'success')
@@ -427,10 +437,10 @@ export class ChatBox {
 
       if (user.isBlocked) {
         // Unblock user
-        response = await this.apiService.unblockUser(targetUserId)
+        response = await this.apiService.unblockUser(targetUserId.toString())
       } else {
         // Block user
-        response = await this.apiService.blockUser(targetUserId)
+        response = await this.apiService.blockUser(targetUserId.toString())
       }
 
       if (response.success) {
@@ -481,6 +491,125 @@ export class ChatBox {
         notification.parentNode.removeChild(notification)
       }
     }, 3000)
+  }
+
+  private handleUserSearch(query: string) {
+    // Clear existing debounce timer
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer)
+    }
+    
+    // If query is empty, hide search results
+    if (!query) {
+      this.searchResults = []
+      this.renderSearchResults()
+      return
+    }
+    
+    // Set new debounce timer
+    this.searchDebounceTimer = window.setTimeout(() => {
+      this.searchUsers(query)
+    }, 300)
+  }
+  
+  private async searchUsers(query: string) {
+    try {
+      const response = await this.apiService.searchUsers(query)
+      if (response.success && response.data) {
+        // The API returns { data: { users: [...], pagination: {...} } }
+        this.searchResults = (response.data as any).users || []
+      } else {
+        this.searchResults = []
+      }
+      this.renderSearchResults()
+    } catch (error) {
+      console.error('Error searching users:', error)
+      this.searchResults = []
+      this.renderSearchResults()
+    }
+  }
+  
+  private renderSearchResults() {
+    const searchResultsElement = document.getElementById('search-results')
+    if (!searchResultsElement) return
+    
+    if (this.searchResults.length === 0) {
+      searchResultsElement.classList.add('hidden')
+      return
+    }
+    
+    searchResultsElement.classList.remove('hidden')
+    searchResultsElement.innerHTML = this.searchResults.map(user => `
+      <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-search-user-id="${user.id}">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <div class="w-2 h-2 rounded-full bg-cyber-green"></div>
+            <span class="text-cyber-green text-sm">${user.display_name || user.username}</span>
+          </div>
+          <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.startChatWithUser(${user.id}, '${user.username}')">Chat</button>
+        </div>
+      </div>
+    `).join('')
+  }
+
+  private async loadChatThreads() {
+    try {
+      const response = await this.apiService.getChatThreads()
+      if (response.success && response.data) {
+        this.chatThreads = response.data
+      } else {
+        this.chatThreads = []
+      }
+    } catch (error) {
+      console.error('Error loading chat threads:', error)
+      this.chatThreads = []
+    }
+  }
+
+  public async startChatWithUser(userId: number, username: string) {
+    try {
+      // Create or get existing DM thread
+      const response = await this.apiService.createDirectMessageThread(userId.toString())
+
+      if (response.success && response.data) {
+        this.currentThreadId = response.data.id
+        this.updateThreadInfo(username)
+        this.enableMessageInput()
+        await this.loadMessages(this.currentThreadId || undefined)
+        this.showNotification(`Chat aperta con ${username}`, 'success')
+        
+        // Clear search results
+        this.searchResults = []
+        this.renderSearchResults()
+        
+        // Clear search input
+        const searchInput = document.getElementById('user-search-input') as HTMLInputElement
+        if (searchInput) {
+          searchInput.value = ''
+        }
+        
+        // Reload chat threads to include the new one
+        await this.loadChatThreads()
+        this.renderUsers()
+      } else {
+        this.showNotification('Impossibile aprire la chat', 'error')
+      }
+    } catch (error) {
+      console.error('Error opening chat with user:', error)
+      this.showNotification('Errore nell\'apertura della chat', 'error')
+    }
+  }
+
+  private async openChatThread(threadId: number) {
+    try {
+      this.currentThreadId = threadId
+      this.updateThreadInfo(`Chat ${threadId}`)
+      this.enableMessageInput()
+      await this.loadMessages(this.currentThreadId)
+    } catch (error) {
+      console.error('Error opening chat thread:', error)
+      this.showNotification('Errore nell\'apertura della chat', 'error')
+    }
   }
 }
 
