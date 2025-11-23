@@ -146,12 +146,6 @@ urls:
 	@echo "  Grafana:    https://localhost:8090/grafana/  (admin/admin123)"
 	@echo "  Prometheus: https://localhost:8090/prometheus/"
 	@echo ""
-	@echo "Backend API Services:"
-	@echo "  User API:   https://localhost:8090/api/users/"
-	@echo "  Auth API:   https://localhost:8090/api/auth/"
-	@echo "  Game API:   https://localhost:8090/api/game/"
-	@echo "  Chat API:   https://localhost:8090/api/chat/"
-	@echo ""
 	@echo "API Documentation (Swagger UI):"
 	@echo "  User Docs:  https://localhost:8090/docs/user"
 	@echo "  Game Docs:  https://localhost:8090/docs/game"
@@ -282,11 +276,6 @@ health-app:
 	@echo ""
 	@echo "$(YELLOW)Chat Service:$(NC)"
 	@docker exec chat-service wget -qO- http://127.0.0.1:3002/health 2>/dev/null | jq '.' || echo "  Status: DOWN"
-	@echo ""
-	@echo "$(YELLOW)Access URLs:$(NC)"
-	@echo "  User API:  https://localhost:8090/api/users/"
-	@echo "  Game API:  https://localhost:8090/api/game/"
-	@echo "  Chat API:  https://localhost:8090/api/chat/"
 
 # Check User Service health
 health-user:
@@ -408,12 +397,6 @@ test-app:
 	@echo "   Metrics endpoint:"
 	@docker exec chat-service wget -qO- http://127.0.0.1:3002/metrics 2>/dev/null | head -n 3 || echo "   No metrics available"
 	@echo "   Swagger UI: https://localhost:8090/docs/chat"
-	@echo ""
-	@echo "$(YELLOW)API Access via Nginx:$(NC)"
-	@echo "   User API:  https://localhost:8090/api/users/"
-	@echo "   Auth API:  https://localhost:8090/api/auth/"
-	@echo "   Game API:  https://localhost:8090/api/game/"
-	@echo "   Chat API:  https://localhost:8090/api/chat/"
 
 # Test User Service
 test-user:
@@ -426,8 +409,6 @@ test-user:
 	@docker exec user-service wget -qO- http://127.0.0.1:3001/metrics 2>/dev/null | head -n 10
 	@echo ""
 	@echo "Access URLs:"
-	@echo "  API:     https://localhost:8090/api/users/"
-	@echo "  Auth:    https://localhost:8090/api/auth/"
 	@echo "  Swagger: https://localhost:8090/docs/user"
 
 # Test Game Service
@@ -441,7 +422,6 @@ test-game:
 	@docker exec game-service wget -qO- http://127.0.0.1:3003/metrics 2>/dev/null | head -n 10
 	@echo ""
 	@echo "Access URLs:"
-	@echo "  API:     https://localhost:8090/api/game/"
 	@echo "  Swagger: https://localhost:8090/docs/game"
 
 # Test Chat Service
@@ -455,7 +435,6 @@ test-chat:
 	@docker exec chat-service wget -qO- http://127.0.0.1:3002/metrics 2>/dev/null | head -n 10
 	@echo ""
 	@echo "Access URLs:"
-	@echo "  API:     https://localhost:8090/api/chat/"
 	@echo "  Swagger: https://localhost:8090/docs/chat"
 
 # Test all services

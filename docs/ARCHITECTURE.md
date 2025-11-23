@@ -92,11 +92,6 @@ User Browser
 | Kibana        | https://localhost:8090/kibana/          | kibana:5601          | /kibana/           |
 | Grafana       | https://localhost:8090/grafana/         | grafana:3000         | /grafana/          |
 | Prometheus    | https://localhost:8090/prometheus/      | prometheus:9090      | /prometheus/       |
-| **API Services** |                                      |                      |                    |
-| User API      | https://localhost:8090/api/users/       | user-service:3001    | /api/users/        |
-| Auth API      | https://localhost:8090/api/auth/        | user-service:3001    | /api/auth/         |
-| Game API      | https://localhost:8090/api/game/        | game-service:3003    | /api/* (proxied)   |
-| Chat API      | https://localhost:8090/api/chat/        | chat-service:3002    | /api/chat/         |
 | **API Documentation** |                                 |                      |                    |
 | User Docs     | https://localhost:8090/docs/user        | user-service:3001    | /docs              |
 | Game Docs     | https://localhost:8090/docs/game        | game-service:3003    | /docs              |
@@ -163,13 +158,13 @@ docker exec game-service curl http://user-service:3001/health
 ```
 User Browser
      ↓
-[HTTPS Request to https://localhost:8090/api/users/profile]
+[HTTPS Request via Single Entry Point]
      ↓
 Nginx (port 8090)
      ↓ proxy_pass
-[HTTP to user-service:3001/api/users/profile]
+[HTTP to backend service (internal)]
      ↓
-User Service (internal)
+Backend Service (internal)
 ```
 
 ### 2. Backend ↔ Backend (direct internal)
@@ -369,9 +364,9 @@ location /api/game/ {
 ```
 
 **How this mapping works:**
-- External request: `https://localhost:8090/api/game/matches`
-- Nginx proxies to: `http://game-service:3003/api/matches`
-- The `/game` part is stripped because proxy_pass ends with `/api/`
+- External request comes through the single entry point
+- Nginx proxies to internal backend service
+- Path components are mapped according to nginx configuration
 
 **3. Chat Service (chat-service:3002)**
 

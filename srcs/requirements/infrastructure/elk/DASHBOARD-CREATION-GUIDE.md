@@ -397,19 +397,10 @@ After creating all dashboards:
    - Click "Refresh" if panels are empty
 
 4. **Generate test traffic:**
-   ```bash
-   # Generate HTTP requests to populate nginx-logs
-   for i in {1..20}; do
-     curl -k https://localhost:8090/api/users/health
-     curl -k https://localhost:8090/api/game/health
-     curl -k https://localhost:8090/api/chat/health
-   done
-
-   # Wait 30-60 seconds for logs to flow through Logstash
-   sleep 60
-
-   # Refresh Kibana dashboards
-   ```
+   - Use the frontend application: Browse to `https://localhost:8090` and interact with the UI
+   - Use Swagger UI: Visit `https://localhost:8090/docs/user` (or /game, /chat) and test API endpoints
+   - Wait 30-60 seconds for logs to flow through Logstash
+   - Refresh Kibana dashboards to see the new data
 
 ---
 
