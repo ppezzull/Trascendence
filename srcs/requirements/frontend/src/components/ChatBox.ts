@@ -346,7 +346,8 @@ export class ChatBox {
       // Send message via API
       const response = await this.apiService.sendMessage(this.currentThreadId.toString(), content)
 
-      if (response.success) {
+      // Check if response is successful (either has success: true or is a valid message object)
+      if (response && (response.success || response)) {
         // Clear input after successful send
         messageInput.value = ''
       } else {
