@@ -8,7 +8,7 @@ export class PongCanvas {
   private game: PongGame | null = null
   private isRunning = false
   private gameMode: 'pvp' | 'pve' | null = null
-  private botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  public botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
 
   constructor() {
     this.game = new PongGame()
@@ -101,8 +101,8 @@ export class PongCanvas {
     const camera = new BABYLON.ArcRotateCamera(
       'camera',
       Math.PI / 2, // Alpha
-      Math.PI / 4, // Beta
-      20, // Radius
+      Math.PI / 4.5, // Beta
+      25, // Radius
       BABYLON.Vector3.Zero(), // Target
       this.scene
     )
@@ -127,7 +127,7 @@ export class PongCanvas {
     // Create cyber grid ground
     const ground = BABYLON.MeshBuilder.CreateGround(
       'ground',
-      { width: 20, height: 30 },
+      { width: 20, height: 20 },
       this.scene
     )
     
@@ -184,7 +184,7 @@ export class PongCanvas {
     const wallThickness = 0.2
     const wallHeight = 5
     const arenaWidth = 20
-    const arenaLength = 30
+    const arenaLength = 20
     
     // Side walls
     const leftWall = BABYLON.MeshBuilder.CreateBox(
@@ -248,6 +248,9 @@ export class PongCanvas {
       botEasyBtn.addEventListener('click', () => {
         this.botDifficulty = 'easy'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     
@@ -255,6 +258,9 @@ export class PongCanvas {
       botMediumBtn.addEventListener('click', () => {
         this.botDifficulty = 'medium'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     
@@ -262,6 +268,9 @@ export class PongCanvas {
       botHardBtn.addEventListener('click', () => {
         this.botDifficulty = 'hard'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     
@@ -389,11 +398,11 @@ export class PongCanvas {
     switch (event.key) {
       case 'w':
       case 'W':
-        this.game.movePlayer1Paddle('up')
+        this.game.movePlayer2Paddle('up')
         break
       case 's':
       case 'S':
-        this.game.movePlayer1Paddle('down')
+        this.game.movePlayer2Paddle('down')
         break
     }
     
@@ -401,10 +410,10 @@ export class PongCanvas {
     if (this.gameMode === 'pvp') {
       switch (event.key) {
         case 'ArrowUp':
-          this.game.movePlayer2Paddle('up')
+          this.game.movePlayer1Paddle('up')
           break
         case 'ArrowDown':
-          this.game.movePlayer2Paddle('down')
+          this.game.movePlayer1Paddle('down')
           break
       }
     }
@@ -419,7 +428,7 @@ export class PongCanvas {
       case 'W':
       case 's':
       case 'S':
-        this.game.stopPlayer1Paddle()
+        this.game.stopPlayer2Paddle()
         break
     }
     
@@ -428,7 +437,7 @@ export class PongCanvas {
       switch (event.key) {
         case 'ArrowUp':
         case 'ArrowDown':
-          this.game.stopPlayer2Paddle()
+          this.game.stopPlayer1Paddle()
           break
       }
     }
