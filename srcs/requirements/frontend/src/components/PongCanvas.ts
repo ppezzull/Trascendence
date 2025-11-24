@@ -1,17 +1,35 @@
-import * as BABYLON from '@babylonjs/core'
-import { PongGame } from '../graphics/PongGame.js'
+import * as BABYLON from "@babylonjs/core";
+import { PongGame } from "../graphics/PongGame.js";
 
 export class PongCanvas {
-  private canvas: HTMLCanvasElement | null = null
-  private engine: BABYLON.Engine | null = null
-  private scene: BABYLON.Scene | null = null
-  private game: PongGame | null = null
-  private isRunning = false
-  private gameMode: 'pvp' | 'pve' | null = null
-  public botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  private canvas: HTMLCanvasElement | null = null;
+  private engine: BABYLON.Engine | null = null;
+  private scene: BABYLON.Scene | null = null;
+  private game: PongGame | null = null;
+  private isRunning = false;
+  private gameMode: "pvp" | "pve" | null = null;
+  private botDifficulty: "easy" | "medium" | "hard" = "medium";
+  private updateScorePlayer1: (score: number) => Promise<void> = () =>
+    Promise.resolve();
+  private updateScorePlayer2: (score: number) => Promise<void> = () =>
+    Promise.resolve();
+  private finishMatch: (winnerId: number | null) => Promise<void> = () =>
+    Promise.resolve();
 
-  constructor() {
-    this.game = new PongGame()
+  constructor(
+    // funzione per finire il gioco
+    fakefinishGame: (idwinner: number | null) => Promise<void>,
+    // funzione per aggiornare il punteggio
+    fakeupdateScorep1: (score: number) => Promise<void> = () =>
+      Promise.resolve(),
+    fakeupdateScorep2: (score: number) => Promise<void> = () =>
+      Promise.resolve()
+  ) {
+    this.finishMatch = fakefinishGame;
+    this.updateScorePlayer1 = fakeupdateScorep1;
+    this.updateScorePlayer2 = fakeupdateScorep2;
+
+    this.game = new PongGame();
   }
 
   render(container: HTMLElement) {
@@ -51,527 +69,547 @@ export class PongCanvas {
           </div>
         </div>
       </div>
-    `
-    
+    `;
+
     // Initialize canvas and game
-    this.initializeCanvas()
-    this.addEventListeners()
+    this.initializeCanvas();
+    this.addEventListeners();
   }
 
   private initializeCanvas() {
-    this.canvas = document.getElementById('pong-canvas') as HTMLCanvasElement
-    if (!this.canvas) return
-    
+    this.canvas = document.getElementById("pong-canvas") as HTMLCanvasElement;
+    if (!this.canvas) return;
+
     // Initialize Babylon.js engine
     this.engine = new BABYLON.Engine(this.canvas, true, {
       preserveDrawingBuffer: true,
-      stencil: true
-    })
-    
+      stencil: true,
+    });
+
     // Create scene
-    this.createScene()
-    
+    this.createScene();
+
     // Initialize game
     if (this.scene && this.game) {
-      this.game.initialize(this.scene, this.engine)
-      this.game.setScoreCallback(this.updateScore.bind(this))
+      this.game.initialize(this.scene, this.engine);
+      this.game.setScoreCallback(this.updateScore.bind(this));
     }
-    
+
     // Handle window resize
-    window.addEventListener('resize', this.handleResize.bind(this))
-    
+    window.addEventListener("resize", this.handleResize.bind(this));
+
     // Start render loop
     this.engine.runRenderLoop(() => {
       if (this.scene) {
-        this.scene.render()
+        this.scene.render();
       }
-    })
+    });
   }
 
   private createScene() {
-    if (!this.engine) return
-    
+    if (!this.engine) return;
+
     // Create a new scene
-    this.scene = new BABYLON.Scene(this.engine)
-    
+    this.scene = new BABYLON.Scene(this.engine);
+
     // Set scene background color
-    this.scene.clearColor = new BABYLON.Color4(0.04, 0.04, 0.04, 1) // Dark cyber background
-    
+    this.scene.clearColor = new BABYLON.Color4(0.04, 0.04, 0.04, 1); // Dark cyber background
+
     // Create camera
     const camera = new BABYLON.ArcRotateCamera(
-      'camera',
+      "camera",
       Math.PI / 2, // Alpha
       Math.PI / 4.5, // Beta
       25, // Radius
       BABYLON.Vector3.Zero(), // Target
       this.scene
-    )
-    camera.attachControl(this.canvas, true)
-    
+    );
+    camera.attachControl(this.canvas, true);
+
     // Create lights
     const light1 = new BABYLON.HemisphericLight(
-      'light1',
+      "light1",
       new BABYLON.Vector3(0, 1, 0),
       this.scene
-    )
-    light1.intensity = 0.7
-    
+    );
+    light1.intensity = 0.7;
+
     const light2 = new BABYLON.PointLight(
-      'light2',
+      "light2",
       new BABYLON.Vector3(0, 5, 0),
       this.scene
-    )
-    light2.intensity = 0.5
-    light2.diffuse = new BABYLON.Color3(0, 1, 0.25) // Cyber green light
-    
+    );
+    light2.intensity = 0.5;
+    light2.diffuse = new BABYLON.Color3(0, 1, 0.25); // Cyber green light
+
     // Create cyber grid ground
     const ground = BABYLON.MeshBuilder.CreateGround(
-      'ground',
-      { width: 20, height: 20 },
+      "ground",
+      { width: 20, height: 30 },
       this.scene
-    )
-    
-    const groundMaterial = new BABYLON.StandardMaterial('groundMaterial', this.scene)
-    groundMaterial.diffuseColor = new BABYLON.Color3(0.04, 0.04, 0.04)
-    groundMaterial.specularColor = new BABYLON.Color3(0, 1, 0.25)
-    groundMaterial.emissiveColor = new BABYLON.Color3(0, 0.1, 0.025)
-    
+    );
+
+    const groundMaterial = new BABYLON.StandardMaterial(
+      "groundMaterial",
+      this.scene
+    );
+    groundMaterial.diffuseColor = new BABYLON.Color3(0.04, 0.04, 0.04);
+    groundMaterial.specularColor = new BABYLON.Color3(0, 1, 0.25);
+    groundMaterial.emissiveColor = new BABYLON.Color3(0, 0.1, 0.025);
+
     // Create grid texture
-    const gridTexture = new BABYLON.DynamicTexture('gridTexture', 512, this.scene)
-    const context = gridTexture.getContext()
-    
+    const gridTexture = new BABYLON.DynamicTexture(
+      "gridTexture",
+      512,
+      this.scene
+    );
+    const context = gridTexture.getContext();
+
     // Draw grid lines
-    context.strokeStyle = '#00ff41'
-    context.lineWidth = 1
-    context.fillStyle = '#0a0a0a'
-    context.fillRect(0, 0, 512, 512)
-    
+    context.strokeStyle = "#00ff41";
+    context.lineWidth = 1;
+    context.fillStyle = "#0a0a0a";
+    context.fillRect(0, 0, 512, 512);
+
     // Draw horizontal lines
     for (let i = 0; i <= 512; i += 32) {
-      context.beginPath()
-      context.moveTo(0, i)
-      context.lineTo(512, i)
-      context.stroke()
+      context.beginPath();
+      context.moveTo(0, i);
+      context.lineTo(512, i);
+      context.stroke();
     }
-    
+
     // Draw vertical lines
     for (let i = 0; i <= 512; i += 32) {
-      context.beginPath()
-      context.moveTo(i, 0)
-      context.lineTo(i, 512)
-      context.stroke()
+      context.beginPath();
+      context.moveTo(i, 0);
+      context.lineTo(i, 512);
+      context.stroke();
     }
-    
-    gridTexture.update()
-    
-    groundMaterial.diffuseTexture = gridTexture
-    ground.material = groundMaterial
-    
+
+    gridTexture.update();
+
+    groundMaterial.diffuseTexture = gridTexture;
+    ground.material = groundMaterial;
+
     // Create cyber walls
-    this.createWalls()
+    this.createWalls();
   }
 
   private createWalls() {
-    if (!this.scene) return
-    
-    const wallMaterial = new BABYLON.StandardMaterial('wallMaterial', this.scene)
-    wallMaterial.diffuseColor = new BABYLON.Color3(0.04, 0.04, 0.04)
-    wallMaterial.specularColor = new BABYLON.Color3(0, 1, 0.25)
-    wallMaterial.emissiveColor = new BABYLON.Color3(0, 0.05, 0.0125)
-    wallMaterial.alpha = 0.7
-    
+    if (!this.scene) return;
+
+    const wallMaterial = new BABYLON.StandardMaterial(
+      "wallMaterial",
+      this.scene
+    );
+    wallMaterial.diffuseColor = new BABYLON.Color3(0.04, 0.04, 0.04);
+    wallMaterial.specularColor = new BABYLON.Color3(0, 1, 0.25);
+    wallMaterial.emissiveColor = new BABYLON.Color3(0, 0.05, 0.0125);
+    wallMaterial.alpha = 0.7;
+
     // Create walls
-    const wallThickness = 0.2
-    const wallHeight = 5
-    const arenaWidth = 20
-    const arenaLength = 20
-    
+    const wallThickness = 0.2;
+    const wallHeight = 5;
+    const arenaWidth = 20;
+    const arenaLength = 30;
+
     // Side walls
     const leftWall = BABYLON.MeshBuilder.CreateBox(
-      'leftWall',
+      "leftWall",
       { width: wallThickness, height: wallHeight, depth: arenaLength },
       this.scene
-    )
-    leftWall.position.x = -arenaWidth / 2
-    leftWall.material = wallMaterial
-    
+    );
+    leftWall.position.x = -arenaWidth / 2;
+    leftWall.material = wallMaterial;
+
     const rightWall = BABYLON.MeshBuilder.CreateBox(
-      'rightWall',
+      "rightWall",
       { width: wallThickness, height: wallHeight, depth: arenaLength },
       this.scene
-    )
-    rightWall.position.x = arenaWidth / 2
-    rightWall.material = wallMaterial
-    
+    );
+    rightWall.position.x = arenaWidth / 2;
+    rightWall.material = wallMaterial;
+
     // Top and bottom walls
     const topWall = BABYLON.MeshBuilder.CreateBox(
-      'topWall',
+      "topWall",
       { width: arenaWidth, height: wallHeight, depth: wallThickness },
       this.scene
-    )
-    topWall.position.z = -arenaLength / 2
-    topWall.material = wallMaterial
-    
+    );
+    topWall.position.z = -arenaLength / 2;
+    topWall.material = wallMaterial;
+
     const bottomWall = BABYLON.MeshBuilder.CreateBox(
-      'bottomWall',
+      "bottomWall",
       { width: arenaWidth, height: wallHeight, depth: wallThickness },
       this.scene
-    )
-    bottomWall.position.z = arenaLength / 2
-    bottomWall.material = wallMaterial
+    );
+    bottomWall.position.z = arenaLength / 2;
+    bottomWall.material = wallMaterial;
   }
 
   private addEventListeners() {
     // Game mode selection
-    const pvpModeBtn = document.getElementById('pvp-mode')
-    const pveModeBtn = document.getElementById('pve-mode')
-    const botEasyBtn = document.getElementById('bot-easy')
-    const botMediumBtn = document.getElementById('bot-medium')
-    const botHardBtn = document.getElementById('bot-hard')
-    const startSelectedModeBtn = document.getElementById('start-selected-mode')
-    
+    const pvpModeBtn = document.getElementById("pvp-mode");
+    const pveModeBtn = document.getElementById("pve-mode");
+    const botEasyBtn = document.getElementById("bot-easy");
+    const botMediumBtn = document.getElementById("bot-medium");
+    const botHardBtn = document.getElementById("bot-hard");
+    const startSelectedModeBtn = document.getElementById("start-selected-mode");
+
     if (pvpModeBtn) {
-      pvpModeBtn.addEventListener('click', () => {
-        this.gameMode = 'pvp'
-        this.showGameModeSelection()
-      })
+      pvpModeBtn.addEventListener("click", () => {
+        this.gameMode = "pvp";
+        this.showGameModeSelection();
+      });
     }
-    
+
     if (pveModeBtn) {
-      pveModeBtn.addEventListener('click', () => {
-        this.gameMode = 'pve'
-        this.showGameModeSelection()
-      })
+      pveModeBtn.addEventListener("click", () => {
+        this.gameMode = "pve";
+        this.showGameModeSelection();
+      });
     }
-    
+
     if (botEasyBtn) {
-      botEasyBtn.addEventListener('click', () => {
-        this.botDifficulty = 'easy'
-        this.updateBotDifficultySelection()
-        if (this.game && this.gameMode) {
-          this.game.setGameMode(this.gameMode, this.botDifficulty)
+      botEasyBtn.addEventListener("click", () => {
+        this.botDifficulty = "easy";
+        this.updateBotDifficultySelection();
+      });
     }
-      })
-    }
-    
+
     if (botMediumBtn) {
-      botMediumBtn.addEventListener('click', () => {
-        this.botDifficulty = 'medium'
-        this.updateBotDifficultySelection()
-        if (this.game && this.gameMode) {
-          this.game.setGameMode(this.gameMode, this.botDifficulty)
+      botMediumBtn.addEventListener("click", () => {
+        this.botDifficulty = "medium";
+        this.updateBotDifficultySelection();
+      });
     }
-      })
-    }
-    
+
     if (botHardBtn) {
-      botHardBtn.addEventListener('click', () => {
-        this.botDifficulty = 'hard'
-        this.updateBotDifficultySelection()
-        if (this.game && this.gameMode) {
-          this.game.setGameMode(this.gameMode, this.botDifficulty)
+      botHardBtn.addEventListener("click", () => {
+        this.botDifficulty = "hard";
+        this.updateBotDifficultySelection();
+      });
     }
-      })
-    }
-    
+
     if (startSelectedModeBtn) {
-      startSelectedModeBtn.addEventListener('click', () => {
-        this.startSelectedGameMode()
-      })
+      startSelectedModeBtn.addEventListener("click", () => {
+        this.startSelectedGameMode();
+      });
     }
-    
+
     // Game control buttons
-    const startBtn = document.getElementById('start-game-btn')
-    const pauseBtn = document.getElementById('pause-game-btn')
-    const resumeBtn = document.getElementById('resume-game-btn')
-    const resetBtn = document.getElementById('reset-game-btn')
-    const changeModeBtn = document.getElementById('change-mode-btn')
-    const playAgainBtn = document.getElementById('play-again-btn')
-    const changeModeAfterGameBtn = document.getElementById('change-mode-after-game')
-    
+    const startBtn = document.getElementById("start-game-btn");
+    const pauseBtn = document.getElementById("pause-game-btn");
+    const resumeBtn = document.getElementById("resume-game-btn");
+    const resetBtn = document.getElementById("reset-game-btn");
+    const changeModeBtn = document.getElementById("change-mode-btn");
+    const playAgainBtn = document.getElementById("play-again-btn");
+    const changeModeAfterGameBtn = document.getElementById(
+      "change-mode-after-game"
+    );
+
     if (startBtn) {
-      startBtn.addEventListener('click', () => this.startGame())
+      startBtn.addEventListener("click", () => this.startGame());
     }
-    
+
     if (pauseBtn) {
-      pauseBtn.addEventListener('click', () => this.pauseGame())
+      pauseBtn.addEventListener("click", () => this.pauseGame());
     }
-    
+
     if (resumeBtn) {
-      resumeBtn.addEventListener('click', () => this.resumeGame())
+      resumeBtn.addEventListener("click", () => this.resumeGame());
     }
-    
+
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => this.resetGame())
+      resetBtn.addEventListener("click", () => this.resetGame());
     }
-    
+
     if (changeModeBtn) {
-      changeModeBtn.addEventListener('click', () => this.showGameModeSelection())
-    }
-    
-    if (playAgainBtn) {
-      playAgainBtn.addEventListener('click', () => {
-        this.hideGameOver()
-        this.resetGame()
-        this.startGame()
-      })
-    }
-    
-    if (changeModeAfterGameBtn) {
-      changeModeAfterGameBtn.addEventListener('click', () => {
-        this.hideGameOver()
+      changeModeBtn.addEventListener("click", () =>
         this.showGameModeSelection()
-      })
+      );
     }
-    
+
+    if (playAgainBtn) {
+      playAgainBtn.addEventListener("click", () => {
+        this.hideGameOver();
+        this.resetGame();
+        this.startGame();
+      });
+    }
+
+    if (changeModeAfterGameBtn) {
+      changeModeAfterGameBtn.addEventListener("click", () => {
+        this.hideGameOver();
+        this.showGameModeSelection();
+      });
+    }
+
     // Keyboard controls
-    document.addEventListener('keydown', this.handleKeyDown.bind(this))
-    document.addEventListener('keyup', this.handleKeyUp.bind(this))
+    document.addEventListener("keydown", this.handleKeyDown.bind(this));
+    document.addEventListener("keyup", this.handleKeyUp.bind(this));
   }
 
   private showGameModeSelection() {
-    const modeSelection = document.getElementById('game-mode-selection')
-    const botDifficulty = document.getElementById('bot-difficulty')
-    const startSelectedModeBtn = document.getElementById('start-selected-mode')
-    
-    if (modeSelection) modeSelection.classList.remove('hidden')
-    
-    if (this.gameMode === 'pve') {
-      if (botDifficulty) botDifficulty.classList.remove('hidden')
+    const modeSelection = document.getElementById("game-mode-selection");
+    const botDifficulty = document.getElementById("bot-difficulty");
+    const startSelectedModeBtn = document.getElementById("start-selected-mode");
+
+    if (modeSelection) modeSelection.classList.remove("hidden");
+
+    if (this.gameMode === "pve") {
+      if (botDifficulty) botDifficulty.classList.remove("hidden");
     } else {
-      if (botDifficulty) botDifficulty.classList.add('hidden')
+      if (botDifficulty) botDifficulty.classList.add("hidden");
     }
-    
+
     if (this.gameMode && startSelectedModeBtn) {
-      startSelectedModeBtn.classList.remove('hidden')
+      startSelectedModeBtn.classList.remove("hidden");
     }
-    
-    this.updateBotDifficultySelection()
+
+    this.updateBotDifficultySelection();
   }
 
   private updateBotDifficultySelection() {
-    const botEasyBtn = document.getElementById('bot-easy')
-    const botMediumBtn = document.getElementById('bot-medium')
-    const botHardBtn = document.getElementById('bot-hard')
-    
+    const botEasyBtn = document.getElementById("bot-easy");
+    const botMediumBtn = document.getElementById("bot-medium");
+    const botHardBtn = document.getElementById("bot-hard");
+
     // Reset all buttons
-    if (botEasyBtn) botEasyBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
-    if (botMediumBtn) botMediumBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
-    if (botHardBtn) botHardBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
-    
+    if (botEasyBtn)
+      botEasyBtn.classList.remove("bg-cyber-green", "text-cyber-black");
+    if (botMediumBtn)
+      botMediumBtn.classList.remove("bg-cyber-green", "text-cyber-black");
+    if (botHardBtn)
+      botHardBtn.classList.remove("bg-cyber-green", "text-cyber-black");
+
     // Highlight selected difficulty
-    if (this.botDifficulty === 'easy' && botEasyBtn) {
-      botEasyBtn.classList.add('bg-cyber-green', 'text-cyber-black')
-    } else if (this.botDifficulty === 'medium' && botMediumBtn) {
-      botMediumBtn.classList.add('bg-cyber-green', 'text-cyber-black')
-    } else if (this.botDifficulty === 'hard' && botHardBtn) {
-      botHardBtn.classList.add('bg-cyber-green', 'text-cyber-black')
+    if (this.botDifficulty === "easy" && botEasyBtn) {
+      botEasyBtn.classList.add("bg-cyber-green", "text-cyber-black");
+    } else if (this.botDifficulty === "medium" && botMediumBtn) {
+      botMediumBtn.classList.add("bg-cyber-green", "text-cyber-black");
+    } else if (this.botDifficulty === "hard" && botHardBtn) {
+      botHardBtn.classList.add("bg-cyber-green", "text-cyber-black");
     }
   }
 
   private startSelectedGameMode() {
-    const modeSelection = document.getElementById('game-mode-selection')
-    const gameControls = document.getElementById('game-controls')
-    
-    if (modeSelection) modeSelection.classList.add('hidden')
-    if (gameControls) gameControls.classList.remove('hidden')
-    
+    const modeSelection = document.getElementById("game-mode-selection");
+    const gameControls = document.getElementById("game-controls");
+
+    if (modeSelection) modeSelection.classList.add("hidden");
+    if (gameControls) gameControls.classList.remove("hidden");
+
     // Update player 2 label based on game mode
-    const player2Label = document.getElementById('player2-label')
+    const player2Label = document.getElementById("player2-label");
     if (player2Label) {
-      player2Label.textContent = this.gameMode === 'pve' ? `BOT (${this.botDifficulty}): ` : 'PLAYER 2: '
+      player2Label.textContent =
+        this.gameMode === "pve"
+          ? `BOT (${this.botDifficulty}): `
+          : "PLAYER 2: ";
     }
-    
+
     // Configure game based on mode
     if (this.game && this.gameMode) {
-      this.game.setGameMode(this.gameMode, this.botDifficulty)
+      this.game.setGameMode(this.gameMode, this.botDifficulty);
     }
-    
+
     // Start the game
-    this.startGame()
+    this.startGame();
   }
 
   private handleKeyDown(event: KeyboardEvent) {
-    if (!this.game || !this.isRunning) return
-    
+    if (!this.game || !this.isRunning) return;
+
     // Player 1 controls (W/S)
     switch (event.key) {
-      case 'w':
-      case 'W':
-        this.game.movePlayer2Paddle('up')
-        break
-      case 's':
-      case 'S':
-        this.game.movePlayer2Paddle('down')
-        break
+      case "w":
+      case "W":
+        this.game.movePlayer1Paddle("up");
+        break;
+      case "s":
+      case "S":
+        this.game.movePlayer1Paddle("down");
+        break;
     }
-    
+
     // Player 2 controls (Arrow keys) - only in PvP mode
-    if (this.gameMode === 'pvp') {
+    if (this.gameMode === "pvp") {
       switch (event.key) {
-        case 'ArrowUp':
-          this.game.movePlayer1Paddle('up')
-          break
-        case 'ArrowDown':
-          this.game.movePlayer1Paddle('down')
-          break
+        case "ArrowUp":
+          this.game.movePlayer2Paddle("up");
+          break;
+        case "ArrowDown":
+          this.game.movePlayer2Paddle("down");
+          break;
       }
     }
   }
 
   private handleKeyUp(event: KeyboardEvent) {
-    if (!this.game || !this.isRunning) return
-    
+    if (!this.game || !this.isRunning) return;
+
     // Player 1 controls (W/S)
     switch (event.key) {
-      case 'w':
-      case 'W':
-      case 's':
-      case 'S':
-        this.game.stopPlayer2Paddle()
-        break
+      case "w":
+      case "W":
+      case "s":
+      case "S":
+        this.game.stopPlayer1Paddle();
+        break;
     }
-    
+
     // Player 2 controls (Arrow keys) - only in PvP mode
-    if (this.gameMode === 'pvp') {
+    if (this.gameMode === "pvp") {
       switch (event.key) {
-        case 'ArrowUp':
-        case 'ArrowDown':
-          this.game.stopPlayer1Paddle()
-          break
+        case "ArrowUp":
+        case "ArrowDown":
+          this.game.stopPlayer2Paddle();
+          break;
       }
     }
   }
 
   public startGame() {
-    if (!this.game) return
-    
-    this.isRunning = true
-    this.game.start()
-    
+    if (!this.game) return;
+
+    this.isRunning = true;
+    this.game.start();
+
     // Update UI
-    document.getElementById('start-game-btn')?.classList.add('hidden')
-    document.getElementById('pause-game-btn')?.classList.remove('hidden')
-    document.getElementById('change-mode-btn')?.classList.add('hidden')
+    document.getElementById("start-game-btn")?.classList.add("hidden");
+    document.getElementById("pause-game-btn")?.classList.remove("hidden");
+    document.getElementById("change-mode-btn")?.classList.add("hidden");
   }
 
-  public setGameMode(mode: 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
-    this.gameMode = mode
+  public setGameMode(
+    mode: "pvp" | "pve",
+    difficulty?: "easy" | "medium" | "hard"
+  ) {
+    this.gameMode = mode;
     if (difficulty) {
-      this.botDifficulty = difficulty
+      this.botDifficulty = difficulty;
     }
-    
+
     // Update game mode in the game instance
     if (this.game) {
-      this.game.setGameMode(mode, difficulty)
+      this.game.setGameMode(mode, difficulty);
     }
   }
-  
+
   public dispose() {
     // Stop the game
     if (this.game) {
-      this.game.pause()
+      this.game.pause();
     }
-    
+
     // Dispose of Babylon.js resources
     if (this.scene) {
-      this.scene.dispose()
+      this.scene.dispose();
     }
-    
+
     if (this.engine) {
-      this.engine.dispose()
+      this.engine.dispose();
     }
-    
+
     // Clear references
-    this.game = null
-    this.scene = null
-    this.engine = null
-    this.canvas = null
-    
+    this.game = null;
+    this.scene = null;
+    this.engine = null;
+    this.canvas = null;
+
     // Remove event listeners if any
-    window.removeEventListener('keydown', this.handleKeyDown)
-    window.removeEventListener('keyup', this.handleKeyUp)
+    window.removeEventListener("keydown", this.handleKeyDown);
+    window.removeEventListener("keyup", this.handleKeyUp);
   }
 
   public pauseGame() {
-    if (!this.game) return
-    
-    this.isRunning = false
-    this.game.pause()
-    
+    if (!this.game) return;
+
+    this.isRunning = false;
+    this.game.pause();
+
     // Update UI
-    document.getElementById('pause-game-btn')?.classList.add('hidden')
-    document.getElementById('resume-game-btn')?.classList.remove('hidden')
+    document.getElementById("pause-game-btn")?.classList.add("hidden");
+    document.getElementById("resume-game-btn")?.classList.remove("hidden");
   }
 
   public resumeGame() {
-    if (!this.game) return
-    
-    this.isRunning = true
-    this.game.resume()
-    
+    if (!this.game) return;
+
+    this.isRunning = true;
+    this.game.resume();
+
     // Update UI
-    document.getElementById('resume-game-btn')?.classList.add('hidden')
-    document.getElementById('pause-game-btn')?.classList.remove('hidden')
+    document.getElementById("resume-game-btn")?.classList.add("hidden");
+    document.getElementById("pause-game-btn")?.classList.remove("hidden");
   }
 
   public resetGame() {
-    if (!this.game) return
-    
-    this.isRunning = false
-    this.game.reset()
-    
+    if (!this.game) return;
+
+    this.isRunning = false;
+    this.game.reset();
+
     // Update UI
-    document.getElementById('start-game-btn')?.classList.remove('hidden')
-    document.getElementById('pause-game-btn')?.classList.add('hidden')
-    document.getElementById('resume-game-btn')?.classList.add('hidden')
-    document.getElementById('change-mode-btn')?.classList.remove('hidden')
-    
+    document.getElementById("start-game-btn")?.classList.remove("hidden");
+    document.getElementById("pause-game-btn")?.classList.add("hidden");
+    document.getElementById("resume-game-btn")?.classList.add("hidden");
+    document.getElementById("change-mode-btn")?.classList.remove("hidden");
+
     // Reset scores
-    const player1Score = document.getElementById('player1-score')
-    const player2Score = document.getElementById('player2-score')
-    
-    if (player1Score) player1Score.textContent = '0'
-    if (player2Score) player2Score.textContent = '0'
+    const player1Score = document.getElementById("player1-score");
+    const player2Score = document.getElementById("player2-score");
+
+    if (player1Score) player1Score.textContent = "0";
+    if (player2Score) player2Score.textContent = "0";
   }
 
   private showGameOver(winner: string) {
-    const gameOverScreen = document.getElementById('game-over')
-    const winnerText = document.getElementById('winner-text')
-    
-    if (gameOverScreen) gameOverScreen.classList.remove('hidden')
-    if (winnerText) winnerText.textContent = winner
-    
+    const gameOverScreen = document.getElementById("game-over");
+    const winnerText = document.getElementById("winner-text");
+
+    if (gameOverScreen) gameOverScreen.classList.remove("hidden");
+    if (winnerText) winnerText.textContent = winner;
+
     // Update UI
-    document.getElementById('pause-game-btn')?.classList.add('hidden')
-    document.getElementById('resume-game-btn')?.classList.add('hidden')
-    document.getElementById('change-mode-btn')?.classList.add('hidden')
+    document.getElementById("pause-game-btn")?.classList.add("hidden");
+    document.getElementById("resume-game-btn")?.classList.add("hidden");
+    document.getElementById("change-mode-btn")?.classList.add("hidden");
   }
 
   private hideGameOver() {
-    const gameOverScreen = document.getElementById('game-over')
-    if (gameOverScreen) gameOverScreen.classList.add('hidden')
+    const gameOverScreen = document.getElementById("game-over");
+    if (gameOverScreen) gameOverScreen.classList.add("hidden");
   }
 
   private handleResize() {
     if (this.engine) {
-      this.engine.resize()
+      this.engine.resize();
     }
   }
 
   public updateScore(player1Score: number, player2Score: number) {
-    const player1ScoreElement = document.getElementById('player1-score')
-    const player2ScoreElement = document.getElementById('player2-score')
-    
-    if (player1ScoreElement) player1ScoreElement.textContent = player1Score.toString()
-    if (player2ScoreElement) player2ScoreElement.textContent = player2Score.toString()
-    
+    const player1ScoreElement = document.getElementById("player1-score");
+    const player2ScoreElement = document.getElementById("player2-score");
+
+    if (player1ScoreElement)
+      player1ScoreElement.textContent = player1Score.toString();
+    if (player2ScoreElement)
+      player2ScoreElement.textContent = player2Score.toString();
+
     // Check for game over
     if (player1Score >= 5 || player2Score >= 5) {
-      const winner = player1Score >= 5 ? 'PLAYER 1' : (this.gameMode === 'pve' ? 'BOT' : 'PLAYER 2')
-      this.showGameOver(winner)
-      this.isRunning = false
+      const winner =
+        player1Score >= 5
+          ? "PLAYER 1"
+          : this.gameMode === "pve"
+          ? "BOT"
+          : "PLAYER 2";
+      this.showGameOver(winner);
+      this.isRunning = false;
     }
   }
-
 }

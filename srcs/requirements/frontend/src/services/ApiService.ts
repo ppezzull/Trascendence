@@ -398,7 +398,7 @@ export class ApiService {
     }
   }
 
-  async getMatch(matchId: string): Promise<ApiResponse> {
+  async getMatch(matchId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}`);
     } catch (error) {
@@ -468,6 +468,63 @@ export class ApiService {
     } catch (error) {
       console.error("Cancel match error:", error);
       return { success: false, message: "Failed to cancel match" };
+    }
+  }
+
+  async updateMatchStatus(
+    matchId: string,
+    status: string
+  ): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/matches/${matchId}/status`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ status }),
+        }
+      );
+    } catch (error) {
+      console.error("Update match status error:", error);
+      return { success: false, message: "Failed to update match status" };
+    }
+  }
+
+  async updatePlayerScore(
+    matchId: string,
+    scoreData: { user_id: number; score: number }
+  ): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/matches/${matchId}/score`,
+        {
+          method: "POST",
+          body: JSON.stringify(scoreData),
+        }
+      );
+    } catch (error) {
+      console.error("Update player score error:", error);
+      return { success: false, message: "Failed to update player score" };
+    }
+  }
+
+  async finishMatchWithWinner(
+    matchId: string,
+    matchData: {
+      winner_id: number | null;
+      final_scores: { player1: number; player2: number };
+    }
+  ): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/matches/${matchId}/finish`,
+        {
+          method: "POST",
+          body: JSON.stringify(matchData),
+        }
+      );
+    } catch (error) {
+      console.error("Finish match error:", error);
+      return { success: false, message: "Failed to finish match" };
     }
   }
 
