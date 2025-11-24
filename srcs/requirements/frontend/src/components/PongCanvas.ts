@@ -8,7 +8,7 @@ export class PongCanvas {
   private game: PongGame | null = null
   private isRunning = false
   private gameMode: 'pvp' | 'pve' | null = null
-  private botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  public botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
 
   constructor() {
     this.game = new PongGame()
@@ -248,6 +248,9 @@ export class PongCanvas {
       botEasyBtn.addEventListener('click', () => {
         this.botDifficulty = 'easy'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     
@@ -255,6 +258,9 @@ export class PongCanvas {
       botMediumBtn.addEventListener('click', () => {
         this.botDifficulty = 'medium'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     
@@ -262,6 +268,9 @@ export class PongCanvas {
       botHardBtn.addEventListener('click', () => {
         this.botDifficulty = 'hard'
         this.updateBotDifficultySelection()
+        if (this.game && this.gameMode) {
+          this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
       })
     }
     

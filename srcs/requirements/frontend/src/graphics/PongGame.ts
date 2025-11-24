@@ -1,7 +1,6 @@
 import * as BABYLON from '@babylonjs/core'
 import { Paddle } from './Paddle'
 import { Ball } from './Ball'
-import { PongCanvas } from '@/components/PongCanvas' 
 
 export class PongGame {
   private scene: BABYLON.Scene | null = null
@@ -48,7 +47,24 @@ export class PongGame {
         this.botReactionTime = 5 // Fast reaction
         break
     }
+    this.updatePaddleSpeed()
   }
+
+  private updatePaddleSpeed(): void {
+  if (!this.paddle1) return
+  
+  console.log('Updating paddle speed for difficulty:', this.botDifficulty);
+  
+  if (this.botDifficulty === 'easy') {
+    this.paddle1.setSpeed(0.3)
+  }
+  else if (this.botDifficulty === 'medium') {
+    this.paddle1.setSpeed(0.5)
+  }
+  else if (this.botDifficulty === 'hard') {
+    this.paddle1.setSpeed(0.7)
+  }
+}
 
   private createGameObjects(): void {
     if (!this.scene) return
@@ -57,15 +73,9 @@ export class PongGame {
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
     this.paddle1.setControlMode('ai')
-    if (this.botDifficulty === 'easy') {
-      this.paddle1.setSpeed(0.03)
-    }
-    else if (this.botDifficulty=== 'medium') {
-      this.paddle1.setSpeed(0.05)
-    }
-    else if (this.botDifficulty === 'hard') {
-      this.paddle1.setSpeed(0.07)
-    }
+
+    this.updatePaddleSpeed()
+  
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)
     this.paddle2.setControlMode('manual')
