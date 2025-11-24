@@ -161,7 +161,9 @@ export class ApiService {
 
       if (response.success && response.token) {
         this.setAuthToken(response.token);
-        localStorage.setItem("user", JSON.stringify(response.user));
+        if ((response as any).user) {
+          localStorage.setItem("user", JSON.stringify((response as any).user));
+        }
       }
 
       return response;
@@ -627,12 +629,12 @@ export class ApiService {
   }
 
   // Chat service methods
-  async getChatThreads(): Promise<ApiResponse> {
+  async getChatThreads(): Promise<any> {
     try {
-      return await this.chatRequest<ApiResponse>("/api/chat/threads");
+      return await this.chatRequest<any>("/api/chat/threads");
     } catch (error) {
       console.error("Get chat threads error:", error);
-      return { success: false, message: "Failed to get chat threads" };
+      return null;
     }
   }
 
@@ -650,28 +652,40 @@ export class ApiService {
 
   async getChatMessages(
     threadId: string,
+    limit: number = 50,
     before?: string
-  ): Promise<ApiResponse> {
+  ): Promise<any> {
     try {
       const url = before
-        ? `/api/chat/messages?threadId=${threadId}&before=${before}`
-        : `/api/chat/messages?threadId=${threadId}`;
-      return await this.chatRequest<ApiResponse>(url);
+        ? `/api/chat/messages?threadId=${threadId}&limit=${limit}&before=${before}`
+        : `/api/chat/messages?threadId=${threadId}&limit=${limit}`;
+      return await this.chatRequest<any>(url);
     } catch (error) {
       console.error("Get chat messages error:", error);
-      return { success: false, message: "Failed to get chat messages" };
+      return null;
     }
   }
 
-  async sendMessage(content: string, threadId?: string): Promise<ApiResponse> {
+  async sendMessage(threadId: string, content: string): Promise<ApiResponse> {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/messages", {
         method: "POST",
-        body: JSON.stringify({ content, threadId }),
+        body: JSON.stringify({ threadId: parseInt(threadId), content }),
       });
     } catch (error) {
       console.error("Send message error:", error);
       return { success: false, message: "Failed to send message" };
+    }
+  }
+
+  async deleteMessage(messageId: string): Promise<ApiResponse> {
+    try {
+      return await this.chatRequest<ApiResponse>(`/api/chat/messages/${messageId}`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Delete message error:", error);
+      return { success: false, message: "Failed to delete message" };
     }
   }
 

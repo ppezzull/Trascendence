@@ -28,9 +28,10 @@ export class ChatBox {
   private currentUserId: number | null = null
   private wsUnsubscribers: Array<() => void> = []
   private searchResults: any[] = []
-  private chatThreads: any[] = []
+  private _chatThreads: any[] = []
   private searchDebounceTimer: number | null = null
-
+  private threadParticipants: Map<number, any> = new Map() // Cache for participant info
+  
   constructor() {
     this.apiService = new ApiService()
     this.initializeWebSocket()
@@ -186,7 +187,7 @@ export class ChatBox {
     try {
       // Load chat threads instead of users
       await this.loadChatThreads()
-      this.renderUsers()
+      // renderUsers is now called inside loadChatThreads
     } catch (error) {
       console.error('Error loading chat threads:', error)
     }
@@ -197,15 +198,15 @@ export class ChatBox {
       if (threadId) {
         const response = await this.apiService.getChatMessages(threadId.toString())
 
-        if (response.success && response.data) {
-          this.messages = response.data.map((msg: any) => ({
+        if (response && Array.isArray(response)) {
+          this.messages = response.map((msg: any) => ({
             id: msg.id.toString(),
-            senderId: msg.senderId.toString(),
-            senderName: msg.senderName,
+            senderId: msg.sender_id.toString(),
+            senderName: msg.sender_name || 'Unknown', // Dovremmo ottenere questo dato dal backend
             content: msg.content,
-            timestamp: new Date(msg.timestamp),
-            threadId: msg.threadId,
-            isSystem: msg.isSystem || false
+            timestamp: new Date(msg.created_at),
+            threadId: msg.thread_id,
+            isSystem: msg.is_system === 1
           }))
         } else {
           // Show welcome message for new thread
@@ -249,27 +250,40 @@ export class ChatBox {
   }
 
   private renderUsers() {
+    console.log('renderUsers called, _chatThreads length:', this._chatThreads.length)
+    console.log('_chatThreads content:', this._chatThreads)
     const chatThreadsList = document.getElementById('chat-threads-list')
     if (!chatThreadsList) return
     
-    if (this.chatThreads.length === 0) {
+    console.log('Rendering chat threads:', this._chatThreads)
+    console.log('Thread participants:', this.threadParticipants)
+    
+    if (this._chatThreads.length === 0) {
       chatThreadsList.innerHTML = '<div class="text-cyber-green/50 text-sm text-center py-4">Nessuna chat trovata</div>'
       return
     }
     
-    chatThreadsList.innerHTML = this.chatThreads.map(thread => {
-      // Find other participant (not the current user)
+    chatThreadsList.innerHTML = this._chatThreads.map(thread => {
+      // Find other participant (not current user)
       const otherParticipantId = thread.members.find((id: number) => id !== this.currentUserId)
       const lastMessage = thread.lastMessage
       const lastMessagePreview = lastMessage ? 
         (lastMessage.content.length > 15 ? lastMessage.content.substring(0, 15) + '...' : lastMessage.content) : 
         'Nessun messaggio'
       
+      // Get participant info from cache
+      const participantInfo = this.threadParticipants.get(otherParticipantId)
+      const displayName = participantInfo ? 
+        (participantInfo.display_name || participantInfo.username) : 
+        `Utente ${otherParticipantId}`
+      
+      console.log('Thread:', thread, 'Other participant:', otherParticipantId, 'Display name:', displayName)
+      
       return `
         <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-thread-id="${thread.id}">
           <div class="flex justify-between items-center">
             <div class="flex-1">
-              <div class="text-cyber-green text-sm font-medium">Chat con utente ${otherParticipantId}</div>
+              <div class="text-cyber-green text-sm font-medium">${displayName}</div>
               <div class="text-cyber-green/50 text-xs mt-1">${lastMessagePreview}</div>
             </div>
             <div class="text-cyber-green/30 text-xs">
@@ -306,8 +320,12 @@ export class ChatBox {
             <div class="text-xs text-cyber-cyan mb-1">${message.senderName}</div>
           ` : ''}
           <div class="terminal-text">${message.content}</div>
-          <div class="text-xs text-cyber-green/70 mt-1">
-            ${this.formatTime(message.timestamp)}
+          <div class="text-xs text-cyber-green/70 mt-1 flex justify-between items-center">
+            <span>${this.formatTime(message.timestamp)}</span>
+            ${!message.isSystem && message.senderId === this.currentUserId?.toString() ? 
+              `<button class="ml-2 text-cyber-magenta hover:text-cyber-red text-xs" onclick="chatBox.deleteMessage('${message.id}')">Elimina</button>` : 
+              ''
+            }
           </div>
         </div>
       </div>
@@ -555,14 +573,46 @@ export class ChatBox {
   private async loadChatThreads() {
     try {
       const response = await this.apiService.getChatThreads()
-      if (response.success && response.data) {
-        this.chatThreads = response.data
+      console.log('Chat threads response:', response)
+      if (response) {
+        this._chatThreads = response
+        console.log('Chat threads data set to _chatThreads:', this._chatThreads)
+        console.log('_chatThreads length after setting:', this._chatThreads.length)
+        
+        // Add a log to check if _chatThreads is modified later
+        setTimeout(() => {
+          console.log('_chatThreads length after 100ms:', this._chatThreads.length)
+        }, 100)
+        
+        // For each thread, get other participant's info
+        for (const thread of this._chatThreads) {
+          const otherParticipantId = thread.members.find((id: number) => id !== this.currentUserId)
+          console.log('Other participant ID:', otherParticipantId)
+          if (otherParticipantId && !this.threadParticipants.has(otherParticipantId)) {
+            try {
+              // Get user info for other participant
+              const userResponse = await this.apiService.getUserById(otherParticipantId.toString())
+              console.log('User response for participant', otherParticipantId, ':', userResponse)
+              if (userResponse.success && userResponse.data) {
+                this.threadParticipants.set(otherParticipantId, userResponse.data)
+              }
+            } catch (error) {
+              console.error(`Error loading user ${otherParticipantId}:`, error)
+            }
+          }
+        }
+        
+        console.log('About to call renderUsers, _chatThreads length:', this._chatThreads.length)
+        // Render users after all participant info is loaded
+        this.renderUsers()
       } else {
-        this.chatThreads = []
+        this._chatThreads = []
+        this.renderUsers()
       }
     } catch (error) {
       console.error('Error loading chat threads:', error)
-      this.chatThreads = []
+      this._chatThreads = []
+      this.renderUsers()
     }
   }
 
@@ -590,6 +640,7 @@ export class ChatBox {
         
         // Reload chat threads to include the new one
         await this.loadChatThreads()
+        this._chatThreads = [...this._chatThreads] // Force reactivity
         this.renderUsers()
       } else {
         this.showNotification('Impossibile aprire la chat', 'error')
@@ -603,12 +654,47 @@ export class ChatBox {
   private async openChatThread(threadId: number) {
     try {
       this.currentThreadId = threadId
-      this.updateThreadInfo(`Chat ${threadId}`)
+      
+      // Find the thread and get the other participant's name
+      const thread = this._chatThreads.find(t => t.id === threadId)
+      if (thread) {
+        const otherParticipantId = thread.members.find((id: number) => id !== this.currentUserId)
+        if (otherParticipantId) {
+          const participantInfo = this.threadParticipants.get(otherParticipantId)
+          const displayName = participantInfo ? 
+            (participantInfo.display_name || participantInfo.username) : 
+            `Utente ${otherParticipantId}`
+          this.updateThreadInfo(displayName)
+        } else {
+          this.updateThreadInfo(`Chat ${threadId}`)
+        }
+      } else {
+        this.updateThreadInfo(`Chat ${threadId}`)
+      }
+      
       this.enableMessageInput()
       await this.loadMessages(this.currentThreadId)
     } catch (error) {
       console.error('Error opening chat thread:', error)
       this.showNotification('Errore nell\'apertura della chat', 'error')
+    }
+  }
+
+  public async deleteMessage(messageId: string) {
+    try {
+      const response = await this.apiService.deleteMessage(messageId)
+      
+      if (response && (response.success || response.message)) {
+        // Rimuovi il messaggio dall'array locale
+        this.messages = this.messages.filter(msg => msg.id !== messageId)
+        this.renderMessages()
+        this.showNotification('Messaggio eliminato', 'success')
+      } else {
+        this.showNotification('Impossibile eliminare il messaggio', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error)
+      this.showNotification('Errore nell\'eliminazione del messaggio', 'error')
     }
   }
 }
