@@ -423,7 +423,7 @@ services:
 #   ✅ Node Exporter provides system metrics
 #   ✅ Grafana provides custom dashboards
 #   ✅ Alerting rules configured in Prometheus
-#   ✅ Secure authentication (admin/admin123)
+#   ✅ Secure authentication (admin password from .env)
 #
 # Blockchain Integration:
 #   - blockchain-service is a Solidity smart contract (Foundry project)
@@ -433,7 +433,7 @@ services:
 # Access URLs (Single Entry Point - All via Nginx):
 #   - Frontend:    https://localhost:8090
 #   - Kibana:      https://localhost:8090/kibana/
-#   - Grafana:     https://localhost:8090/grafana/ (admin/admin123)
+#   - Grafana:     https://localhost:8090/grafana/ (admin/see .env file)
 #   - Prometheus:  https://localhost:8090/prometheus/
 #   - User Docs:   https://localhost:8090/docs/user (Swagger UI)
 #   - Game Docs:   https://localhost:8090/docs/game (Swagger UI)
