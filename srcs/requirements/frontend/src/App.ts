@@ -616,7 +616,11 @@ export class App {
     // Initialize canvas
     const canvasContainer = document.getElementById("pong-canvas-container");
     if (canvasContainer) {
-      this.currentPongCanvas = new PongCanvas();
+      this.currentPongCanvas = new PongCanvas(
+        async (winnerId: number | null) => {}, // finishGame
+        async (score: number) => {}, // updateScorep1
+        async (score: number) => {} // updateScorep2
+      );
       this.currentPongCanvas.render(canvasContainer);
       this.currentPongCanvas.setGameMode(
         mode as "pvp" | "pve",
@@ -643,6 +647,8 @@ export class App {
   private async renderPongGameState(
     container: HTMLElement,
     mode: string,
+    player1Id: number,
+    player2Id: number,
     difficulty?: string,
     options?: {
       autoStart?: boolean;
@@ -698,17 +704,7 @@ export class App {
             <!-- 3D Canvas will be rendered here -->
           </div>
         </div>
-        
-        <!-- Game Controls -->
-        <div class="flex justify-center space-x-4 mt-4">
-          <button id="start-game-btn-in-state" class="cyber-button ${
-            options?.autoStart === false ? "" : "hidden"
-          }">Inizia Partita</button>
-          <button id="pause-game-btn" class="cyber-button">Pausa</button>
-          <button id="resume-game-btn" class="cyber-button hidden">Riprendi</button>
-          <button id="restart-game-btn" class="cyber-button">Restart</button>
-          <button id="exit-game-btn" class="cyber-button">Esci</button>
-        </div>
+      
       </div>
     `;
 
@@ -716,7 +712,28 @@ export class App {
     const canvasContainer = document.getElementById("pong-canvas-container");
     if (canvasContainer) {
       // Create a new canvas instance for the game state
-      const pongCanvas = new PongCanvas();
+      const pongCanvas = new PongCanvas(
+        async (winnerId: number | null) => {
+          // chiamate api per finire la partita
+          await this.apiService.finishMatch(this.currentMatchId || "", {
+            winner_id: winnerId,
+          });
+        }, // finishGame
+        async (player1Score: number) => {
+          // chiamate api per aggiornare il punteggio del giocatore 1
+          await this.apiService.updatePlayerScore(this.currentMatchId || "", {
+            user_id: player1Id,
+            score: player1Score,
+          });
+        }, // updateScorep1
+        async (player2Score: number) => {
+          // chiamate api per aggiornare il punteggio del giocatore 2
+          await this.apiService.updatePlayerScore(this.currentMatchId || "", {
+            user_id: player2Id,
+            score: player2Score,
+          });
+        } // updateScorep2
+      );
       pongCanvas.render(canvasContainer);
 
       // Set the game mode and difficulty
@@ -814,7 +831,7 @@ export class App {
       this.renderPongMatchmakingState(gameContainer);
     } else {
       // For PvE (vs BOT), it's a local game
-      this.renderPongGameState(gameContainer, mode, difficulty);
+      this.renderPongGameState(gameContainer, mode, 1, 2, difficulty);
       this.showNotification(
         `Partita locale avviata: 1 vs BOT (${difficulty})!`,
         "success"
@@ -887,11 +904,13 @@ export class App {
         const joinResponse = await this.apiService.joinMatchmaking("1"); // game_id 1 for Pong
         console.log("Join matchmaking response:", joinResponse);
 
+        // Check if we're already in queue (this is not an error)
         if (
           joinResponse.success ||
-          joinResponse.message === "Joined matchmaking queue"
+          joinResponse.message === "Joined matchmaking queue" ||
+          joinResponse.message === "Already in queue"
         ) {
-          // Successfully joined queue, now try to find a match
+          // Successfully joined queue or already in queue, now try to find a match
           this.updateMatchmakingUI(contentElement, "searching");
 
           try {
@@ -1366,7 +1385,7 @@ export class App {
 
       console.log("Ready match response:", response);
 
-      if (response.success) {
+      if (response) {
         // Update UI to show player is ready
         const readyButton = document.getElementById("ready-button");
         if (readyButton) {
@@ -1394,51 +1413,122 @@ export class App {
         this.currentMatchId.toString()
       );
 
-      if (response.success && response.data) {
-        const match = response.data;
+      if (response) {
+        const match = response;
+        const authState = authService.getState();
+        const myIdNum: number | null = authState.user?.id
+          ? Number(authState.user.id)
+          : null;
+        const oppIdNum: number | null = this.currentOpponentId
+          ? Number(this.currentOpponentId)
+          : null;
+        const meName = authState.user?.username || "PLAYER 1";
+        const oppName = this.currentOpponentUsername || "PLAYER 2";
+
+        // Find current player in the match
+        const currentPlayer = match.players?.find(
+          (p: any) => String(p.user_id) === String(myIdNum)
+        );
+
         const allPlayersReady = match.players?.every((p: any) => p.is_ready);
 
-        if (allPlayersReady && match.status === "in_progress") {
-          const authState = authService.getState();
-          const myIdNum: number | null = authState.user?.id
-            ? Number(authState.user.id)
-            : null;
-          const oppIdNum: number | null = this.currentOpponentId
-            ? Number(this.currentOpponentId)
-            : null;
-          const meName = authState.user?.username || "PLAYER 1";
-          const oppName = this.currentOpponentUsername || "PLAYER 2";
+        console.log("Checking match ready status:", {
+          matchId: this.currentMatchId,
+          matchStatus: match.status,
+          allPlayersReady,
+          currentPlayer,
+          players: match.players,
+        });
 
-          if (myIdNum && oppIdNum) {
-            const hostId = Math.min(myIdNum, oppIdNum);
-            const amIHost = myIdNum === hostId;
-            const gameContainer = document.getElementById(
-              "pong-game-container"
+        if (match.status === "cancelled") {
+          this.showNotification("Partita annullata", "error");
+          this.currentMatchId = null;
+          this.currentOpponentId = null;
+          this.currentOpponentUsername = null;
+          this.initializePongGameWithStates();
+          return;
+        }
+
+        if (match.status === "pending" && allPlayersReady) {
+          // All players are ready but match is still pending, update status to in_progress
+          console.log(
+            "All players ready, updating match status to in_progress"
+          );
+
+          try {
+            const updateResponse = await this.apiService.updateMatchStatus(
+              this.currentMatchId.toString(),
+              "in_progress"
             );
 
-            // Save mapping for score updates
-            this.currentPongPlayer1Id = myIdNum;
-            this.currentPongPlayer2Id = oppIdNum;
+            console.log("Update match status response:", updateResponse);
 
-            if (amIHost && gameContainer) {
-              this.currentMatchHost = String(hostId);
-              // Render game screen but do NOT auto-start; show Start button
-              await this.renderPongGameState(gameContainer, "pvp", undefined, {
-                autoStart: false,
-                player1Name: meName,
-                player2Name: oppName,
-              });
-              this.showNotification(
-                "Entrambi pronti. Puoi iniziare la partita.",
-                "success"
-              );
+            if (updateResponse.success) {
+              // Status updated successfully, now check again
+              setTimeout(() => this.checkMatchReady(), 2000);
             } else {
-              // Non-host, show info message
-              this.showMatchHostedByOther(amIHost ? meName : oppName);
+              console.error(
+                "Failed to update match status:",
+                updateResponse.message
+              );
             }
+          } catch (error) {
+            console.error("Error updating match status:", error);
+          }
+        } else if (match.status === "pending" && !allPlayersReady) {
+          // Not all players are ready yet
+          if (currentPlayer && currentPlayer.is_ready) {
+            this.updateWaitingForOpponentUI();
+          }
+          setTimeout(() => this.checkMatchReady(), 2000);
+        } else if (match.status === "in_progress") {
+          // Match is in progress, determine who should start the game
+          if (allPlayersReady) {
+            // All players are ready and match is in progress
+            const hostId = Math.min(myIdNum!, oppIdNum!);
+            const amIHost = myIdNum === hostId;
+
+            console.log("Match in progress, host determination:", {
+              myIdNum,
+              oppIdNum,
+              hostId,
+              amIHost,
+            });
+
+            if (amIHost) {
+              // I'm the host, start the game on my machine
+              const gameContainer = document.getElementById(
+                "pong-game-container"
+              );
+              if (gameContainer) {
+                this.currentMatchHost = String(hostId);
+                this.renderPongGameState(
+                  gameContainer,
+                  "pvp",
+                  myIdNum!,
+                  oppIdNum!,
+                  undefined,
+                  {
+                    autoStart: true,
+                    player1Name: meName,
+                    player2Name: oppName,
+                  }
+                );
+                this.showNotification(
+                  "Entrambi pronti. Puoi iniziare la partita.",
+                  "success"
+                );
+              }
+            } else {
+              // I'm not the host, show info message
+              this.showMatchHostedByOther(oppName);
+            }
+          } else {
+            // Match is in progress but not all players are ready yet
+            setTimeout(() => this.checkMatchReady(), 2000);
           }
         } else {
-          // Not all players ready yet, poll again after a delay
+          // Other status, poll again after a delay
           setTimeout(() => this.checkMatchReady(), 2000);
         }
       }
@@ -1519,7 +1609,7 @@ export class App {
           player1Score > this.lastReportedPongScoreP1 &&
           this.currentPongPlayer1Id
         ) {
-          await this.apiService.updateMatchScore(this.currentMatchId, {
+          await this.apiService.updatePlayerScore(this.currentMatchId, {
             user_id: this.currentPongPlayer1Id,
             score: player1Score,
           });
@@ -1529,7 +1619,7 @@ export class App {
           player2Score > this.lastReportedPongScoreP2 &&
           this.currentPongPlayer2Id
         ) {
-          await this.apiService.updateMatchScore(this.currentMatchId, {
+          await this.apiService.updatePlayerScore(this.currentMatchId, {
             user_id: this.currentPongPlayer2Id,
             score: player2Score,
           });
@@ -1540,20 +1630,30 @@ export class App {
       }
     }
 
+    // Update UI scores
+    if (this.currentPongCanvas) {
+      // Call the updateScore method with both scores
+      this.currentPongCanvas.updateScore(player1Score, player2Score);
+    }
+
     // Check for game over
     if (player1Score >= maxScore || player2Score >= maxScore) {
+      const winnerPlayerId =
+        player1Score >= maxScore
+          ? this.currentPongPlayer1Id
+          : this.currentPongPlayer2Id;
       const winner = player1Score >= maxScore ? "PLAYER 1" : "PLAYER 2";
       this.showNotification(`Vincitore: ${winner}!`, "success");
 
       // Handle game over
       setTimeout(() => {
-        this.handlePongGameOver(winner, player1Score, player2Score);
+        this.handlePongGameOver(winnerPlayerId, player1Score, player2Score);
       }, 2000);
     }
   }
 
   private async handlePongGameOver(
-    winner: string,
+    winnerId: number | null,
     player1Score: number,
     player2Score: number
   ) {
@@ -1569,10 +1669,8 @@ export class App {
       try {
         const authState = authService.getState();
         const currentUserId = authState.user?.id;
-        const winnerId =
-          winner === "PLAYER 1" ? currentUserId : this.currentOpponentId;
 
-        await this.apiService.finishMatch(this.currentMatchId, {
+        await this.apiService.finishMatchWithWinner(this.currentMatchId, {
           winner_id: winnerId,
           final_scores: {
             player1: player1Score,
@@ -1591,7 +1689,9 @@ export class App {
     gameContainer.innerHTML = `
       <div class="cyber-card max-w-md mx-auto text-center">
         <h2 class="text-2xl font-bold text-cyber-green mb-4">PARTITA TERMINATA</h2>
-        <p class="text-xl mb-4">Vincitore: ${winner}</p>
+        <p class="text-xl mb-4">Vincitore: ${
+          winnerId === this.currentPongPlayer1Id ? "PLAYER 1" : "PLAYER 2"
+        }</p>
         <p class="text-lg mb-6">Punteggio Finale: ${player1Score} - ${player2Score}</p>
         <div class="flex justify-center space-x-4">
           <button id="play-again" class="cyber-button">Gioca Ancora</button>
@@ -1708,6 +1808,8 @@ export class App {
         this.renderPongGameState(
           gameContainer,
           this.currentPongMode || "",
+          this.currentPongPlayer1Id || 1,
+          this.currentPongPlayer2Id || 2,
           this.currentPongDifficulty || undefined
         );
       });
@@ -3362,5 +3464,33 @@ export class App {
     } catch (error) {
       console.error("Error leaving matchmaking:", error);
     }
+  }
+
+  private updateWaitingForOpponentUI() {
+    const contentElement = document.getElementById("matchmaking-content");
+    if (!contentElement) return;
+
+    const authState = authService.getState();
+    const meName = authState.user?.username || "PLAYER 1";
+    const oppName = this.currentOpponentUsername || "Avversario";
+
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-clock text-4xl text-cyber-yellow mb-4 animate-pulse"></i>
+        <p class="text-xl text-cyber-green mb-2">In attesa dell'avversario</p>
+        <p class="text-lg mb-4">${meName} <span class="text-cyber-cyan">VS</span> ${oppName}</p>
+        <div class="space-y-2">
+          <p class="text-sm text-cyber-yellow">Sei pronto! In attesa che l'avversario si segni come pronto...</p>
+        </div>
+      </div>
+      <div class="flex justify-center space-x-4">
+        <button id="abandon-match" class="cyber-button-secondary">Abbandona</button>
+      </div>
+    `;
+
+    // Add event listener for abandon button
+    document
+      .getElementById("abandon-match")
+      ?.addEventListener("click", () => this.abandonMatch());
   }
 }
