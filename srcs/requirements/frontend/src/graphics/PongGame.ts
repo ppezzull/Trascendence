@@ -72,7 +72,11 @@ export class PongGame {
     // Create paddles
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
-    this.paddle1.setControlMode('ai')
+    if (this.gameMode === 'pve') {
+      this.paddle1.setControlMode('ai')
+    } else {
+      this.paddle1.setControlMode('manual')
+    }
 
     this.updatePaddleSpeed()
   
