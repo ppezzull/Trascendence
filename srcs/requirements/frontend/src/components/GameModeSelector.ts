@@ -26,10 +26,10 @@ export class GameModeSelector {
     this.container = document.createElement('div')
     this.container.className = 'game-mode-selector'
     
-    this.render(gameModes, botDifficulties)
+    this.initializeUI(gameModes, botDifficulties)
   }
 
-  private render(gameModes: GameMode[], botDifficulties?: BotDifficulty[]) {
+  private initializeUI(gameModes: GameMode[], botDifficulties?: BotDifficulty[]) {
     this.container.innerHTML = `
       <div class="cyber-card">
         <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">SELEZIONA MODALITÀ</h2>
