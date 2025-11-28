@@ -145,7 +145,7 @@ export class PongCanvas {
     // Create cyber grid ground
     const ground = BABYLON.MeshBuilder.CreateGround(
       "ground",
-      { width: 20, height: 30 },
+      { width: 20, height: 20 },
       this.scene
     );
 
@@ -212,7 +212,7 @@ export class PongCanvas {
     const wallThickness = 0.2;
     const wallHeight = 5;
     const arenaWidth = 20;
-    const arenaLength = 30;
+    const arenaLength = 20;
 
     // Side walls
     const leftWall = BABYLON.MeshBuilder.CreateBox(
@@ -427,11 +427,11 @@ export class PongCanvas {
     switch (event.key) {
       case "w":
       case "W":
-        this.game.movePlayer1Paddle("up");
+        this.game.movePlayer2Paddle("up");
         break;
       case "s":
       case "S":
-        this.game.movePlayer1Paddle("down");
+        this.game.movePlayer2Paddle("down");
         break;
     }
 
@@ -439,10 +439,10 @@ export class PongCanvas {
     if (this.gameMode === "pvp") {
       switch (event.key) {
         case "ArrowUp":
-          this.game.movePlayer2Paddle("up");
+          this.game.movePlayer1Paddle("up");
           break;
         case "ArrowDown":
-          this.game.movePlayer2Paddle("down");
+          this.game.movePlayer1Paddle("down");
           break;
       }
     }
@@ -457,7 +457,7 @@ export class PongCanvas {
       case "W":
       case "s":
       case "S":
-        this.game.stopPlayer1Paddle();
+        this.game.stopPlayer2Paddle();
         break;
     }
 
@@ -466,7 +466,7 @@ export class PongCanvas {
       switch (event.key) {
         case "ArrowUp":
         case "ArrowDown":
-          this.game.stopPlayer2Paddle();
+          this.game.stopPlayer1Paddle();
           break;
       }
     }

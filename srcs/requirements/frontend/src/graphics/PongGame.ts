@@ -27,6 +27,7 @@ export class PongGame {
     this.scene = scene
     this.engine = engine
     
+    this.setGameMode(this.gameMode, this.botDifficulty)
     // Create game objects
     this.createGameObjects()
   }
@@ -180,7 +181,10 @@ export class PongGame {
     this.paddle2?.update()
     this.ball?.update()
 
-    this.paddle1?.setAITarget(this.ball!.getPosition().z);
+    if (this.gameMode === 'pve') {
+      this.paddle1?.setAITarget(this.ball!.getPosition().z)
+}
+
 
     // Check collisions
     this.checkCollisions()
