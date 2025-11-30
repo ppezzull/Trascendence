@@ -95,6 +95,9 @@ export class ApiService {
       headers["Authorization"] = `Bearer ${this.authToken}`;
     }
 
+    console.log("endpoint", endpoint);
+    console.log("dajeroma", headers["Authorization"]);
+
     // Merge with any additional headers from options
     if (options.headers) {
       Object.assign(headers, options.headers);
@@ -645,6 +648,20 @@ export class ApiService {
     }
   }
 
+  async getNextTournamentMatches(tournamentId: string): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/tournaments/${tournamentId}/next-matches`
+      );
+    } catch (error) {
+      console.error("Get next tournament matches error:", error);
+      return {
+        success: false,
+        message: "Failed to get next tournament matches",
+      };
+    }
+  }
+
   async completeTournamentMatch(
     tournamentId: string,
     matchId: string,
@@ -737,9 +754,12 @@ export class ApiService {
 
   async deleteMessage(messageId: string): Promise<ApiResponse> {
     try {
-      return await this.chatRequest<ApiResponse>(`/api/chat/messages/${messageId}`, {
-        method: "DELETE",
-      });
+      return await this.chatRequest<ApiResponse>(
+        `/api/chat/messages/${messageId}`,
+        {
+          method: "DELETE",
+        }
+      );
     } catch (error) {
       console.error("Delete message error:", error);
       return { success: false, message: "Failed to delete message" };

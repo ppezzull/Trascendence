@@ -3151,6 +3151,7 @@ export class App {
         name: `Torneo ${tournamentType} - ${new Date().toLocaleDateString()}`,
         gameType: "pong", // Default to pong, could be extended
         maxParticipants,
+        game_id: 1,
         type: tournamentType.toLowerCase(),
       };
 
