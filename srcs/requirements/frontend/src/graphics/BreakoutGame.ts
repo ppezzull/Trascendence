@@ -1,6 +1,6 @@
 import * as BABYLON from '@babylonjs/core'
-import { Paddle } from './Paddle'
-import { Ball } from './Ball'
+import { Paddle } from './breakPaddle'
+import { Ball } from './breakBall'
 
 export interface Brick {
   mesh: BABYLON.Mesh
@@ -52,7 +52,7 @@ export class BreakoutGame {
     
     // Create paddle
     this.paddle = new Paddle('breakoutPaddle', this.scene)
-    this.paddle.setPosition(0, 0, 0)
+    this.paddle.setPosition(0, 0, +9)
     
     // Create ball
     this.ball = new Ball('breakoutBall', this.scene)
@@ -83,6 +83,7 @@ export class BreakoutGame {
     const brickHeight = 0.8
     const brickDepth = 0.5
     const padding = 0.1
+    const zOffset = -5
     
     // Create materials for different brick colors
     const colors = [
@@ -98,8 +99,8 @@ export class BreakoutGame {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const x = (col - cols / 2) * (brickWidth + padding) + brickWidth / 2
-        const y = (row - rows / 2) * (brickHeight + padding) + brickHeight / 2
-        const z = 0
+        const z = (row - rows / 2) * (brickHeight + padding) + brickHeight / 2 + zOffset
+        const y = 0
         
         // Create brick mesh
         const brick = BABYLON.MeshBuilder.CreateBox(
@@ -232,7 +233,7 @@ export class BreakoutGame {
 
   private resetPaddle(): void {
     if (this.paddle) {
-      this.paddle.setPosition(0, 0, 0)
+      this.paddle.setPosition(0, 0, +9)
     }
   }
 
@@ -314,20 +315,22 @@ export class BreakoutGame {
       if (brick.isDestroyed) return
       
       const brickPosition = brick.position
-      const brickSize = 1.8 // Approximate brick size
+      const brickWidth = 1.8
+      const brickDepth = 0.5
       
       // Simple AABB collision detection
       if (
-        ballPosition.x > brickPosition.x - brickSize / 2 &&
-        ballPosition.x < brickPosition.x + brickSize / 2 &&
-        ballPosition.y > brickPosition.y - brickSize / 2 &&
-        ballPosition.y < brickPosition.y + brickSize / 2
+        ballPosition.x > brickPosition.x - brickWidth / 2 &&
+        ballPosition.x < brickPosition.x + brickWidth / 2 &&
+        ballPosition.z > brickPosition.z - brickDepth / 2 &&
+       ballPosition.z < brickPosition.z + brickDepth / 2
       ) {
+        this.ball?.setVelocity(new BABYLON.Vector3(this.ball?.getVelocity().x, this.ball?.getVelocity().y, -this.ball?.getVelocity().z))
         // Brick hit!
         brick.hits++
         
         // Destroy brick after 3 hits
-        if (brick.hits >= 3) {
+        if (brick.hits >= 1) {
           brick.isDestroyed = true
           brick.mesh.setEnabled(false)
           
@@ -469,8 +472,8 @@ export class BreakoutGame {
       if (
         ballPosition.x > powerUpPosition.x - powerUpSize / 2 &&
         ballPosition.x < powerUpPosition.x + powerUpSize / 2 &&
-        ballPosition.y > powerUpPosition.y - powerUpSize / 2 &&
-        ballPosition.y < powerUpPosition.y + powerUpSize / 2
+        ballPosition.z > powerUpPosition.z - powerUpSize / 2 &&
+        ballPosition.z < powerUpPosition.z + powerUpSize / 2
       ) {
         // Power-up collected!
         powerUp.isActive = true
@@ -562,7 +565,7 @@ export class BreakoutGame {
       // Level complete
       this.level++
       this.resetBricks()
-      this.ball.reset()
+      this.ball?.reset()
       
       // Add bonus score for completing level
       this.score += 100 * this.level
@@ -585,7 +588,7 @@ export class BreakoutGame {
       } else {
         // Reset ball position
         this.ball.reset()
-        this.paddle?.setPosition(0, 0, 0)
+        this.paddle?.setPosition(0, 0, +9)
         
         // Update score display
         if (this.scoreCallback) {

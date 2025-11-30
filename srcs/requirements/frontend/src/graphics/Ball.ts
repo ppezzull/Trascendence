@@ -2,22 +2,44 @@ import * as BABYLON from '@babylonjs/core'
 import { Paddle } from './Paddle'
 
 export class Ball {
+  
+  private lastPosition = new BABYLON.Vector3(0, 0, 0)
   private mesh: BABYLON.Mesh | null = null
   private scene: BABYLON.Scene | null = null
-  private velocity = new BABYLON.Vector3(0.15, 0, 0.1)
+  private velocity = new BABYLON.Vector3(1, 0, 1)
   private initialPosition = new BABYLON.Vector3(0, 0, 0)
   private bounds = {
     minX: -9,
     maxX: 9,
     minY: -4.5,
     maxY: 4.5,
-    minZ: -14,
-    maxZ: 14
+    minZ: -10,
+    maxZ: 10
+  }
+
+
+  public setVelocity(velocity: BABYLON.Vector3): void {
+    this.velocity = velocity.clone()
+  }
+
+  public setOptionsVelocity(velocity: string): void {
+    if (velocity === 'slow') {
+      this.setVelocity(new BABYLON.Vector3(5, 0, 2))
+    } else if (velocity === 'normal') {
+      this.setVelocity(new BABYLON.Vector3(9, 0, 4.5))
+    } else if (velocity === 'fast') {
+      this.setVelocity(new BABYLON.Vector3(14, 0, 7))
+    }
   }
 
   constructor(name: string, scene: BABYLON.Scene) {
     this.scene = scene
     this.createMesh(name)
+
+    const savedSpeed = localStorage.getItem('ballSpeed') as 'slow' | 'normal' | 'fast' | null
+    if (savedSpeed) {
+      this.setOptionsVelocity(savedSpeed)
+    }
   }
 
   private createMesh(name: string): void {
@@ -66,36 +88,47 @@ export class Ball {
   }
 
   public reset(): void {
-    if (!this.mesh) return
-    
-    // Reset position
-    this.mesh.position = this.initialPosition.clone()
-    
-    // Reset velocity with random direction
-    const randomX = Math.random() > 0.5 ? 1 : -1
-    const randomZ = (Math.random() - 0.5) * 0.5
-    this.velocity = new BABYLON.Vector3(
-      0.15 * randomX,
-      0,
-      0.1 * randomZ
-    )
+  if (!this.mesh) return
+
+  this.mesh.position = this.initialPosition.clone()
+
+  // Velocity in units per second (esempio)
+  const randomX = Math.random() > 0.5 ? 1 : -1
+  const randomZ = (Math.random() - 0.5) * 0.5
+  this.velocity = new BABYLON.Vector3(
+    9.0 * randomX,    // 9.0 units/second along X (tweak as you like)
+    0,
+    4.5 * randomZ     // 4.5 units/second along Z (tweak)
+  )
+}
+
+  public update(deltaTimeMs?: number): void {
+  if (!this.mesh) return
+
+  // Salva posizione precedente
+  this.lastPosition.copyFrom(this.mesh.position)
+
+  // Ottieni delta time in ms: usa quello passato o prendi da engine
+  let deltaMs = deltaTimeMs ?? (this.scene?.getEngine().getDeltaTime() ?? 16.6667)
+  const dt = deltaMs / 1000 // secondi
+
+  // SPOSTAMENTO in base al tempo: velocity è in units/second
+  // Se vuoi sub-steps, gestiscili qui (utile per evitare tunneling)
+  const maxStep = 0.04 // 40 ms per substep
+  const steps = Math.max(1, Math.ceil(dt / maxStep))
+  const stepDt = dt / steps
+
+  for (let i = 0; i < steps; i++) {
+    const displacement = this.velocity.scale(stepDt) // units per substep
+    this.mesh.position.addInPlace(displacement)
+    // qui potresti controllare collisioni parziali se vuoi (opzionale)
   }
 
-  public update(): void {
-    if (!this.mesh) return
-    
-    // Update position based on velocity
-    const currentPosition = this.mesh.position.clone()
-    currentPosition.x += this.velocity.x
-    currentPosition.y += this.velocity.y
-    currentPosition.z += this.velocity.z
-    
-    this.mesh.position = currentPosition
-    
-    // Add rotation effect
-    this.mesh.rotation.x += 0.05
-    this.mesh.rotation.y += 0.05
-  }
+  // (opzionale) rotazione visuale solo se usi visual child
+  // this.visual?.rotation.x += 0.05
+  // this.visual?.rotation.y += 0.05
+}
+
 
   public checkWallCollision(): void {
     if (!this.mesh) return
@@ -121,10 +154,11 @@ export class Ball {
     const paddlePosition = paddleMesh.position
     
     // Simple AABB collision detection
+    const { width, height, depth } = paddle.getDimensions()
     const ballRadius = 0.25
-    const paddleWidth = 0.3
-    const paddleHeight = 2
-    const paddleDepth = 1
+    const paddleWidth = width
+    const paddleHeight = height
+    const paddleDepth = depth
     
     // Check if ball is within paddle bounds
     const xOverlap = Math.abs(ballPosition.x - paddlePosition.x) < (ballRadius + paddleWidth / 2)
@@ -138,27 +172,54 @@ export class Ball {
     return false
   }
 
-  public handlePaddleHit(paddle: Paddle): void {
-    if (!this.mesh) return
-    
-    const paddlePosition = paddle.getPosition()
-    const ballPosition = this.mesh.position
-    
-    // Calculate new velocity based on where the ball hit the paddle
-    const relativeIntersectY = (paddlePosition.y - ballPosition.y) / 1 // Paddle height is 2
-    const bounceAngle = relativeIntersectY * Math.PI / 4 // Max 45 degree angle
-    
-    // Determine direction based on which paddle was hit
-    const direction = paddlePosition.x < 0 ? 1 : -1
-    
-    // Set new velocity
-    const speed = 0.2
-    this.velocity.x = direction * speed * Math.cos(bounceAngle)
-    this.velocity.z = speed * Math.sin(bounceAngle)
-    
-    // Add some visual feedback
-    this.createHitEffect()
-  }
+public handlePaddleHit(paddle: Paddle): void {
+  if (!this.mesh) return
+
+  const paddlePosition = paddle.getPosition()
+  const ballPosition = this.mesh.position
+  const { depth } = paddle.getDimensions()
+
+  // Differenza lungo Z → punto di impatto
+  const relativeZ = paddlePosition.z - ballPosition.z
+  const normalizedImpact = BABYLON.Scalar.Clamp(relativeZ / (depth / 2), -1, 1)
+
+  // Angolo massimo del rimbalzo (45°)
+  const maxBounceAngle = Math.PI / 4
+  const bounceAngle = -normalizedImpact * maxBounceAngle
+
+  // Direzione lungo X (sinistra/destra)
+  const direction = paddlePosition.x < 0 ? 1 : -1
+
+  // Recupera velocità Z del paddle
+  const paddleVelocityZ = paddle.getCurrentVelocityZ ? paddle.getCurrentVelocityZ() : 0
+
+  // ---- BASE SPEED + BOOST DINAMICO ----
+  const baseSpeed = 9
+  const edgeSpeedBoost = 1 + Math.abs(normalizedImpact) * 0.2
+
+  // Qui attenuiamo il boost negativo (quando il paddle si muove "via" dalla palla)
+  const boostSign = Math.sign(paddleVelocityZ)
+  const absVel = Math.abs(paddleVelocityZ)
+
+  const paddleSpeedFactor =
+    boostSign > 0
+      ? 1 + absVel * 2.5 // spinta più forte se il paddle si muove contro la palla
+      : 1 + absVel * 0.8 // effetto molto più debole se si muove nella stessa direzione
+
+  const finalSpeed = baseSpeed * edgeSpeedBoost * paddleSpeedFactor
+
+  // ---- Effetto SPIN ----
+  const spinInfluence = BABYLON.Scalar.Clamp(paddleVelocityZ * 0.25, -1.5, 1.5)
+
+  // ---- Calcolo direzioni ----
+  this.velocity.x = direction * finalSpeed * Math.cos(bounceAngle)
+  this.velocity.z = finalSpeed * Math.sin(bounceAngle) - spinInfluence
+
+  // Feedback visivo
+  this.createHitEffect()
+}
+
+
 
   private createHitEffect(): void {
     if (!this.scene || !this.mesh) return
@@ -218,9 +279,6 @@ export class Ball {
     return this.velocity.clone()
   }
 
-  public setVelocity(velocity: BABYLON.Vector3): void {
-    this.velocity = velocity.clone()
-  }
 
   public dispose(): void {
     if (this.mesh) {

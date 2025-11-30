@@ -7,6 +7,8 @@ export class BreakoutCanvas {
   private scene: BABYLON.Scene | null = null
   private game: BreakoutGame | null = null
   private isRunning = false
+  private gameMode: 'solo' | 'pvp' | 'pve' | null = null
+  private botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
 
   constructor() {
     this.game = new BreakoutGame()
@@ -26,16 +28,18 @@ export class BreakoutCanvas {
             <span class="text-cyber-green font-mono">LIVELLO: <span id="breakout-level">1</span></span>
           </div>
           <div class="cyber-panel px-3 py-1">
-            <span class="text-cyber-green font-mono">VITE: <span id="breakout-lives">3</span></span>
+            <span id="breakout-lives-label" class="text-cyber-green font-mono">VITE: </span>
+            <span id="breakout-lives" class="text-cyber-green font-mono">3</span>
           </div>
         </div>
         
         <!-- Game Controls -->
         <div id="breakout-controls" class="absolute bottom-0 left-0 right-0 p-4 flex justify-center space-x-4">
-          <button id="start-breakout-btn" class="cyber-button">Inizia Partita</button>
+          <button id="start-breakout-btn" class="cyber-button hidden">Inizia Partita</button>
           <button id="pause-breakout-btn" class="cyber-button hidden">Pausa</button>
           <button id="resume-breakout-btn" class="cyber-button hidden">Riprendi</button>
-          <button id="reset-breakout-btn" class="cyber-button">Reset</button>
+          <button id="reset-breakout-btn" class="cyber-button hidden">Reset</button>
+          <button id="breakout-change-mode-btn" class="cyber-button hidden">Cambia Modalità</button>
         </div>
         
         <!-- Game Over Screen -->
@@ -43,8 +47,12 @@ export class BreakoutCanvas {
           <div class="cyber-panel p-8 text-center">
             <h2 class="cyber-title text-2xl mb-4">PARTITA TERMINATA</h2>
             <p class="terminal-text mb-2">Punteggio finale: <span id="breakout-final-score" class="text-cyber-cyan font-bold">0</span></p>
-            <p class="terminal-text mb-6">Livello raggiunto: <span id="breakout-final-level" class="text-cyber-cyan font-bold">1</span></p>
-            <button id="play-again-breakout-btn" class="cyber-button">Gioca Ancora</button>
+            <p class="terminal-text mb-2">Livello raggiunto: <span id="breakout-final-level" class="text-cyber-cyan font-bold">1</span></p>
+            <p class="terminal-text mb-6">Vincitore: <span id="breakout-winner-text" class="text-cyber-cyan font-bold"></span></p>
+            <div class="flex justify-center space-x-4">
+              <button id="breakout-play-again-btn" class="cyber-button">Gioca Ancora</button>
+              <button id="breakout-change-mode-after-game" class="cyber-button">Cambia Modalità</button>
+            </div>
           </div>
         </div>
       </div>
@@ -212,12 +220,71 @@ export class BreakoutCanvas {
   }
 
   private addEventListeners() {
+    // Game mode selection
+    const soloModeBtn = document.getElementById('breakout-solo-mode')
+    const pvpModeBtn = document.getElementById('breakout-pvp-mode')
+    const pveModeBtn = document.getElementById('breakout-pve-mode')
+    const botEasyBtn = document.getElementById('breakout-bot-easy')
+    const botMediumBtn = document.getElementById('breakout-bot-medium')
+    const botHardBtn = document.getElementById('breakout-bot-hard')
+    const startSelectedModeBtn = document.getElementById('breakout-start-selected-mode')
+    
+    if (soloModeBtn) {
+      soloModeBtn.addEventListener('click', () => {
+        this.gameMode = 'solo'
+        this.showGameModeSelection()
+      })
+    }
+    
+    if (pvpModeBtn) {
+      pvpModeBtn.addEventListener('click', () => {
+        this.gameMode = 'pvp'
+        this.showGameModeSelection()
+      })
+    }
+    
+    if (pveModeBtn) {
+      pveModeBtn.addEventListener('click', () => {
+        this.gameMode = 'pve'
+        this.showGameModeSelection()
+      })
+    }
+    
+    if (botEasyBtn) {
+      botEasyBtn.addEventListener('click', () => {
+        this.botDifficulty = 'easy'
+        this.updateBotDifficultySelection()
+      })
+    }
+    
+    if (botMediumBtn) {
+      botMediumBtn.addEventListener('click', () => {
+        this.botDifficulty = 'medium'
+        this.updateBotDifficultySelection()
+      })
+    }
+    
+    if (botHardBtn) {
+      botHardBtn.addEventListener('click', () => {
+        this.botDifficulty = 'hard'
+        this.updateBotDifficultySelection()
+      })
+    }
+    
+    if (startSelectedModeBtn) {
+      startSelectedModeBtn.addEventListener('click', () => {
+        this.startSelectedGameMode()
+      })
+    }
+    
     // Game control buttons
     const startBtn = document.getElementById('start-breakout-btn')
     const pauseBtn = document.getElementById('pause-breakout-btn')
     const resumeBtn = document.getElementById('resume-breakout-btn')
     const resetBtn = document.getElementById('reset-breakout-btn')
-    const playAgainBtn = document.getElementById('play-again-breakout-btn')
+    const changeModeBtn = document.getElementById('breakout-change-mode-btn')
+    const playAgainBtn = document.getElementById('breakout-play-again-btn')
+    const changeModeAfterGameBtn = document.getElementById('breakout-change-mode-after-game')
     
     if (startBtn) {
       startBtn.addEventListener('click', () => this.startGame())
@@ -235,6 +302,10 @@ export class BreakoutCanvas {
       resetBtn.addEventListener('click', () => this.resetGame())
     }
     
+    if (changeModeBtn) {
+      changeModeBtn.addEventListener('click', () => this.showGameModeSelection())
+    }
+    
     if (playAgainBtn) {
       playAgainBtn.addEventListener('click', () => {
         this.hideGameOver()
@@ -243,14 +314,88 @@ export class BreakoutCanvas {
       })
     }
     
+    if (changeModeAfterGameBtn) {
+      changeModeAfterGameBtn.addEventListener('click', () => {
+        this.hideGameOver()
+        this.showGameModeSelection()
+      })
+    }
+    
     // Keyboard controls
     document.addEventListener('keydown', this.handleKeyDown.bind(this))
     document.addEventListener('keyup', this.handleKeyUp.bind(this))
   }
 
+  private showGameModeSelection() {
+    const modeSelection = document.getElementById('breakout-game-mode-selection')
+    const botDifficulty = document.getElementById('breakout-bot-difficulty')
+    const startSelectedModeBtn = document.getElementById('breakout-start-selected-mode')
+    
+    if (modeSelection) modeSelection.classList.remove('hidden')
+    
+    if (this.gameMode === 'pve') {
+      if (botDifficulty) botDifficulty.classList.remove('hidden')
+    } else {
+      if (botDifficulty) botDifficulty.classList.add('hidden')
+    }
+    
+    if (this.gameMode && startSelectedModeBtn) {
+      startSelectedModeBtn.classList.remove('hidden')
+    }
+    
+    this.updateBotDifficultySelection()
+  }
+
+  private updateBotDifficultySelection() {
+    const botEasyBtn = document.getElementById('breakout-bot-easy')
+    const botMediumBtn = document.getElementById('breakout-bot-medium')
+    const botHardBtn = document.getElementById('breakout-bot-hard')
+    
+    // Reset all buttons
+    if (botEasyBtn) botEasyBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
+    if (botMediumBtn) botMediumBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
+    if (botHardBtn) botHardBtn.classList.remove('bg-cyber-green', 'text-cyber-black')
+    
+    // Highlight selected difficulty
+    if (this.botDifficulty === 'easy' && botEasyBtn) {
+      botEasyBtn.classList.add('bg-cyber-green', 'text-cyber-black')
+    } else if (this.botDifficulty === 'medium' && botMediumBtn) {
+      botMediumBtn.classList.add('bg-cyber-green', 'text-cyber-black')
+    } else if (this.botDifficulty === 'hard' && botHardBtn) {
+      botHardBtn.classList.add('bg-cyber-green', 'text-cyber-black')
+    }
+  }
+
+  private startSelectedGameMode() {
+    const modeSelection = document.getElementById('breakout-game-mode-selection')
+    const gameControls = document.getElementById('breakout-controls')
+    const livesLabel = document.getElementById('breakout-lives-label')
+    
+    if (modeSelection) modeSelection.classList.add('hidden')
+    if (gameControls) gameControls.classList.remove('hidden')
+    
+    // Update lives label based on game mode
+    if (livesLabel) {
+      if (this.gameMode === 'solo') {
+        livesLabel.textContent = 'VITE: '
+      } else {
+        livesLabel.textContent = 'VITE G1: '
+      }
+    }
+    
+    // Configure game based on mode
+    if (this.game && this.gameMode) {
+      this.game.setGameMode(this.gameMode, this.botDifficulty)
+    }
+    
+    // Start game
+    this.startGame()
+  }
+
   private handleKeyDown(event: KeyboardEvent) {
     if (!this.game || !this.isRunning) return
     
+    // Player 1 controls (Arrow keys)
     switch (event.key) {
       case 'ArrowLeft':
         this.game.movePaddleLeft()
@@ -259,20 +404,47 @@ export class BreakoutCanvas {
         this.game.movePaddleRight()
         break
     }
+    
+    // Player 2 controls (A/D) - only in PvP mode
+    if (this.gameMode === 'pvp') {
+      switch (event.key) {
+        case 'a':
+        case 'A':
+          this.game.moveSecondPaddleLeft()
+          break
+        case 'd':
+        case 'D':
+          this.game.moveSecondPaddleRight()
+          break
+      }
+    }
   }
 
   private handleKeyUp(event: KeyboardEvent) {
     if (!this.game || !this.isRunning) return
     
+    // Player 1 controls (Arrow keys)
     switch (event.key) {
       case 'ArrowLeft':
       case 'ArrowRight':
         this.game.stopPaddle()
         break
     }
+    
+    // Player 2 controls (A/D) - only in PvP mode
+    if (this.gameMode === 'pvp') {
+      switch (event.key) {
+        case 'a':
+        case 'A':
+        case 'd':
+        case 'D':
+          this.game.stopSecondPaddle()
+          break
+      }
+    }
   }
 
-  private startGame() {
+  public startGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -281,9 +453,22 @@ export class BreakoutCanvas {
     // Update UI
     document.getElementById('start-breakout-btn')?.classList.add('hidden')
     document.getElementById('pause-breakout-btn')?.classList.remove('hidden')
+    document.getElementById('breakout-change-mode-btn')?.classList.add('hidden')
   }
 
-  private pauseGame() {
+  public setGameMode(mode: 'solo' | 'pvp' | 'pve', difficulty?: 'easy' | 'medium' | 'hard') {
+    this.gameMode = mode
+    if (difficulty) {
+      this.botDifficulty = difficulty
+    }
+    
+    // Update game mode in the game instance
+    if (this.game) {
+      this.game.setGameMode(mode, difficulty)
+    }
+  }
+
+  public pauseGame() {
     if (!this.game) return
     
     this.isRunning = false
@@ -294,7 +479,7 @@ export class BreakoutCanvas {
     document.getElementById('resume-breakout-btn')?.classList.remove('hidden')
   }
 
-  private resumeGame() {
+  public resumeGame() {
     if (!this.game) return
     
     this.isRunning = true
@@ -305,7 +490,7 @@ export class BreakoutCanvas {
     document.getElementById('pause-breakout-btn')?.classList.remove('hidden')
   }
 
-  private resetGame() {
+  public resetGame() {
     if (!this.game) return
     
     this.isRunning = false
@@ -315,6 +500,7 @@ export class BreakoutCanvas {
     document.getElementById('start-breakout-btn')?.classList.remove('hidden')
     document.getElementById('pause-breakout-btn')?.classList.add('hidden')
     document.getElementById('resume-breakout-btn')?.classList.add('hidden')
+    document.getElementById('breakout-change-mode-btn')?.classList.remove('hidden')
     
     // Reset scores
     const scoreElement = document.getElementById('breakout-score')
@@ -325,8 +511,34 @@ export class BreakoutCanvas {
     if (levelElement) levelElement.textContent = '1'
     if (livesElement) livesElement.textContent = '3'
   }
+  
+  public dispose() {
+    // Stop the game
+    if (this.game) {
+      this.game.pause()
+    }
+    
+    // Dispose of Babylon.js resources
+    if (this.scene) {
+      this.scene.dispose()
+    }
+    
+    if (this.engine) {
+      this.engine.dispose()
+    }
+    
+    // Clear references
+    this.game = null
+    this.scene = null
+    this.engine = null
+    this.canvas = null
+    
+    // Remove event listeners if any
+    window.removeEventListener('keydown', this.handleKeyDown)
+    window.removeEventListener('keyup', this.handleKeyUp)
+  }
 
-  private updateScore(score: number, level: number, lives: number) {
+  updateScore(score: number, level: number, lives: number) {
     const scoreElement = document.getElementById('breakout-score')
     const levelElement = document.getElementById('breakout-level')
     const livesElement = document.getElementById('breakout-lives')
@@ -337,23 +549,34 @@ export class BreakoutCanvas {
     
     // Check for game over
     if (lives <= 0) {
-      this.showGameOver(score, level)
+      let winner = 'NESSUNO'
+      if (this.gameMode === 'pvp') {
+        // In PvP mode, the other player wins
+        winner = 'PLAYER 2'
+      } else if (this.gameMode === 'pve') {
+        winner = 'BOT'
+      }
+      
+      this.showGameOver(score, level, winner)
       this.isRunning = false
     }
   }
 
-  private showGameOver(score: number, level: number) {
+  private showGameOver(score: number, level: number, winner: string) {
     const gameOverScreen = document.getElementById('breakout-game-over')
     const finalScoreElement = document.getElementById('breakout-final-score')
     const finalLevelElement = document.getElementById('breakout-final-level')
+    const winnerTextElement = document.getElementById('breakout-winner-text')
     
     if (gameOverScreen) gameOverScreen.classList.remove('hidden')
     if (finalScoreElement) finalScoreElement.textContent = score.toString()
     if (finalLevelElement) finalLevelElement.textContent = level.toString()
+    if (winnerTextElement) winnerTextElement.textContent = winner
     
     // Update UI
     document.getElementById('pause-breakout-btn')?.classList.add('hidden')
     document.getElementById('resume-breakout-btn')?.classList.add('hidden')
+    document.getElementById('breakout-change-mode-btn')?.classList.add('hidden')
   }
 
   private hideGameOver() {
@@ -367,20 +590,5 @@ export class BreakoutCanvas {
     }
   }
 
-  public dispose() {
-    if (this.game) {
-      this.game.dispose()
-    }
-    
-    if (this.scene) {
-      this.scene.dispose()
-    }
-    
-    if (this.engine) {
-      this.engine.dispose()
-    }
-    
-    window.removeEventListener('resize', this.handleResize.bind(this))
-  }
 }
 

@@ -150,6 +150,14 @@ async function gameRoutes(fastify: FastifyInstance) {
       schema: {
         description: "Aggiorna il punteggio di un giocatore",
         tags: ["Matches"],
+        body: {
+          type: "object",
+          required: ["user_id", "score"],
+          properties: {
+            user_id: { type: "number" },
+            score: { type: "number" },
+          },
+        },
       },
       onRequest: [fastify.authenticate],
     },
@@ -165,10 +173,62 @@ async function gameRoutes(fastify: FastifyInstance) {
       schema: {
         description: "Termina una partita",
         tags: ["Matches"],
+        body: {
+          type: "object",
+          properties: {
+            winner_id: { type: "number" },
+          },
+        },
       },
       onRequest: [fastify.authenticate],
     },
     matchController.finishMatch.bind(matchController)
+  );
+
+  fastify.post<{
+    Params: { matchId: string };
+  }>(
+    "/matches/:matchId/cancel",
+    {
+      schema: {
+        description: "Annulla una partita prima che inizi",
+        tags: ["Matches"],
+        params: {
+          type: "object",
+          properties: {
+            matchId: { type: "string" },
+          },
+        },
+        response: {
+          200: {
+            description: "Partita annullata",
+            type: "object",
+            properties: {
+              id: { type: "number" },
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          400: {
+            description: "Impossibile annullare la partita",
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              details: { type: "string" },
+            },
+          },
+          404: {
+            description: "Partita non trovata",
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+      onRequest: [fastify.authenticate],
+    },
+    matchController.cancelMatch.bind(matchController)
   );
 
   fastify.get<{

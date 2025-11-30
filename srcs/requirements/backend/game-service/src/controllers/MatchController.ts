@@ -129,6 +129,10 @@ export class MatchController {
     reply: FastifyReply
   ) {
     try {
+      // Log per debug
+      console.log("Request body:", request.body);
+      console.log("Request headers:", request.headers);
+
       const matchId = parseInt(request.params.matchId);
       const { user_id, score } = request.body;
 
@@ -177,17 +181,20 @@ export class MatchController {
 
       for (const player of players) {
         const won = player.user_id === winner_id;
-        const opponentElo =
-          players.find((p) => p.user_id !== player.user_id)?.user_id || 1000;
+        const opponentPlayer = players.find(
+          (p) => p.user_id !== player.user_id
+        );
 
+        // Ottieni le statistiche del giocatore
         const playerStats = StatsModel.getOrCreateStats(
           player.user_id,
           match.game_id
         );
-        const opponentStats = StatsModel.getOrCreateStats(
-          opponentElo,
-          match.game_id
-        );
+
+        // Ottieni le statistiche dell'avversario
+        const opponentStats = opponentPlayer
+          ? StatsModel.getOrCreateStats(opponentPlayer.user_id, match.game_id)
+          : { elo_rating: 1000 }; // Default se non trovato
 
         const eloChange = StatsModel.calculateEloChange(
           playerStats.elo_rating,
@@ -206,6 +213,49 @@ export class MatchController {
 
       const updatedMatch = MatchModel.getMatchWithPlayers(matchId);
       return reply.send(updatedMatch);
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ error: "Internal server error" });
+    }
+  }
+
+  /**
+   * Cancella una partita
+   */
+  async cancelMatch(
+    request: FastifyRequest<{
+      Params: { matchId: string };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const matchId = parseInt(request.params.matchId);
+
+      const match = MatchModel.findById(matchId);
+      if (!match) {
+        return reply.status(404).send({ error: "Match not found" });
+      }
+
+      // Verifica che la partita sia in stato pending (prima che i giocatori siano pronti)
+      if (match.status !== "pending") {
+        return reply.status(400).send({ 
+          error: "Cannot cancel match",
+          details: `Match is already ${match.status}. Only pending matches can be cancelled.`
+        });
+      }
+
+      // Annulla la partita
+      const success = MatchModel.cancelMatch(matchId);
+
+      if (!success) {
+        return reply.status(500).send({ error: "Failed to cancel match" });
+      }
+
+      const updatedMatch = MatchModel.getMatchWithPlayers(matchId);
+      return reply.send({
+        ...updatedMatch,
+        message: "Match successfully cancelled"
+      });
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ error: "Internal server error" });

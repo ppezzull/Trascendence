@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { TournamentModel } from "../models/TournamentModel";
 import { MatchModel } from "../models/MatchModel";
+import { GameModel } from "../models/GameModel";
 
 export class TournamentController {
   /**
@@ -36,8 +37,7 @@ export class TournamentController {
       }
 
       // Verifica che il gioco esista
-      const GameModel = require("../models/GameModel").GameModel;
-      const game = GameModel.getById(game_id);
+      const game = GameModel.getGameById(game_id);
       if (!game) {
         return reply.status(404).send({ error: "Game not found" });
       }

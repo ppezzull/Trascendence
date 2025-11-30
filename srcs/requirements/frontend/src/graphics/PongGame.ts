@@ -14,6 +14,10 @@ export class PongGame {
   private player2Score = 0
   private gameLoop: number | null = null
   private scoreCallback: ((player1Score: number, player2Score: number) => void) | null = null
+  private gameMode: 'pvp' | 'pve' = 'pvp'
+  private botDifficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  private botUpdateCounter = 0
+  private botReactionTime = 10 // Frames between bot decisions (lower = faster reaction)
 
   constructor() {
     // Initialize game objects
@@ -23,20 +27,72 @@ export class PongGame {
     this.scene = scene
     this.engine = engine
     
+    this.setGameMode(this.gameMode, this.botDifficulty)
     // Create game objects
     this.createGameObjects()
   }
 
+  public setGameMode(mode: 'pvp' | 'pve', difficulty: 'easy' | 'medium' | 'hard' = 'medium'): void {
+    this.gameMode = mode
+    this.botDifficulty = difficulty
+    
+    // Set bot reaction time based on difficulty
+    switch (difficulty) {
+      case 'easy':
+        this.botReactionTime = 20 // Slower reaction
+        break
+      case 'medium':
+        this.botReactionTime = 10 // Medium reaction
+        break
+      case 'hard':
+        this.botReactionTime = 5 // Fast reaction
+        break
+    }
+
+    // Update paddle control mode based on game mode
+    if (this.paddle1) {
+      if (mode === 'pve') {
+        this.paddle1.setControlMode('ai')
+      } else {
+        this.paddle1.setControlMode('manual')
+      }
+    }
+
+    this.updatePaddleSpeed()
+  }
+
+  private updatePaddleSpeed(): void {
+  if (!this.paddle1) return
+  
+  console.log('Updating paddle speed for difficulty:', this.botDifficulty);
+  
+  if (this.botDifficulty === 'easy') {
+    this.paddle1.setSpeed(0.3)
+  }
+  else if (this.botDifficulty === 'medium') {
+    this.paddle1.setSpeed(0.5)
+  }
+  else if (this.botDifficulty === 'hard') {
+    this.paddle1.setSpeed(0.7)
+  }
+}
+
   private createGameObjects(): void {
     if (!this.scene) return
-    
     // Create paddles
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
-    
+    if (this.gameMode === 'pve') {
+      this.paddle1.setControlMode('ai')
+    } else {
+      this.paddle1.setControlMode('manual')
+    }
+
+    this.updatePaddleSpeed()
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)
-    
+    this.paddle2.setControlMode('manual')
+
     // Create ball
     this.ball = new Ball('ball', this.scene)
     this.ball.reset()
@@ -47,7 +103,7 @@ export class PongGame {
     
     this.isRunning = true
     this.isPaused = false
-    
+    this.botUpdateCounter = 0
     // Reset ball position
     this.ball?.reset()
     
@@ -78,7 +134,7 @@ export class PongGame {
     this.isPaused = false
     this.player1Score = 0
     this.player2Score = 0
-    
+    this.botUpdateCounter = 0
     if (this.gameLoop) {
       cancelAnimationFrame(this.gameLoop)
       this.gameLoop = null
@@ -130,7 +186,12 @@ export class PongGame {
     this.paddle1?.update()
     this.paddle2?.update()
     this.ball?.update()
-    
+
+    if (this.gameMode === 'pve') {
+      this.paddle1?.setAITarget(this.ball!.getPosition().z)
+}
+
+
     // Check collisions
     this.checkCollisions()
     
