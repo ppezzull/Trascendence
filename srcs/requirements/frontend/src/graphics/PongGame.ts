@@ -48,6 +48,16 @@ export class PongGame {
         this.botReactionTime = 5 // Fast reaction
         break
     }
+
+    // Update paddle control mode based on game mode
+    if (this.paddle1) {
+      if (mode === 'pve') {
+        this.paddle1.setControlMode('ai')
+      } else {
+        this.paddle1.setControlMode('manual')
+      }
+    }
+
     this.updatePaddleSpeed()
   }
 
@@ -69,7 +79,6 @@ export class PongGame {
 
   private createGameObjects(): void {
     if (!this.scene) return
-    
     // Create paddles
     this.paddle1 = new Paddle('paddle1', this.scene)
     this.paddle1.setPosition(-8, 0, 0)
@@ -80,7 +89,6 @@ export class PongGame {
     }
 
     this.updatePaddleSpeed()
-  
     this.paddle2 = new Paddle('paddle2', this.scene)
     this.paddle2.setPosition(8, 0, 0)
     this.paddle2.setControlMode('manual')
@@ -96,7 +104,6 @@ export class PongGame {
     this.isRunning = true
     this.isPaused = false
     this.botUpdateCounter = 0
-    
     // Reset ball position
     this.ball?.reset()
     
@@ -128,7 +135,6 @@ export class PongGame {
     this.player1Score = 0
     this.player2Score = 0
     this.botUpdateCounter = 0
-    
     if (this.gameLoop) {
       cancelAnimationFrame(this.gameLoop)
       this.gameLoop = null
