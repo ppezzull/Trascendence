@@ -10,8 +10,8 @@ export class PongGame {
   private ball: Ball | null = null
   private isRunning = false
   private isPaused = false
-  private player1Score = 0
-  private player2Score = 0
+  public player1Score = 0
+  public player2Score = 0
   private gameLoop: number | null = null
   private scoreCallback: ((player1Score: number, player2Score: number) => void) | null = null
   private gameMode: 'pvp' | 'pve' = 'pvp'
@@ -36,18 +36,6 @@ export class PongGame {
     this.gameMode = mode
     this.botDifficulty = difficulty
     
-    // Set bot reaction time based on difficulty
-    switch (difficulty) {
-      case 'easy':
-        this.botReactionTime = 20 // Slower reaction
-        break
-      case 'medium':
-        this.botReactionTime = 10 // Medium reaction
-        break
-      case 'hard':
-        this.botReactionTime = 5 // Fast reaction
-        break
-    }
 
     // Update paddle control mode based on game mode
     if (this.paddle1) {
@@ -67,13 +55,13 @@ export class PongGame {
   console.log('Updating paddle speed for difficulty:', this.botDifficulty);
   
   if (this.botDifficulty === 'easy') {
-    this.paddle1.setSpeed(0.3)
+    this.paddle1.setSpeed(0.03)
   }
   else if (this.botDifficulty === 'medium') {
-    this.paddle1.setSpeed(0.5)
+    this.paddle1.setSpeed(0.038)
   }
   else if (this.botDifficulty === 'hard') {
-    this.paddle1.setSpeed(0.7)
+    this.paddle1.setSpeed(0.1)
   }
 }
 
@@ -226,10 +214,10 @@ export class PongGame {
       // Determine which player scored
       if (this.ball.getPosition().x < 0) {
         // Player 2 scored
-        this.player2Score++
+        this.player1Score++
       } else {
         // Player 1 scored
-        this.player1Score++
+        this.player2Score++
       }
       
       // Update score display
