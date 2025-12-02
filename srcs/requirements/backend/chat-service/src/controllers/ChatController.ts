@@ -142,7 +142,32 @@ export class ChatController {
       // Crea il messaggio
       const message = ChatModel.createMessage(threadId, userId, content);
 
-      // TODO: Invia notifica WebSocket agli altri membri
+      // Invia notifica WebSocket agli altri membri del thread
+      const { wsController } = await import("./WebSocketController");
+
+      // Usa il nome utente dalla richiesta o un valore predefinito
+      const senderName = request.user?.username || "Unknown";
+
+      console.log("request", request);
+
+      // Prepara il messaggio per WebSocket
+      const wsMessage = {
+        type: "message:new",
+        payload: {
+          message: {
+            id: message.id,
+            senderId: userId,
+            senderName: senderName,
+            content: message.content,
+            timestamp: message.created_at,
+            threadId: threadId,
+            isSystem: message.is_system === 1,
+          },
+        },
+      };
+
+      // Invia il messaggio agli altri membri del thread
+      wsController.broadcastToThread(threadId, wsMessage, userId);
 
       return reply.status(201).send(message);
     } catch (error) {

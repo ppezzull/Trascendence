@@ -542,7 +542,7 @@ export class ApiService {
     });
   }
 
-  async joinMatchmaking(gameId: string): Promise<ApiResponse> {
+  async joinMatchmaking(gameId: string): Promise<any> {
     return await this.gameRequest<ApiResponse>("/api/matchmaking/join", {
       method: "POST",
       body: JSON.stringify({ game_id: parseInt(gameId) }),
@@ -582,9 +582,9 @@ export class ApiService {
     }
   }
 
-  async createTournament(tournament: any): Promise<ApiResponse> {
+  async createTournament(tournament: any): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/tournaments", {
+      return await this.gameRequest<any>("/api/tournaments", {
         method: "POST",
         body: JSON.stringify(tournament),
       });

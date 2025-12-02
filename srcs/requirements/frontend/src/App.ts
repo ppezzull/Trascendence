@@ -996,9 +996,9 @@ export class App {
 
         // Check if we're already in queue (this is not an error)
         if (
-          joinResponse.success ||
+          joinResponse ||
           joinResponse.message === "Joined matchmaking queue" ||
-          joinResponse.message === "Already in queue"
+          joinResponse.error === "Already in queue"
         ) {
           // Successfully joined queue or already in queue, now try to find a match
           this.updateMatchmakingUI(contentElement, "searching");
@@ -3496,7 +3496,7 @@ export class App {
 
       const response = await this.apiService.createTournament(tournamentData);
 
-      if (response.success) {
+      if (response) {
         this.showNotification(
           `Torneo ${tournamentType} creato con successo!`,
           "success"
@@ -3627,7 +3627,7 @@ export class App {
                 ? `<button class="cyber-button-sm" onclick="app.joinTournament('${tournament.id}')">Iscriviti</button>`
                 : tournament.status === "registration" && isFull
                 ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
-                : tournament.status === "active"
+                : tournament.status === "in_progress"
                 ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
                 : `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Risultati</button>`
             }
@@ -3685,7 +3685,7 @@ export class App {
         JSON.stringify({ alias: username, user_id: authState.user?.id })
       );
 
-      if (response.success) {
+      if (response) {
         this.showNotification(
           "Iscrizione al torneo effettuata con successo!",
           "success"

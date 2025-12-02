@@ -401,6 +401,25 @@ export class TournamentController {
         `onMatchCompleted: Match is part of tournament, next_match_id is ${tournamentMatch.next_match_id}`
       );
 
+      // Verifica se questa è l'ultima partita del torneo
+      const allMatchesStmt = db.prepare(`
+        SELECT tm.*, m.status as match_status
+        FROM tournament_matches tm
+        JOIN matches m ON tm.match_id = m.id
+        WHERE tm.tournament_id = ?
+        ORDER BY tm.round DESC, tm.match_number DESC
+      `);
+      const allMatches = allMatchesStmt.all(tournamentId) as any[];
+
+      // Trova il round più alto per determinare se questa è l'ultima partita
+      const maxRound = Math.max(...allMatches.map((m) => m.round));
+      const isFinalMatch =
+        tournamentMatch.round === maxRound && !tournamentMatch.next_match_id;
+
+      console.log(
+        `onMatchCompleted: Is this the final match? ${isFinalMatch}, max round is ${maxRound}, current round is ${tournamentMatch.round}`
+      );
+
       // Se c'è una partita successiva, aggiungi il vincitore
       if (tournamentMatch.next_match_id) {
         // Ottieni i dettagli della partita successiva
@@ -450,12 +469,33 @@ export class TournamentController {
         );
       } else {
         console.log(
-          `onMatchCompleted: No next match, this might be the final match`
+          `onMatchCompleted: No next match, this might be final match`
         );
       }
 
       // Aggiorna lo stato del torneo
       TournamentModel.updateTournamentProgress(tournamentId, matchId);
+
+      // Se questa è l'ultima partita, finalizza il torneo
+      if (isFinalMatch) {
+        console.log(
+          `onMatchCompleted: This is the final match, completing tournament ${tournamentId} with winner ${match.winner_id}`
+        );
+
+        // Aggiorna lo stato del torneo a completato
+        const updateTournamentStmt = db.prepare(`
+          UPDATE tournaments 
+          SET status = 'completed', 
+              completed_at = datetime('now'),
+              winner_id = ?
+          WHERE id = ?
+        `);
+        updateTournamentStmt.run(match.winner_id, tournamentId);
+
+        console.log(
+          `onMatchCompleted: Tournament ${tournamentId} completed with winner ${match.winner_id}`
+        );
+      }
 
       // Ottieni lo stato aggiornato del torneo
       const updatedTournament = TournamentModel.getById(tournamentId);
@@ -463,6 +503,7 @@ export class TournamentController {
       return reply.send({
         success: true,
         tournament_status: updatedTournament?.status,
+        is_final_match: isFinalMatch,
         message:
           updatedTournament?.status === "completed"
             ? "Tournament completed"
