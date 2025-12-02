@@ -607,14 +607,14 @@ export class ApiService {
 
   async registerForTournament(
     tournamentId: string,
-    alias?: string
+    alias?: any
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
         `/api/tournaments/${tournamentId}/register`,
         {
           method: "POST",
-          body: JSON.stringify({ alias }),
+          body: alias,
         }
       );
     } catch (error) {
@@ -629,6 +629,7 @@ export class ApiService {
         `/api/tournaments/${tournamentId}/start`,
         {
           method: "POST",
+          body: JSON.stringify({}), // Includi un corpo JSON vuoto per evitare l'errore
         }
       );
     } catch (error) {
@@ -637,7 +638,7 @@ export class ApiService {
     }
   }
 
-  async getTournamentBracket(tournamentId: string): Promise<ApiResponse> {
+  async getTournamentBracket(tournamentId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(
         `/api/tournaments/${tournamentId}/bracket`
@@ -648,9 +649,9 @@ export class ApiService {
     }
   }
 
-  async getNextTournamentMatches(tournamentId: string): Promise<ApiResponse> {
+  async getNextTournamentMatches(tournamentId: string): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>(
+      return await this.gameRequest<any>(
         `/api/tournaments/${tournamentId}/next-matches`
       );
     } catch (error) {
@@ -678,6 +679,20 @@ export class ApiService {
     } catch (error) {
       console.error("Complete tournament match error:", error);
       return { success: false, message: "Failed to complete tournament match" };
+    }
+  }
+
+  async getTournamentRegistrations(tournamentId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/tournaments/${tournamentId}/registrations`
+      );
+    } catch (error) {
+      console.error("Get tournament registrations error:", error);
+      return {
+        success: false,
+        message: "Failed to get tournament registrations",
+      };
     }
   }
 

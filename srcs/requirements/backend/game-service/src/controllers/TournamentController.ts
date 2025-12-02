@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { TournamentModel } from "../models/TournamentModel";
 import { MatchModel } from "../models/MatchModel";
 import { GameModel } from "../models/GameModel";
+import db from "../database/connection";
 
 export class TournamentController {
   /**
@@ -351,16 +352,119 @@ export class TournamentController {
       const tournamentId = parseInt(request.params.id);
       const matchId = parseInt(request.params.matchId);
 
+      console.log(
+        `onMatchCompleted: Processing completion for tournament ${tournamentId}, match ${matchId}`
+      );
+
+      // Verifica lo stato del torneo
+      const tournament = TournamentModel.getById(tournamentId);
+      if (!tournament) {
+        return reply.status(404).send({ error: "Tournament not found" });
+      }
+
+      if (tournament.status !== "in_progress") {
+        return reply
+          .status(400)
+          .send({ error: "Tournament is not in progress" });
+      }
+
+      // Verifica lo stato della partita
+      const match = MatchModel.findById(matchId);
+      if (!match) {
+        return reply.status(404).send({ error: "Match not found" });
+      }
+
+      console.log(
+        `onMatchCompleted: Match status is ${match.status}, winner_id is ${match.winner_id}`
+      );
+
+      // Se la partita non è finita, non facciamo nulla
+      if (match.status !== "finished" || !match.winner_id) {
+        return reply
+          .status(400)
+          .send({ error: "Match is not finished or has no winner" });
+      }
+
+      // Verifica che la partita faccia parte del torneo
+      const tournamentMatchStmt = db.prepare(`
+        SELECT * FROM tournament_matches WHERE match_id = ?
+      `);
+      const tournamentMatch = tournamentMatchStmt.get(matchId) as any;
+
+      if (!tournamentMatch || tournamentMatch.tournament_id !== tournamentId) {
+        return reply
+          .status(404)
+          .send({ error: "Match is not part of this tournament" });
+      }
+
+      console.log(
+        `onMatchCompleted: Match is part of tournament, next_match_id is ${tournamentMatch.next_match_id}`
+      );
+
+      // Se c'è una partita successiva, aggiungi il vincitore
+      if (tournamentMatch.next_match_id) {
+        // Ottieni i dettagli della partita successiva
+        const nextMatchStmt = db.prepare(`
+          SELECT * FROM tournament_matches WHERE id = ?
+        `);
+        const nextTournamentMatch = nextMatchStmt.get(
+          tournamentMatch.next_match_id
+        ) as any;
+
+        if (!nextTournamentMatch) {
+          console.log(
+            `onMatchCompleted: Next tournament match not found with ID ${tournamentMatch.next_match_id}`
+          );
+          return reply.status(500).send({ error: "Next match not found" });
+        }
+
+        console.log(
+          `onMatchCompleted: Adding winner ${match.winner_id} to next match ${nextTournamentMatch.match_id}`
+        );
+
+        // Determina la posizione del vincitore nella partita successiva
+        const playersCountStmt = db.prepare(`
+          SELECT COUNT(*) as count FROM match_players WHERE match_id = ?
+        `);
+        const playersCount = playersCountStmt.get(
+          nextTournamentMatch.match_id
+        ) as {
+          count: number;
+        };
+
+        const position = playersCount.count + 1;
+
+        // Aggiungi il vincitore alla partita successiva
+        const addPlayerStmt = db.prepare(`
+          INSERT OR REPLACE INTO match_players (match_id, user_id, position)
+          VALUES (?, ?, ?)
+        `);
+        addPlayerStmt.run(
+          nextTournamentMatch.match_id,
+          match.winner_id,
+          position
+        );
+
+        console.log(
+          `onMatchCompleted: Winner successfully added to next match at position ${position}`
+        );
+      } else {
+        console.log(
+          `onMatchCompleted: No next match, this might be the final match`
+        );
+      }
+
       // Aggiorna lo stato del torneo
       TournamentModel.updateTournamentProgress(tournamentId, matchId);
 
-      const tournament = TournamentModel.getById(tournamentId);
+      // Ottieni lo stato aggiornato del torneo
+      const updatedTournament = TournamentModel.getById(tournamentId);
 
       return reply.send({
         success: true,
-        tournament_status: tournament?.status,
+        tournament_status: updatedTournament?.status,
         message:
-          tournament?.status === "completed"
+          updatedTournament?.status === "completed"
             ? "Tournament completed"
             : "Match completed, tournament continues",
       });

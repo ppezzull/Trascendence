@@ -269,6 +269,10 @@ export class App {
     const contentElement = document.getElementById("content");
     if (!contentElement) return;
 
+    // Check if there's a matchId parameter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const matchIdParam = urlParams.get("matchId");
+
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">PONG 3D</h1>
@@ -279,16 +283,102 @@ export class App {
             <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">CARICAMENTO...</h2>
             <div class="text-center text-cyber-green">
               <i class="fas fa-spinner fa-spin text-2xl"></i>
-              <p class="mt-2">Inizializzazione gioco in corso...</p>
+              <p class="mt-2">Caricamento partita...</p>
             </div>
           </div>
         </div>
       </div>
     `;
 
-    // Initialize Pong game with state management after a short delay
-    setTimeout(() => {
-      this.initializePongGameWithStates();
+    // Check for specific match ID in URL before initializing game states
+    setTimeout(async () => {
+      try {
+        if (matchIdParam) {
+          // Specific match ID provided, load this match directly
+          console.log("Loading specific match with ID:", matchIdParam);
+
+          const matchResponse = await this.apiService.getMatch(matchIdParam);
+          if (matchResponse) {
+            const match = matchResponse;
+            const authState = authService.getState();
+            const myId = authState.user?.id;
+
+            // Find opponent player
+            const opponentPlayer = match.players?.find(
+              (p: any) => String(p.user_id) !== String(myId)
+            );
+
+            // Set current match ID
+            this.currentMatchId = matchIdParam;
+            this.currentOpponentId = opponentPlayer
+              ? String(opponentPlayer.user_id)
+              : null;
+            this.currentOpponentUsername = opponentPlayer
+              ? (await this.apiService.getUserById(opponentPlayer.user_id))
+                  ?.data?.username || null
+              : null;
+
+            console.log("match", match);
+            this.startPongGame("pvp", "3");
+          } else {
+            console.error("Failed to load match details");
+            this.showNotification(
+              "Errore nel caricamento della partita",
+              "error"
+            );
+            // Fallback to normal game states
+            this.initializePongGameWithStates();
+          }
+        } else {
+          // No specific match ID, check for pending matches
+          const pendingMatch = await this.checkForPendingMatch();
+
+          if (pendingMatch && pendingMatch.match) {
+            // Found a pending match, go directly to match state
+            console.log("Found pending match, going directly to game state");
+            const gameContainer = document.getElementById(
+              "pong-game-container"
+            );
+            if (gameContainer) {
+              // Extract match data
+              const match = pendingMatch.match;
+              const authState = authService.getState();
+              const myId = authState.user?.id;
+
+              // Find opponent player
+              const opponentPlayer = match.players?.find(
+                (p: any) => String(p.user_id) !== String(myId)
+              );
+
+              // Render game state directly
+              this.renderPongGameState(
+                gameContainer,
+                "pvp",
+                Number(myId) || 1,
+                Number(opponentPlayer?.user_id) || 2,
+                undefined,
+                {
+                  autoStart: false, // Don't auto-start, let user decide
+                  player1Name: authState.user?.username || "PLAYER 1",
+                  player2Name: opponentPlayer
+                    ? `Giocatore ${opponentPlayer.user_id}`
+                    : "PLAYER 2",
+                }
+              );
+            }
+          } else {
+            // No pending match, initialize normal game states
+            console.log(
+              "No pending match found, initializing normal game states"
+            );
+            this.initializePongGameWithStates();
+          }
+        }
+      } catch (error) {
+        console.error("Error checking for match:", error);
+        // Fallback to normal game states
+        this.initializePongGameWithStates();
+      }
     }, 100);
   }
 
@@ -1218,6 +1308,10 @@ export class App {
 
   private showPendingMatchUI(matchData: any) {
     const contentElement = document.getElementById("matchmaking-content");
+
+    console.log("matchData", matchData);
+    console.log("contentElement", contentElement);
+
     if (!contentElement) return;
 
     console.log("showPendingMatchUI called with data:", matchData);
@@ -2271,6 +2365,14 @@ export class App {
             <button id="create-t8-tournament" class="cyber-button inline-block">Crea Torneo T8</button>
           </div>
         </div>
+
+        <div class="cyber-card">
+          <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI PARTITI</h2>
+          <div id="started-tournaments" class="space-y-4">
+            <!-- Tournament list will be rendered here -->
+          </div>
+        </div>
+
         
         <div class="cyber-card">
           <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI ATTIVI</h2>
@@ -2341,9 +2443,7 @@ export class App {
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Azioni</h2>
               <div class="space-y-2">
-                <button id="join-tournament-btn" class="cyber-button w-full hidden">Iscriviti</button>
-                <button id="start-tournament-btn" class="cyber-button w-full hidden">Avvia Torneo</button>
-                <button id="view-bracket-btn" class="cyber-button w-full">Visualizza Bracket</button>
+                <button id="start-tournament-btn" class="cyber-button w-full">Start</button>
               </div>
             </div>
           </div>
@@ -2379,15 +2479,15 @@ export class App {
     try {
       const response = await this.apiService.getTournament(tournamentId);
 
-      if (response.success && response.data) {
-        const tournament = response.data;
+      if (response) {
+        const tournament = response;
         this.updateTournamentDetailsDisplay(tournament);
 
         // Load tournament bracket
         await this.loadTournamentBracket(tournamentId);
       } else {
         this.showNotification(
-          response.message || "Errore nel caricamento del torneo",
+          (response as any).message || "Errore nel caricamento del torneo",
           "error"
         );
         this.router.navigate("/tournaments");
@@ -2431,38 +2531,23 @@ export class App {
         tournament.status
       );
 
-    // Show/hide action buttons based on tournament status
-    const joinButton = document.getElementById("join-tournament-btn");
+    // Show/hide start button based on tournament status
     const startButton = document.getElementById("start-tournament-btn");
 
     if (tournament.status === "registration") {
-      if (joinButton) joinButton.classList.remove("hidden");
-      if (startButton) startButton.classList.add("hidden");
-    } else if (tournament.status === "active") {
-      if (joinButton) joinButton.classList.add("hidden");
+      if (startButton) {
+        startButton.classList.remove("hidden");
+        startButton.textContent = "Start";
+      }
+    } else {
       if (startButton) startButton.classList.add("hidden");
     }
 
-    // Add event listeners
-    if (joinButton && !joinButton.hasAttribute("data-listener")) {
-      joinButton.setAttribute("data-listener", "true");
-      joinButton.addEventListener("click", () => {
-        this.joinTournament(tournament.id);
-      });
-    }
-
+    // Add event listener for start button
     if (startButton && !startButton.hasAttribute("data-listener")) {
       startButton.setAttribute("data-listener", "true");
       startButton.addEventListener("click", () => {
         this.startTournament(tournament.id);
-      });
-    }
-
-    const bracketButton = document.getElementById("view-bracket-btn");
-    if (bracketButton && !bracketButton.hasAttribute("data-listener")) {
-      bracketButton.setAttribute("data-listener", "true");
-      bracketButton.addEventListener("click", () => {
-        this.loadTournamentBracket(tournament.id);
       });
     }
   }
@@ -2471,13 +2556,68 @@ export class App {
     try {
       const response = await this.apiService.getTournamentBracket(tournamentId);
 
-      if (response.success && response.data) {
-        this.renderTournamentBracket(response.data);
-      } else {
-        this.showNotification(
-          response.message || "Errore nel caricamento del tabellone",
-          "error"
+      if (response) {
+        // Create a copy of bracket data to modify
+        let bracketData: any = {};
+
+        // Handle different response formats
+        if (typeof response === "object") {
+          if (response.data) {
+            bracketData = response.data;
+          } else {
+            bracketData = response;
+          }
+        }
+
+        bracketData.matchesDetails = await Promise.all(
+          response.matches.map(async (match: any) => {
+            const matchDetails = await this.apiService.getMatch(match.id);
+            return matchDetails;
+          })
         );
+
+        console.log("ensommamammamamammama", response);
+
+        // Load next matches separately using dedicated API
+        try {
+          let nextMatchesResponse =
+            await this.apiService.getNextTournamentMatches(tournamentId);
+          if (nextMatchesResponse) {
+            // Handle different response formats for next matches
+            let nextMatchesData: any[] = [];
+            if (nextMatchesResponse.next_matches) {
+              nextMatchesData = nextMatchesResponse.next_matches;
+            }
+
+            // Update bracket with next matches data
+            bracketData.next_matches = nextMatchesData;
+
+            // Pre-fetch user names for all players in next matches
+            const userIds = new Set();
+            nextMatchesData.forEach((match: any) => {
+              if (match.players) {
+                match.players.forEach((player: any) => {
+                  if (player.user_id) {
+                    userIds.add(player.user_id);
+                  }
+                });
+              }
+            });
+
+            // Fetch user data for all unique user IDs
+            const userPromises = Array.from(userIds).map((userId: any) =>
+              this.apiService.getUserById(userId.toString())
+            );
+
+            console.log("userPromises", await Promise.all(userPromises));
+          }
+        } catch (error) {
+          console.error("Error loading next matches:", error);
+        }
+
+        this.renderTournamentBracket(bracketData);
+      } else {
+        this.showNotification("Errore nel caricamento del tabellone", "error");
       }
     } catch (error) {
       console.error("Load tournament bracket error:", error);
@@ -2492,52 +2632,249 @@ export class App {
     const bracketElement = document.getElementById("tournament-bracket");
     if (!bracketElement) return;
 
-    // This is a simplified bracket rendering
-    // In a real implementation, you would create a more complex visualization
+    // Helper function to get player name by seed
+    const getPlayerNameBySeed = (seed: number) => {
+      const player = bracket.registrations?.find((p: any) => p.seed === seed);
+
+      console.log("bracket", bracket);
+
+      return player ? player.alias : `Seed ${seed}`;
+    };
+
+    // Helper function to get match status color
+    const getMatchStatusColor = (status: string) => {
+      switch (status) {
+        case "pending":
+          return "text-cyber-yellow";
+        case "in_progress":
+          return "text-cyber-green";
+        case "completed":
+          return "text-cyber-cyan";
+        default:
+          return "text-gray-400";
+      }
+    };
+
+    // Helper function to get match status text
+    const getMatchStatusText = (status: string) => {
+      switch (status) {
+        case "pending":
+          return "In attesa";
+        case "in_progress":
+          return "In corso";
+        case "completed":
+          return "Completata";
+        default:
+          return status;
+      }
+    };
+
+    // Render bracket with all available data
+
+    console.log("bracket", bracket);
     bracketElement.innerHTML = `
       <div class="text-center">
         <p class="text-cyber-green mb-4">Tabellone del torneo</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          ${
-            bracket.rounds
-              ? bracket.rounds
-                  .map(
-                    (round: any, index: number) => `
-            <div class="cyber-card">
-              <h3 class="text-lg font-bold text-cyber-green mb-2">Round ${
-                index + 1
-              }</h3>
-              <div class="space-y-2">
-                ${
-                  round.matches
-                    ? round.matches
-                        .map(
-                          (match: any) => `
-                  <div class="border border-cyber-green rounded p-2">
-                    <div class="flex justify-between">
-                      <span>${match.player1 || "TBD"}</span>
-                      <span>VS</span>
-                      <span>${match.player2 || "TBD"}</span>
+        
+        <div class="mb-6">
+          <h3 class="text-lg font-bold text-cyber-green mb-2">Round Corrente: ${
+            bracket.current_round || "N/A"
+          }</h3>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Registrations Section -->
+          <div class="cyber-card">
+            <h3 class="text-lg font-bold text-cyber-green mb-4">Giocatori Registrati</h3>
+            <div class="space-y-2 max-h-96 overflow-y-auto">
+              ${
+                bracket.registrations && bracket.registrations.length > 0
+                  ? bracket.registrations
+                      .map(
+                        (player: any) => `
+                    <div class="flex items-center justify-between p-2 border border-cyber-green/20 rounded">
+                      <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-cyber-green/20 rounded-full flex items-center justify-center">
+                          <i class="fas fa-user text-cyber-green text-xs"></i>
+                        </div>
+                        <div>
+                          <p class="text-sm font-medium text-cyber-green">${
+                            player.alias
+                          }</p>
+                          <p class="text-xs text-gray-400">ID: ${player.id}</p>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-xs text-gray-400">Seed: ${
+                          player.seed || "N/A"
+                        }</p>
+                        <p class="text-xs text-gray-400">Pos: ${
+                          player.final_position || "N/A"
+                        }</p>
+                        ${
+                          player.eliminated
+                            ? '<span class="text-xs text-cyber-magenta">Eliminato</span>'
+                            : '<span class="text-xs text-cyber-green">Attivo</span>'
+                        }
+                      </div>
                     </div>
+                  `
+                      )
+                      .join("")
+                  : "<p class='text-gray-400'>Nessun giocatore registrato</p>"
+              }
+            </div>
+          </div>
+        </div>
+        
+        <!-- Next Matches Section -->
+        ${
+          bracket.matchesDetails && bracket.matchesDetails.length > 0
+            ? `
+            <div class="cyber-card mt-6">
+              <h3 class="text-lg font-bold text-cyber-green mb-4">Prossime Partite</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${bracket.matchesDetails
+                  .map((match: any) => {
+                    // Get current user ID
+                    const authState = authService.getState();
+                    const currentUserId = authState.user?.id;
+
+                    console.log("ensommadajeroma", match);
+                    // Check if current user is in this match
+                    const isUserInMatch =
+                      match.players &&
+                      match.status === "pending" &&
+                      match.players.some(
+                        (p: any) => p.user_id === currentUserId
+                      );
+
+                    // Get player names from match data or user data
+                    const player1 =
+                      match.players && match.players.length > 0
+                        ? match.players.find((p: any) => p.position === 1)
+                        : null;
+                    const player2 =
+                      match.players && match.players.length > 1
+                        ? match.players.find((p: any) => p.position === 2)
+                        : null;
+
+                    console.log("player1", player1);
+                    console.log("player2", player2);
+
+                    console.log("bracket.registrations", bracket.registrations);
+
+                    const player1Name = player1
+                      ? (() => {
+                          const registration = bracket.registrations?.find(
+                            (p: any) => p.user_id === player1.user_id
+                          );
+                          return registration
+                            ? registration.alias
+                            : `Giocatore ${player1.user_id}`;
+                        })()
+                      : "TBD";
+                    const player2Name = player2
+                      ? (() => {
+                          const registration = bracket.registrations?.find(
+                            (p: any) => p.user_id === player2.user_id
+                          );
+                          return registration
+                            ? registration.alias
+                            : `Giocatore ${player2.user_id}`;
+                        })()
+                      : "TBD";
+
+                    console.log("player1Name", player1Name);
+                    console.log("player2Name", player2Name);
+
+                    return `
+                  <div class="border border-cyber-green/20 rounded p-3 hover:bg-cyber-dark/30 transition-colors">
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-xs bg-cyber-green/20 text-cyber-green px-2 py-1 rounded">
+                        Match #${match.id}
+                      </span>
+                      <div class="${getMatchStatusColor(
+                        match.status || "pending"
+                      )} text-xs font-medium">
+                        ${getMatchStatusText(match.status || "pending")}
+                      </div>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                      <span class="text-sm font-medium">${player1Name}</span>
+                      <span class="text-xs text-cyber-green">VS</span>
+                      <span class="text-sm font-medium">${player2Name}</span>
+                    </div>
+                    
+                    <div class="text-xs text-gray-400 mt-2">
+                      ${
+                        match.players && match.players.length > 0
+                          ? `${match.players.length} giocatori`
+                          : "In attesa di giocatori"
+                      }
+                    </div>
+                    
                     ${
-                      match.winner
-                        ? `<div class="text-cyber-cyan text-sm">Vincitore: ${match.winner}</div>`
+                      match.players && match.players.length > 0
+                        ? `
+                        <div class="mt-2 space-y-1">
+                          ${match.players
+                            .map(
+                              (player: any) => `
+                            <div class="flex justify-between items-center text-xs">
+                              <span>${(() => {
+                                const registration =
+                                  bracket.registrations?.find(
+                                    (p: any) => p.user_id === player.user_id
+                                  );
+                                return registration
+                                  ? registration.alias
+                                  : `Giocatore ${player.user_id}`;
+                              })()}</span>
+                              <div class="flex items-center space-x-2">
+                                <span>Punteggio: ${player.score || 0}</span>
+                                ${
+                                  player.is_ready
+                                    ? '<span class="text-xs bg-cyber-green/20 text-cyber-green px-1 py-0.5 rounded">Pronto</span>'
+                                    : '<span class="text-xs bg-cyber-yellow/20 text-cyber-yellow px-1 py-0.5 rounded">Non pronto</span>'
+                                }
+                              </div>
+                            </div>
+                          `
+                            )
+                            .join("")}
+                        </div>
+                      `
                         : ""
                     }
+                    
+                    <div class="text-xs text-gray-400 mt-2">
+                      ${
+                        match.created_at
+                          ? `Creata: ${new Date(
+                              match.created_at
+                            ).toLocaleString()}`
+                          : ""
+                      }
+                    </div>
+                    
+                    <div class="mt-3 flex justify-end">
+                      ${
+                        isUserInMatch
+                          ? `<button class="cyber-button" onclick="app.playMatch(${match.id})">Gioca</button>`
+                          : ""
+                      }
+                    </div>
                   </div>
-                `
-                        )
-                        .join("")
-                    : "<p>Nessuna partita</p>"
-                }
+                `;
+                  })
+                  .join("")}
               </div>
             </div>
           `
-                  )
-                  .join("")
-              : "<p>Nessun round disponibile</p>"
-          }
-        </div>
+            : ""
+        }
       </div>
     `;
   }
@@ -3150,7 +3487,9 @@ export class App {
       const tournamentData = {
         name: `Torneo ${tournamentType} - ${new Date().toLocaleDateString()}`,
         gameType: "pong", // Default to pong, could be extended
-        maxParticipants,
+        max_players: maxParticipants,
+        min_players: maxParticipants - 1,
+
         game_id: 1,
         type: tournamentType.toLowerCase(),
       };
@@ -3179,23 +3518,54 @@ export class App {
     try {
       const response = await this.apiService.getTournaments();
 
-      if (response.success && response.data) {
-        const tournaments = response.data;
+      console.log("responseensommamammamamammama", response);
+
+      if (response) {
+        const tournaments = response as any;
         const activeTournaments = tournaments.filter(
           (t: any) => t.status === "active" || t.status === "registration"
         );
         const pastTournaments = tournaments.filter(
           (t: any) => t.status === "completed"
         );
+        const startedTournaments = tournaments.filter(
+          (t: any) => t.status === "in_progress"
+        );
 
+        // Load registrations for tournaments in registration status to check if they're full
+        for (const tournament of activeTournaments) {
+          if (tournament.status === "registration") {
+            try {
+              const regResponse =
+                await this.apiService.getTournamentRegistrations(tournament.id);
+
+              console.log("regResponse", regResponse);
+              if (regResponse) {
+                tournament.registrationsCount = regResponse.length;
+                tournament.maxPlayers =
+                  tournament.max_players || tournament.maxParticipants;
+              }
+            } catch (error) {
+              console.error(
+                `Error loading registrations for tournament ${tournament.id}:`,
+                error
+              );
+              tournament.registrationsCount = 0;
+            }
+          }
+        }
+
+        this.renderTournamentsList(startedTournaments, "started-tournaments");
         this.renderTournamentsList(activeTournaments, "active-tournaments");
         this.renderTournamentsList(pastTournaments, "past-tournaments");
       } else {
+        this.showTournamentsError("started-tournaments");
         this.showTournamentsError("active-tournaments");
         this.showTournamentsError("past-tournaments");
       }
     } catch (error) {
       console.error("Load tournaments error:", error);
+      this.showTournamentsError("started-tournaments");
       this.showTournamentsError("active-tournaments");
       this.showTournamentsError("past-tournaments");
     }
@@ -3217,8 +3587,17 @@ export class App {
     }
 
     container.innerHTML = tournaments
-      .map(
-        (tournament) => `
+      .map((tournament) => {
+        // Determine if tournament is full
+        const isFull =
+          tournament.status === "registration" &&
+          tournament.registrationsCount !== undefined &&
+          tournament.maxPlayers !== undefined &&
+          tournament.registrationsCount >= tournament.maxPlayers;
+
+        console.log("tournamentensommamammamamammama", tournament);
+
+        return `
       <div class="border border-cyber-green rounded p-4 hover:bg-cyber-dark/50 transition-colors">
         <div class="flex justify-between items-center">
           <div>
@@ -3229,9 +3608,11 @@ export class App {
               Gioco: ${
                 tournament.gameType === "pong" ? "Pong 3D" : "Breakout Cyber"
               } | 
-              Partecipanti: ${tournament.currentParticipants || 0}/${
-          tournament.maxParticipants
-        } |
+              Partecipanti: ${
+                tournament.registrationsCount ||
+                tournament.currentParticipants ||
+                0
+              }/${tournament.maxPlayers || tournament.maxParticipants} |
               Stato: ${this.getTournamentStatusText(tournament.status)}
             </p>
             ${
@@ -3242,17 +3623,30 @@ export class App {
           </div>
           <div class="flex space-x-2">
             ${
-              tournament.status === "registration"
+              tournament.status === "registration" && !isFull
                 ? `<button class="cyber-button-sm" onclick="app.joinTournament('${tournament.id}')">Iscriviti</button>`
+                : tournament.status === "registration" && isFull
+                ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
                 : tournament.status === "active"
                 ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
                 : `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Risultati</button>`
             }
+            <button class="cyber-button-sm" onclick="app.viewTournamentRegistrations('${
+              tournament.id
+            }')">Giocatori</button>
+          </div>
+        </div>
+        <div id="tournament-registrations-${
+          tournament.id
+        }" class="hidden mt-4 p-3 border border-cyber-green/30 rounded">
+          <div class="text-center text-cyber-green py-2">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p class="mt-1">Caricamento giocatori...</p>
           </div>
         </div>
       </div>
-    `
-      )
+    `;
+      })
       .join("");
   }
 
@@ -3282,8 +3676,13 @@ export class App {
 
   async joinTournament(tournamentId: string) {
     try {
+      // Get current username from auth state
+      const authState = authService.getState();
+      const username = authState.user?.username || undefined;
+
       const response = await this.apiService.registerForTournament(
-        tournamentId
+        tournamentId,
+        JSON.stringify({ alias: username, user_id: authState.user?.id })
       );
 
       if (response.success) {
@@ -3307,6 +3706,81 @@ export class App {
   viewTournament(tournamentId: string) {
     // Navigate to tournament details page
     this.router.navigate(`/tournament/${tournamentId}`);
+  }
+
+  async viewTournamentRegistrations(tournamentId: string) {
+    const container = document.getElementById(
+      `tournament-registrations-${tournamentId}`
+    );
+    if (!container) return;
+
+    // Toggle visibility
+    if (container.classList.contains("hidden")) {
+      container.classList.remove("hidden");
+
+      try {
+        const response = await this.apiService.getTournamentRegistrations(
+          tournamentId
+        );
+
+        if (response) {
+          const registrations = response as any;
+
+          if (registrations.length === 0) {
+            container.innerHTML = `
+              <div class="text-center text-gray-400 py-2">
+                <p>Nessun giocatore registrato per questo torneo</p>
+              </div>
+            `;
+          } else {
+            container.innerHTML = `
+              <h4 class="text-md font-bold text-cyber-green mb-2">Giocatori Registrati (${
+                registrations.length
+              })</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                ${registrations
+                  .map(
+                    (player: any) => `
+                  <div class="flex items-center space-x-2 p-2 border border-cyber-green/20 rounded">
+                    <div class="w-8 h-8 bg-cyber-green/20 rounded-full flex items-center justify-center">
+                      <i class="fas fa-user text-cyber-green text-xs"></i>
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-cyber-green">${
+                        player.alias
+                      }</p>
+                      <p class="text-xs text-gray-400">Seed: ${player.seed}</p>
+                    </div>
+                    ${
+                      player.eliminated
+                        ? '<span class="text-xs text-cyber-magenta">Eliminato</span>'
+                        : ""
+                    }
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+        } else {
+          container.innerHTML = `
+            <div class="text-center text-cyber-magenta py-2">
+              <p>Errore nel caricamento dei giocatori registrati</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error("Load tournament registrations error:", error);
+        container.innerHTML = `
+          <div class="text-center text-cyber-magenta py-2">
+            <p>Errore nel caricamento dei giocatori registrati</p>
+          </div>
+        `;
+      }
+    } else {
+      container.classList.add("hidden");
+    }
   }
 
   private initializeChat() {
@@ -3493,5 +3967,166 @@ export class App {
     document
       .getElementById("abandon-match")
       ?.addEventListener("click", () => this.abandonMatch());
+  }
+
+  async viewMatchDetails(matchId: string | number) {
+    try {
+      const response = await this.apiService.getMatch(matchId.toString());
+
+      if (response && response.success && response.data) {
+        const match = response.data;
+
+        // Create modal to show match details
+        const modal = document.createElement("div");
+        modal.className =
+          "fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50";
+        modal.innerHTML = `
+          <div class="cyber-card max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold text-cyber-green">Dettagli Partita</h2>
+              <button id="close-modal" class="text-cyber-magenta hover:text-cyber-green">
+                <i class="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-sm text-gray-400">ID Partita</p>
+                  <p class="text-cyber-green">${match.id}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-400">Stato</p>
+                  <p class="text-cyber-green">${match.status}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-400">Gioco</p>
+                  <p class="text-cyber-green">${
+                    match.game_id === 1 ? "Pong 3D" : "Breakout Cyber"
+                  }</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-400">Vincitore</p>
+                  <p class="text-cyber-green">${
+                    match.winner_id
+                      ? `Giocatore ${match.winner_id}`
+                      : "Non determinato"
+                  }</p>
+                </div>
+              </div>
+              
+              ${
+                match.started_at
+                  ? `
+                <div>
+                  <p class="text-sm text-gray-400">Iniziata il</p>
+                  <p class="text-cyber-green">${new Date(
+                    match.started_at
+                  ).toLocaleString()}</p>
+                </div>
+              `
+                  : ""
+              }
+              
+              ${
+                match.players && match.players.length > 0
+                  ? `
+                <div>
+                  <p class="text-sm text-gray-400 mb-2">Giocatori</p>
+                  <div class="space-y-2">
+                    ${match.players
+                      .map(
+                        (player: any) => `
+                      <div class="flex justify-between items-center p-2 border border-cyber-green/20 rounded">
+                        <span class="text-cyber-green">Giocatore ${
+                          player.user_id
+                        }</span>
+                        <div class="flex items-center space-x-2">
+                          <span class="text-sm text-gray-400">Punteggio: ${
+                            player.score || 0
+                          }</span>
+                          ${
+                            player.is_ready
+                              ? '<span class="text-xs bg-cyber-green/20 text-cyber-green px-2 py-1 rounded">Pronto</span>'
+                              : '<span class="text-xs bg-cyber-yellow/20 text-cyber-yellow px-2 py-1 rounded">Non pronto</span>'
+                          }
+                        </div>
+                      </div>
+                    `
+                      )
+                      .join("")}
+                  </div>
+                </div>
+              `
+                  : ""
+              }
+              
+              <div class="flex justify-end space-x-2 pt-4">
+                ${
+                  match.status === "pending"
+                    ? `
+                  <button id="join-match" class="cyber-button">Partecipa</button>
+                `
+                    : ""
+                }
+                <button id="close-modal-btn" class="cyber-button-secondary">Chiudi</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        const closeModal = () => {
+          document.body.removeChild(modal);
+        };
+
+        document
+          .getElementById("close-modal")
+          ?.addEventListener("click", closeModal);
+        document
+          .getElementById("close-modal-btn")
+          ?.addEventListener("click", closeModal);
+
+        // Join match functionality
+        const joinButton = document.getElementById("join-match");
+        if (joinButton) {
+          joinButton.addEventListener("click", () => {
+            closeModal();
+            // Navigate to game page with match ID
+            this.router.navigate(`/pong?matchId=${match.id}`);
+          });
+        }
+
+        // Close modal when clicking outside
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            closeModal();
+          }
+        });
+      } else {
+        this.showNotification(
+          "Impossibile caricare i dettagli della partita",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Error viewing match details:", error);
+      this.showNotification(
+        "Errore durante il caricamento dei dettagli della partita",
+        "error"
+      );
+    }
+  }
+
+  async playMatch(matchId: string | number) {
+    try {
+      // Navigate to pong page with match ID
+      this.router.navigate(`/pong?matchId=${matchId}`);
+    } catch (error) {
+      console.error("Error navigating to match:", error);
+      this.showNotification("Errore durante l'avvio della partita", "error");
+    }
   }
 }

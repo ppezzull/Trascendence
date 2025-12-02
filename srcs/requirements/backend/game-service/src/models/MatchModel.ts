@@ -30,6 +30,12 @@ export interface MatchSetting {
 export interface MatchWithPlayers extends Match {
   players: MatchPlayer[];
   settings?: MatchSetting[];
+  tournament_info?: {
+    tournament_id: number | null;
+    round: number | null;
+    match_number: number | null;
+  };
+  tournament_players?: any[];
 }
 
 // ==================== MATCH MODEL ====================
@@ -38,13 +44,20 @@ export class MatchModel {
   /**
    * Crea una nuova partita
    */
-  static createMatch(gameId: number, playerIds: number[]): Match {
+  static createMatch(
+    gameId: number,
+    playerIds: number[],
+    settings?: Record<string, string>
+  ): Match {
     const insertMatch = db.prepare(`
-      INSERT INTO matches (game_id, status)
-      VALUES (?, 'pending')
+      INSERT INTO matches (game_id, status, settings)
+      VALUES (?, 'pending', ?)
     `);
 
-    const result = insertMatch.run(gameId);
+    const result = insertMatch.run(
+      gameId,
+      settings ? JSON.stringify(settings) : null
+    );
     const matchId = result.lastInsertRowid as number;
 
     // Aggiungi i giocatori
@@ -79,10 +92,41 @@ export class MatchModel {
     const players = this.getMatchPlayers(matchId);
     const settings = this.getMatchSettings(matchId);
 
+    // Verifica se questo match è parte di un torneo
+    const tournamentMatchStmt = db.prepare(`
+      SELECT tm.tournament_id, tm.round, tm.match_number
+      FROM tournament_matches tm
+      WHERE tm.match_id = ?
+    `);
+
+    const tournamentInfo = tournamentMatchStmt.get(matchId) as
+      | {
+          tournament_id: number | null;
+          round: number | null;
+          match_number: number | null;
+        }
+      | undefined;
+
+    // Se è un match di torneo, ottieni anche le informazioni sui giocatori del torneo
+    let tournamentPlayers: any[] = [];
+    if (tournamentInfo?.tournament_id) {
+      const tournamentPlayersStmt = db.prepare(`
+        SELECT tr.id as registration_id, tr.alias, tr.user_id, tr.seed
+        FROM tournament_registrations tr
+        WHERE tr.tournament_id = ?
+      `);
+
+      tournamentPlayers = tournamentPlayersStmt.all(
+        tournamentInfo.tournament_id
+      );
+    }
+
     return {
       ...match,
       players,
       settings,
+      tournament_info: tournamentInfo,
+      tournament_players: tournamentPlayers,
     };
   }
 
@@ -187,6 +231,9 @@ export class MatchModel {
     `);
 
     const result = stmt.run(winnerId || null, matchId);
+
+    console.log("resultensommamammamamammama", result);
+
     return result.changes > 0;
   }
 

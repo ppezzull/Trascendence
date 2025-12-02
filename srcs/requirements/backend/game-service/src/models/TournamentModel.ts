@@ -64,6 +64,7 @@ export class TournamentModel {
     tournament_type?: "single_elimination" | "double_elimination";
     created_by?: number;
     settings?: Record<string, any>;
+    players?: Array<{ alias: string; user_id?: number }>;
   }): Tournament {
     const stmt = this.db.prepare(`
       INSERT INTO tournaments (name, game_id, max_players, min_players, tournament_type, created_by, settings)
@@ -80,7 +81,26 @@ export class TournamentModel {
       data.settings ? JSON.stringify(data.settings) : null
     );
 
-    return this.getById(result.lastInsertRowid as number) as Tournament;
+    const tournamentId = result.lastInsertRowid as number;
+
+    // Se sono forniti i giocatori, registrali e crea il bracket
+    if (data.players && data.players.length > 0) {
+      // Registra i giocatori
+      const registrations: TournamentRegistration[] = [];
+      for (const player of data.players) {
+        const registration = this.registerPlayer(
+          tournamentId,
+          player.alias,
+          player.user_id
+        );
+        registrations.push(registration);
+      }
+
+      // Crea il bracket completo
+      this.createCompleteBracket(tournamentId, registrations);
+    }
+
+    return this.getById(tournamentId) as Tournament;
   }
 
   /**
@@ -142,13 +162,31 @@ export class TournamentModel {
     }
 
     if (tournament.status !== "registration") {
-      throw new Error("Tournament registration is closed");
+      throw new Error("Tournament is not in registration phase");
     }
 
-    // Verifica se il torneo è pieno
-    const currentPlayers = this.getRegistrations(tournamentId);
-    if (currentPlayers.length >= tournament.max_players) {
+    // Verifica che il torneo non sia pieno
+    const currentRegistrations = this.getRegistrations(tournamentId);
+    if (currentRegistrations.length >= tournament.max_players) {
       throw new Error("Tournament is full");
+    }
+
+    // Verifica che l'utente non sia già registrato
+    if (userId) {
+      const existingUser = currentRegistrations.find(
+        (reg) => reg.user_id === userId
+      );
+      if (existingUser) {
+        throw new Error("User already registered");
+      }
+    }
+
+    // Verifica che l'alias non sia già in uso
+    const existingAlias = currentRegistrations.find(
+      (reg) => reg.alias === alias
+    );
+    if (existingAlias) {
+      throw new Error("Alias already in use");
     }
 
     const stmt = this.db.prepare(`
@@ -157,9 +195,16 @@ export class TournamentModel {
     `);
 
     const result = stmt.run(tournamentId, userId || null, alias);
-    return this.getRegistrationById(
-      result.lastInsertRowid as number
-    ) as TournamentRegistration;
+    return {
+      id: result.lastInsertRowid as number,
+      tournament_id: tournamentId,
+      user_id: userId || null,
+      alias,
+      seed: null,
+      eliminated: false,
+      final_position: null,
+      registered_at: new Date().toISOString(),
+    };
   }
 
   /**
@@ -208,7 +253,7 @@ export class TournamentModel {
   }
 
   /**
-   * Avvia un torneo generando il bracket
+   * Avvia un torneo
    */
   static startTournament(tournamentId: number): TournamentBracket {
     const tournament = this.getById(tournamentId);
@@ -227,14 +272,18 @@ export class TournamentModel {
       );
     }
 
-    // Assegna i seed ai giocatori
-    this.assignSeeds(tournamentId, registrations);
+    // Se il bracket non è stato creato durante la creazione del torneo, crealo ora
+    // Questo è per compatibilità con i tornei creati prima della modifica
+    const bracketExists = this.db
+      .prepare(
+        `
+      SELECT COUNT(*) as count FROM tournament_matches WHERE tournament_id = ?
+    `
+      )
+      .get(tournamentId) as { count: number };
 
-    // Genera il bracket in base al tipo di torneo
-    if (tournament.tournament_type === "single_elimination") {
-      this.generateSingleEliminationBracket(tournamentId, registrations);
-    } else {
-      this.generateDoubleEliminationBracket(tournamentId, registrations);
+    if (bracketExists.count === 0) {
+      this.createCompleteBracket(tournamentId, registrations);
     }
 
     // Aggiorna lo stato del torneo
@@ -283,8 +332,8 @@ export class TournamentModel {
     const playersWithBye = numPlayers - firstRoundMatches * 2;
 
     const matchStmt = this.db.prepare(`
-      INSERT INTO matches (game_id, status, settings)
-      VALUES (?, 'scheduled', ?)
+      INSERT INTO matches (game_id, status)
+      VALUES (?, 'in_progress')
     `);
 
     const tournamentMatchStmt = this.db.prepare(`
@@ -300,10 +349,7 @@ export class TournamentModel {
     // Primo round: crea i match tra i giocatori senza bye
     let matchNumber = 1;
     for (let i = 0; i < firstRoundMatches; i++) {
-      const matchResult = matchStmt.run(
-        tournament.game_id,
-        tournament.settings || null
-      );
+      const matchResult = matchStmt.run(tournament.game_id);
       const matchId = matchResult.lastInsertRowid as number;
 
       tournamentMatchStmt.run(tournamentId, matchId, 1, matchNumber);
@@ -336,6 +382,194 @@ export class TournamentModel {
     // Per ora implementiamo una versione semplificata
     // che crea solo il bracket winners iniziale
     this.generateSingleEliminationBracket(tournamentId, registrations);
+
+    // TODO: Implementare il bracket losers completo
+  }
+
+  /**
+   * Crea il bracket completo del torneo
+   */
+  private static createCompleteBracket(
+    tournamentId: number,
+    registrations: TournamentRegistration[]
+  ): void {
+    const tournament = this.getById(tournamentId);
+    if (!tournament) {
+      throw new Error("Tournament not found");
+    }
+
+    // Assegna i seed ai giocatori
+    this.assignSeeds(tournamentId, registrations);
+
+    // Genera il bracket in base al tipo di torneo
+    if (tournament.tournament_type === "single_elimination") {
+      this.createCompleteSingleEliminationBracket(tournamentId, registrations);
+    } else {
+      this.createCompleteDoubleEliminationBracket(tournamentId, registrations);
+    }
+  }
+
+  /**
+   * Crea il bracket completo per eliminazione singola
+   */
+  private static createCompleteSingleEliminationBracket(
+    tournamentId: number,
+    registrations: TournamentRegistration[]
+  ): void {
+    const tournament = this.getById(tournamentId)!;
+    const numPlayers = registrations.length;
+
+    // Usa il numero effettivo di giocatori per calcolare il bracket
+    // Se il numero di giocatori non è una potenza di 2, alcuni avranno un bye
+    const totalRounds = Math.ceil(Math.log2(numPlayers));
+
+    // Calcola quanti giocatori devono avere un bye nel primo round
+    const nextPowerOf2 = Math.pow(2, totalRounds);
+    const firstRoundMatches = Math.floor(numPlayers / 2);
+    const playersWithBye = numPlayers % 2;
+
+    // Crea tutti i match del torneo
+    const matchStmt = this.db.prepare(`
+      INSERT INTO matches (game_id, status)
+      VALUES (?, 'pending')
+    `);
+
+    const tournamentMatchStmt = this.db.prepare(`
+      INSERT INTO tournament_matches (tournament_id, match_id, round, match_number, bracket_type)
+      VALUES (?, ?, ?, ?, 'winners')
+    `);
+
+    // Mappa per tenere traccia dei match creati e dei loro ID
+    const matchMap: Map<string, number> = new Map();
+
+    // Crea i match del primo round
+    let matchNumber = 1;
+    let playerIndex = 0;
+
+    // Crea i match del primo round con i giocatori disponibili
+    while (playerIndex < numPlayers - 1) {
+      const matchResult = matchStmt.run(tournament.game_id);
+      const matchId = matchResult.lastInsertRowid as number;
+
+      tournamentMatchStmt.run(tournamentId, matchId, 1, matchNumber);
+      matchMap.set(`1-${matchNumber}`, matchId);
+
+      // Assegna i giocatori al match
+      if (
+        registrations[playerIndex]?.user_id !== null &&
+        registrations[playerIndex]?.user_id !== undefined
+      ) {
+        this.addPlayerToMatch(matchId, registrations[playerIndex].user_id!, 1);
+      }
+      if (
+        registrations[playerIndex + 1]?.user_id !== null &&
+        registrations[playerIndex + 1]?.user_id !== undefined
+      ) {
+        this.addPlayerToMatch(
+          matchId,
+          registrations[playerIndex + 1].user_id!,
+          2
+        );
+      }
+
+      playerIndex += 2;
+      matchNumber++;
+    }
+
+    // Se c'è un giocatore rimasto (numero dispare di giocatori), avrà un bye
+    if (playerIndex < numPlayers) {
+      // Questo giocatore passerà direttamente al secondo round
+      // Lo gestiremo quando creeremo i match del secondo round
+    }
+
+    // Calcola il numero di giocatori che parteciperanno al secondo round
+    // (metà dei giocatori del primo round + eventuali bye)
+    let playersInCurrentRound = Math.floor(numPlayers / 2) + (numPlayers % 2);
+    let currentRound = 2;
+
+    // Crea i match per i round successivi
+    while (playersInCurrentRound > 1) {
+      const matchesInCurrentRound = Math.floor(playersInCurrentRound / 2);
+
+      for (let i = 1; i <= matchesInCurrentRound; i++) {
+        const matchResult = matchStmt.run(tournament.game_id);
+        const matchId = matchResult.lastInsertRowid as number;
+
+        tournamentMatchStmt.run(tournamentId, matchId, currentRound, i);
+        matchMap.set(`${currentRound}-${i}`, matchId);
+      }
+
+      // Aggiorna i next_match_id dei match del round precedente
+      if (currentRound > 1) {
+        const prevRoundMatches =
+          currentRound === 2
+            ? Math.floor(numPlayers / 2) // Round 1
+            : Math.floor((Math.floor(numPlayers / 2) + (numPlayers % 2)) / 2); // Round 2
+
+        for (let i = 1; i <= prevRoundMatches; i++) {
+          const prevMatchId = matchMap.get(`${currentRound - 1}-${i}`);
+          const nextMatchId = matchMap.get(
+            `${currentRound}-${Math.ceil(i / 2)}`
+          );
+
+          if (prevMatchId && nextMatchId) {
+            const updateStmt = this.db.prepare(`
+              UPDATE tournament_matches 
+              SET next_match_id = ?
+              WHERE match_id = ?
+            `);
+            updateStmt.run(nextMatchId, prevMatchId);
+          }
+        }
+
+        // Se c'è un giocatore con bye nel primo round, assegnalo al primo match del secondo round
+        if (currentRound === 2 && numPlayers % 2 === 1) {
+          const firstMatchSecondRound = matchMap.get(`2-1`);
+          if (
+            firstMatchSecondRound &&
+            registrations[numPlayers - 1]?.user_id !== null &&
+            registrations[numPlayers - 1]?.user_id !== undefined
+          ) {
+            this.addPlayerToMatch(
+              firstMatchSecondRound,
+              registrations[numPlayers - 1].user_id!,
+              1
+            );
+          }
+        }
+      }
+
+      playersInCurrentRound =
+        matchesInCurrentRound + (playersInCurrentRound % 2);
+      currentRound++;
+    }
+  }
+
+  /**
+   * Aggiunge un giocatore a un match
+   */
+  private static addPlayerToMatch(
+    matchId: number,
+    userId: number,
+    position: number
+  ): void {
+    const playerStmt = this.db.prepare(`
+      INSERT INTO match_players (match_id, user_id, position)
+      VALUES (?, ?, ?)
+    `);
+    playerStmt.run(matchId, userId, position);
+  }
+
+  /**
+   * Crea il bracket completo per eliminazione doppia
+   */
+  private static createCompleteDoubleEliminationBracket(
+    tournamentId: number,
+    registrations: TournamentRegistration[]
+  ): void {
+    // Per ora implementiamo una versione semplificata
+    // che crea solo il bracket winners iniziale
+    this.createCompleteSingleEliminationBracket(tournamentId, registrations);
 
     // TODO: Implementare il bracket losers completo
   }
@@ -400,7 +634,7 @@ export class TournamentModel {
       SELECT MIN(tm.round) as current_round
       FROM tournament_matches tm
       JOIN matches m ON tm.match_id = m.id
-      WHERE tm.tournament_id = ? AND m.status IN ('scheduled', 'in_progress')
+      WHERE tm.tournament_id = ? AND m.status IN ('pending', 'in_progress')
     `);
 
     const result = stmt.get(tournamentId) as { current_round: number | null };
@@ -415,7 +649,7 @@ export class TournamentModel {
       SELECT tm.match_id
       FROM tournament_matches tm
       JOIN matches m ON tm.match_id = m.id
-      WHERE tm.tournament_id = ? AND m.status = 'scheduled'
+      WHERE tm.tournament_id = ? AND m.status = 'pending'
       ORDER BY tm.round, tm.match_number
       LIMIT 5
     `);
@@ -433,12 +667,64 @@ export class TournamentModel {
       return;
     }
 
+    // Ottieni i dettagli del match completato
+    const matchStmt = this.db.prepare(`
+      SELECT * FROM matches WHERE id = ?
+    `);
+    const match = matchStmt.get(matchId) as any;
+
+    // Modifica: controlla se lo stato è 'finished' invece di 'completed'
+    if (!match || match.status !== "finished" || !match.winner_id) {
+      return;
+    }
+
+    // Ottieni i dettagli del match nel torneo
+    const tournamentMatchStmt = this.db.prepare(`
+      SELECT * FROM tournament_matches WHERE match_id = ?
+    `);
+    const tournamentMatch = tournamentMatchStmt.get(matchId) as any;
+
+    if (!tournamentMatch || !tournamentMatch.next_match_id) {
+      return;
+    }
+
+    // Aggiungi il vincitore al match successivo
+    const nextMatchStmt = this.db.prepare(`
+      SELECT * FROM tournament_matches WHERE id = ?
+    `);
+    const nextTournamentMatch = nextMatchStmt.get(
+      tournamentMatch.next_match_id
+    ) as any;
+
+    if (!nextTournamentMatch) {
+      return;
+    }
+
+    // Determina la posizione del vincitore nel match successivo
+    // Controlla quanti giocatori sono già stati assegnati a quel match
+    const playersCountStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM match_players WHERE match_id = ?
+    `);
+    const playersCount = playersCountStmt.get(nextTournamentMatch.match_id) as {
+      count: number;
+    };
+
+    const position = playersCount.count + 1;
+
+    // Aggiungi il vincitore al match successivo
+    this.addPlayerToMatch(
+      nextTournamentMatch.match_id,
+      match.winner_id,
+      position
+    );
+
     // Verifica se tutti i match sono completati
+    // Modifica: controlla se lo stato è 'finished' invece di 'completed'
     const incompleteStmt = this.db.prepare(`
       SELECT COUNT(*) as count
       FROM tournament_matches tm
       JOIN matches m ON tm.match_id = m.id
-      WHERE tm.tournament_id = ? AND m.status != 'completed'
+      WHERE tm.tournament_id = ? AND m.status != 'finished'
     `);
 
     const result = incompleteStmt.get(tournamentId) as { count: number };
@@ -525,7 +811,7 @@ export class TournamentModel {
     const matchStatsStmt = this.db.prepare(`
       SELECT 
         COUNT(*) as total_matches,
-        SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) as completed_matches,
+        SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) as completed_matches,
         MAX(tm.round) as max_round
       FROM tournament_matches tm
       JOIN matches m ON tm.match_id = m.id
