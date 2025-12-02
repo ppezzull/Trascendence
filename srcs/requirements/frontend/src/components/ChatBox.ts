@@ -479,8 +479,8 @@ export class ChatBox {
       // Create or get existing DM thread
       const response = await this.apiService.createDirectMessageThread(userId);
 
-      if (response.success && response.data) {
-        this.currentThreadId = response.data.id;
+      if (response) {
+        this.currentThreadId = response.id;
         this.updateThreadInfo(user.username);
         this.enableMessageInput();
         await this.loadMessages(this.currentThreadId || undefined);
@@ -687,6 +687,8 @@ export class ChatBox {
       return;
     }
 
+    console.log("c", this.searchResults);
+
     searchResultsElement.classList.remove("hidden");
     searchResultsElement.innerHTML = this.searchResults
       .map(
@@ -787,12 +789,13 @@ export class ChatBox {
   public async startChatWithUser(userId: number, username: string) {
     try {
       // Create or get existing DM thread
-      const response = await this.apiService.createDirectMessageThread(
-        userId.toString()
-      );
 
-      if (response.success && response.data) {
-        this.currentThreadId = response.data.id;
+      console.log("startChatWithUserensommamammamamammama", userId, username);
+
+      const response = await this.apiService.createDirectMessageThread(userId);
+
+      if (response) {
+        this.currentThreadId = response.id;
         this.updateThreadInfo(username);
         this.enableMessageInput();
         await this.loadMessages(this.currentThreadId || undefined);

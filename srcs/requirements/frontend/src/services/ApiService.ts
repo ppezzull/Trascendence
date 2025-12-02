@@ -727,11 +727,11 @@ export class ApiService {
     }
   }
 
-  async createDirectMessageThread(userId: string): Promise<ApiResponse> {
+  async createDirectMessageThread(userId: number): Promise<ApiResponse> {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/threads/dm", {
         method: "POST",
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ otherUserId: userId }),
       });
     } catch (error) {
       console.error("Create DM thread error:", error);

@@ -50,14 +50,11 @@ export class MatchModel {
     settings?: Record<string, string>
   ): Match {
     const insertMatch = db.prepare(`
-      INSERT INTO matches (game_id, status, settings)
-      VALUES (?, 'pending', ?)
+      INSERT INTO matches (game_id, status)
+      VALUES (?, 'pending')
     `);
 
-    const result = insertMatch.run(
-      gameId,
-      settings ? JSON.stringify(settings) : null
-    );
+    const result = insertMatch.run(gameId);
     const matchId = result.lastInsertRowid as number;
 
     // Aggiungi i giocatori
