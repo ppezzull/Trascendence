@@ -94,4 +94,4 @@ Thumbs.db
 dist/
 build/
 
-
+package-lock.json

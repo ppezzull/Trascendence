@@ -54,7 +54,6 @@ export class PongCanvas {
           <button id="pause-game-btn" class="cyber-button hidden">Pausa</button>
           <button id="resume-game-btn" class="cyber-button hidden">Riprendi</button>
           <button id="reset-game-btn" class="cyber-button hidden">Reset</button>
-          <button id="change-mode-btn" class="cyber-button hidden">Cambia Modalità</button>
         </div>
         
         <!-- Game Over Screen -->
@@ -534,6 +533,7 @@ export class PongCanvas {
     // Update UI
     document.getElementById("pause-game-btn")?.classList.add("hidden");
     document.getElementById("resume-game-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.remove("hidden");
   }
 
   public resumeGame() {
@@ -545,6 +545,7 @@ export class PongCanvas {
     // Update UI
     document.getElementById("resume-game-btn")?.classList.add("hidden");
     document.getElementById("pause-game-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.add("hidden");
   }
 
   public resetGame() {
@@ -558,6 +559,7 @@ export class PongCanvas {
     document.getElementById("pause-game-btn")?.classList.add("hidden");
     document.getElementById("resume-game-btn")?.classList.add("hidden");
     document.getElementById("change-mode-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.add("hidden");
 
     // Reset scores
     const player1Score = document.getElementById("player1-score");
