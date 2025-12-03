@@ -3042,6 +3042,24 @@ export class App {
             </div>
 
             <div class="cyber-card">
+              <h2 class="text-lg font-bold text-cyber-green mb-4">Avatar</h2>
+              <div class="flex flex-col items-center space-y-4">
+                <div id="avatar-preview" class="w-24 h-24 rounded-full bg-cyber-dark/50 flex items-center justify-center overflow-hidden">
+                  <i class="fas fa-user text-cyber-green text-2xl"></i>
+                </div>
+                <div class="flex space-x-2">
+                  <input type="file" id="avatar-input" accept="image/*" class="hidden">
+                  <button id="upload-avatar-btn" class="cyber-button-sm">
+                    <i class="fas fa-upload mr-2"></i>Carica Avatar
+                  </button>
+                  <button id="remove-avatar-btn" class="cyber-button-sm bg-cyber-magenta">
+                    <i class="fas fa-trash mr-2"></i>Rimuovi
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Pong</h2>
               <div class="space-y-2">
                 <div class="flex justify-between">
@@ -3058,7 +3076,9 @@ export class App {
                 </div>
               </div>
             </div>
+          </div>
 
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Breakout</h2>
               <div class="space-y-2">
@@ -3089,6 +3109,9 @@ export class App {
 
     // Load real user data and stats
     this.loadProfileData();
+
+    // Setup avatar handlers
+    this.setupAvatarHandlers();
 
     // Add logout event listener
     const logoutBtn = document.getElementById("logout-btn");
@@ -3162,62 +3185,150 @@ export class App {
 
   private updateProfileDisplay(user: any, stats: any) {
     // Update user info
-    const usernameEl = document.getElementById("profile-username");
-    const emailEl = document.getElementById("profile-email");
-    const displayNameEl = document.getElementById("profile-display-name");
+    const usernameElement = document.getElementById("profile-username");
+    const emailElement = document.getElementById("profile-email");
+    const displayNameElement = document.getElementById("profile-display-name");
 
-    if (usernameEl) usernameEl.textContent = user.username || "N/A";
-    if (emailEl) emailEl.textContent = user.email || "N/A";
-    if (displayNameEl)
-      displayNameEl.textContent = user.display_name || user.username || "N/A";
+    if (usernameElement) usernameElement.textContent = user.username || "-";
+    if (emailElement) emailElement.textContent = user.email || "-";
+    if (displayNameElement)
+      displayNameElement.textContent =
+        user.display_name || user.username || "-";
 
-    // Update stats if available - handle the actual API response format
+    // Update avatar
+    this.updateAvatarDisplay(user.avatar);
+
+    // Update stats if available
     if (stats) {
-      const pongWinsEl = document.getElementById("pong-wins");
-      const pongLossesEl = document.getElementById("pong-losses");
-      const pongRatioEl = document.getElementById("pong-ratio");
-      const tournamentsPlayedEl = document.getElementById("tournaments-played");
-      const tournamentsWonEl = document.getElementById("tournaments-won");
+      // Update Pong stats
+      const pongWinsElement = document.getElementById("pong-wins");
+      const pongLossesElement = document.getElementById("pong-losses");
+      const pongRatioElement = document.getElementById("pong-ratio");
 
-      // Handle API response format: { wins: 0, losses: 0, tournaments_played: 0, tournaments_won: 0 }
-      const wins = stats.wins || stats.pong?.wins || "0";
-      const losses = stats.losses || stats.pong?.losses || "0";
-      const tournamentsPlayed =
-        stats.tournaments_played || stats.tournaments?.played || "0";
-      const tournamentsWon =
-        stats.tournaments_won || stats.tournaments?.won || "0";
+      if (pongWinsElement)
+        pongWinsElement.textContent = stats.pong?.wins || "0";
+      if (pongLossesElement)
+        pongLossesElement.textContent = stats.pong?.losses || "0";
+      if (pongRatioElement)
+        pongRatioElement.textContent = stats.pong?.ratio?.toFixed(2) || "0.00";
 
-      if (pongWinsEl) pongWinsEl.textContent = wins.toString();
-      if (pongLossesEl) pongLossesEl.textContent = losses.toString();
-      if (tournamentsPlayedEl)
-        tournamentsPlayedEl.textContent = tournamentsPlayed.toString();
-      if (tournamentsWonEl)
-        tournamentsWonEl.textContent = tournamentsWon.toString();
+      // Update Breakout stats
+      const breakoutLevelsElement = document.getElementById("breakout-levels");
+      const breakoutHighscoreElement =
+        document.getElementById("breakout-highscore");
+      const breakoutPowerupsElement =
+        document.getElementById("breakout-powerups");
 
-      if (pongRatioEl) {
-        const winsNum = parseInt(wins.toString());
-        const lossesNum = parseInt(losses.toString());
-        const ratio =
-          lossesNum > 0
-            ? (winsNum / lossesNum).toFixed(2)
-            : winsNum > 0
-            ? "∞"
-            : "0";
-        pongRatioEl.textContent = ratio;
-      }
-
-      // For breakout stats, use placeholder data since API doesn't return them yet
-      const breakoutLevelsEl = document.getElementById("breakout-levels");
-      const breakoutHighscoreEl = document.getElementById("breakout-highscore");
-      const breakoutPowerupsEl = document.getElementById("breakout-powerups");
-
-      if (breakoutLevelsEl)
-        breakoutLevelsEl.textContent = stats.breakout?.levels || "0";
-      if (breakoutHighscoreEl)
-        breakoutHighscoreEl.textContent = stats.breakout?.highscore || "0";
-      if (breakoutPowerupsEl)
-        breakoutPowerupsEl.textContent = stats.breakout?.powerups || "0";
+      if (breakoutLevelsElement)
+        breakoutLevelsElement.textContent = stats.breakout?.levels || "0";
+      if (breakoutHighscoreElement)
+        breakoutHighscoreElement.textContent = stats.breakout?.highscore || "0";
+      if (breakoutPowerupsElement)
+        breakoutPowerupsElement.textContent = stats.breakout?.powerups || "0";
     }
+  }
+
+  private updateAvatarDisplay(avatarUrl?: string) {
+    const avatarPreview = document.getElementById("avatar-preview");
+    if (!avatarPreview) return;
+
+    // Check if user has an avatar
+    if (avatarUrl) {
+      avatarPreview.innerHTML = `<img src="${avatarUrl}" alt="Avatar" class="w-full h-full object-cover">`;
+    } else {
+      // Check localStorage for saved avatar
+      const savedAvatar = this.apiService.getAvatarFromLocalStorage();
+      if (savedAvatar) {
+        avatarPreview.innerHTML = `<img src="${savedAvatar}" alt="Avatar" class="w-full h-full object-cover">`;
+      } else {
+        // Show default icon
+        avatarPreview.innerHTML =
+          '<i class="fas fa-user text-cyber-green text-2xl"></i>';
+      }
+    }
+  }
+
+  private setupAvatarHandlers() {
+    const uploadBtn = document.getElementById("upload-avatar-btn");
+    const removeBtn = document.getElementById("remove-avatar-btn");
+    const avatarInput = document.getElementById(
+      "avatar-input"
+    ) as HTMLInputElement;
+
+    if (uploadBtn && avatarInput) {
+      uploadBtn.addEventListener("click", () => {
+        avatarInput.click();
+      });
+
+      avatarInput.addEventListener("change", (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          this.handleAvatarUpload(file);
+        }
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => {
+        this.handleAvatarRemove();
+      });
+    }
+  }
+
+  private handleAvatarUpload(file: File) {
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      this.showNotification("L'immagine è troppo grande (max 5MB)", "error");
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith("image/")) {
+      this.showNotification("Il file deve essere un'immagine", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (result) {
+        // Save to localStorage
+        this.apiService.saveAvatarToLocalStorage(result);
+
+        // Update display
+        this.updateAvatarDisplay(result);
+
+        // Try to update on server
+        this.apiService.updateAvatar(result).then((response) => {
+          if (response.success) {
+            this.showNotification("Avatar aggiornato con successo", "success");
+          } else {
+            this.showNotification(
+              "Errore nell'aggiornamento dell'avatar",
+              "error"
+            );
+          }
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private handleAvatarRemove() {
+    // Remove from localStorage
+    this.apiService.removeAvatarFromLocalStorage();
+
+    // Update display
+    this.updateAvatarDisplay();
+
+    // Try to remove from server
+    this.apiService.updateAvatar("").then((response) => {
+      if (response.success) {
+        this.showNotification("Avatar rimosso con successo", "success");
+      } else {
+        this.showNotification("Errore nella rimozione dell'avatar", "error");
+      }
+    });
   }
 
   private async handleLogout() {

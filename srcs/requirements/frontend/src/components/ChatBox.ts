@@ -35,11 +35,13 @@ export class ChatBox {
   private _chatThreads: any[] = [];
   private searchDebounceTimer: number | null = null;
   private threadParticipants: Map<number, any> = new Map(); // Cache for participant info
+  private blockedUsers: Set<number> = new Set(); // Track blocked users
 
   constructor() {
     this.apiService = new ApiService();
     this.initializeWebSocket();
     this.loadCurrentUser();
+    this.loadBlockedUsers();
   }
 
   private initializeWebSocket() {
@@ -67,6 +69,17 @@ export class ChatBox {
     const authState = authService.getState();
     if (authState.isAuthenticated && authState.user) {
       this.currentUserId = parseInt(authState.user.id.toString());
+    }
+  }
+
+  private async loadBlockedUsers() {
+    try {
+      // In a real implementation, we would fetch blocked users from the API
+      // For now, we'll initialize with an empty set
+      this.blockedUsers = new Set();
+    } catch (error) {
+      console.error("Error loading blocked users:", error);
+      this.blockedUsers = new Set();
     }
   }
 
@@ -238,7 +251,7 @@ export class ChatBox {
             return {
               id: msg.id.toString(),
               senderId: msg.sender_id.toString(),
-              senderName: nameSender.data.username || "Unknown", // Dovremmo ottenere questo dato dal backend
+              senderName: nameSender.data?.username || "Unknown", // Dovremmo ottenere questo dato dal backend
               content: msg.content,
               timestamp: new Date(msg.created_at),
               threadId: msg.thread_id,
@@ -347,16 +360,25 @@ export class ChatBox {
           thread.id
         }">
           <div class="flex justify-between items-center">
-            <div class="flex-1">
+            <div class="flex-1" onclick="chatBox.openChatThread(${thread.id})">
               <div class="text-cyber-green text-sm font-medium">${displayName}</div>
               <div class="text-cyber-green/50 text-xs mt-1">${lastMessagePreview}</div>
             </div>
-            <div class="text-cyber-green/30 text-xs">
-              ${
-                lastMessage
-                  ? this.formatTime(new Date(lastMessage.created_at))
-                  : ""
-              }
+            <div class="flex items-center space-x-2">
+              <div class="text-cyber-green/30 text-xs">
+                ${
+                  lastMessage
+                    ? this.formatTime(new Date(lastMessage.created_at))
+                    : ""
+                }
+              </div>
+              <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="event.stopPropagation(); chatBox.toggleBlockUser(${otherParticipantId})" title="Blocca/Sblocca utente">
+                <i class="fas fa-ban">${
+                  this.blockedUsers.has(otherParticipantId)
+                    ? "sblocca"
+                    : "blocca"
+                }</i>
+              </button>
             </div>
           </div>
         </div>
@@ -471,16 +493,16 @@ export class ChatBox {
     }
   }
 
-  private async openChatWithUser(userId: string) {
-    const user = this.users.find((u) => u.id === userId);
+  private async openChatWithUser(userId: number) {
+    const user = this.users.find((u) => parseInt(u.id) === userId);
     if (!user) return;
 
     try {
       // Create or get existing DM thread
       const response = await this.apiService.createDirectMessageThread(userId);
 
-      if (response) {
-        this.currentThreadId = response.id;
+      if (response && response.data) {
+        this.currentThreadId = response.data.id;
         this.updateThreadInfo(user.username);
         this.enableMessageInput();
         await this.loadMessages(this.currentThreadId || undefined);
@@ -569,32 +591,36 @@ export class ChatBox {
     }
   }
 
-  private async toggleBlockUser(userId: string) {
-    const user = this.users.find((u) => u.id === userId);
-    if (!user) return;
-
+  private async toggleBlockUser(userId: number) {
     try {
-      const targetUserId = parseInt(userId);
-      let response;
+      // Get user info to display name in notification
+      const userResponse = await this.apiService.getUserById(userId.toString());
+      const userName =
+        userResponse && userResponse.data
+          ? userResponse.data.username
+          : `Utente ${userId}`;
 
-      if (user.isBlocked) {
+      let response;
+      if (this.blockedUsers.has(userId)) {
         // Unblock user
-        response = await this.apiService.unblockUser(targetUserId.toString());
+        response = await this.apiService.unblockUser(userId.toString());
+        if (response) {
+          this.blockedUsers.delete(userId);
+          this.showNotification(`${userName} sbloccato`, "success");
+        }
       } else {
         // Block user
-        response = await this.apiService.blockUser(targetUserId.toString());
+        response = await this.apiService.blockUser(userId.toString());
+        if (response) {
+          this.blockedUsers.add(userId);
+          this.showNotification(`${userName} bloccato`, "success");
+        }
       }
 
-      if (response.success) {
-        user.isBlocked = !user.isBlocked;
-        this.renderUsers();
-        this.showNotification(
-          user.isBlocked
-            ? `${user.username} bloccato`
-            : `${user.username} sbloccato`,
-          "success"
-        );
-      } else {
+      // Refresh the UI to update button text
+      this.renderUsers();
+
+      if (!response) {
         this.showNotification("Operazione fallita", "error");
       }
     } catch (error) {
@@ -794,8 +820,8 @@ export class ChatBox {
 
       const response = await this.apiService.createDirectMessageThread(userId);
 
-      if (response) {
-        this.currentThreadId = response.id;
+      if (response && response.data) {
+        this.currentThreadId = response.data.id;
         this.updateThreadInfo(username);
         this.enableMessageInput();
         await this.loadMessages(this.currentThreadId || undefined);

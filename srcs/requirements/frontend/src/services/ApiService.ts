@@ -107,6 +107,21 @@ export class ApiService {
     localStorage.removeItem("authToken");
   }
 
+  // Save avatar to localStorage
+  saveAvatarToLocalStorage(avatarData: string): void {
+    localStorage.setItem("userAvatar", avatarData);
+  }
+
+  // Get avatar from localStorage
+  getAvatarFromLocalStorage(): string | null {
+    return localStorage.getItem("userAvatar");
+  }
+
+  // Remove avatar from localStorage
+  removeAvatarFromLocalStorage(): void {
+    localStorage.removeItem("userAvatar");
+  }
+
   // Generic request method
   private async request<T>(
     baseUrl: string,
@@ -299,6 +314,18 @@ export class ApiService {
     } catch (error) {
       console.error("Update account error:", error);
       return { success: false, message: "Failed to update account" };
+    }
+  }
+
+  async updateAvatar(avatarData: string): Promise<ApiResponse> {
+    try {
+      return await this.userRequest<ApiResponse>("/api/users/me/avatar", {
+        method: "PUT",
+        body: JSON.stringify({ avatar: avatarData }),
+      });
+    } catch (error) {
+      console.error("Update avatar error:", error);
+      return { success: false, message: "Failed to update avatar" };
     }
   }
 
@@ -826,7 +853,7 @@ export class ApiService {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/blocks", {
         method: "POST",
-        body: JSON.stringify({ targetUserId }),
+        body: JSON.stringify({ blockedUserId: targetUserId }),
       });
     } catch (error) {
       console.error("Block user error:", error);
