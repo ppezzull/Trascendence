@@ -26,7 +26,20 @@ async function authRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       // Delega al plugin OAuth2 che gestisce il redirect
-      return fastify.googleOAuth2.generateAuthorizationUri(request, reply);
+      return fastify.googleOAuth2.generateAuthorizationUri(
+        request,
+        reply,
+        (err, authorizationUri) => {
+          if (err) {
+            request.log.error(err);
+            return reply.status(500).send({
+              success: false,
+              message: "Errore durante l'avvio dell'autenticazione Google",
+            });
+          }
+          return reply.redirect(authorizationUri);
+        }
+      );
     }
   );
 

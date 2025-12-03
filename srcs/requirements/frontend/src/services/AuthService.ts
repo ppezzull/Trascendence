@@ -206,45 +206,108 @@ export class AuthService {
 
   // OAuth Google Login
   public async loginWithGoogle(): Promise<void> {
-    // This would open the Google OAuth flow
-    // For now, we'll just redirect to the Google OAuth endpoint
-    window.location.href = `${this.apiService['userBaseUrl']}/api/auth/google`
+    // Redirect directly to the Google OAuth endpoint
+    // This will trigger the browser to follow the redirect chain properly
+    window.location.replace(`${this.apiService['userBaseUrl']}/api/auth/google`);
   }
 
-  public handleOAuthCallback(): void {
-    // This would be called after OAuth redirect
-    // Parse the token from URL and update state
-    const urlParams = new URLSearchParams(window.location.search)
-    const token = urlParams.get('token')
-    const user = urlParams.get('user')
+  public async handleOAuthCallback(): Promise<void> {
+    try {
+      // Parse the token from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const error = urlParams.get('error');
 
-    if (token && user) {
-      try {
-        const userObj = JSON.parse(decodeURIComponent(user))
-        this.updateState({
-          isAuthenticated: true,
-          user: userObj,
-          token,
-          isLoading: false,
-          error: null
-        })
-
-        localStorage.setItem('authToken', token)
-        localStorage.setItem('user', JSON.stringify(userObj))
-        this.apiService.setAuthToken(token)
-
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname)
-      } catch (error) {
-        console.error('Failed to parse OAuth callback:', error)
+      if (error) {
         this.updateState({
           isAuthenticated: false,
           user: null,
           token: null,
           isLoading: false,
-          error: 'OAuth login failed'
-        })
+          error: `OAuth login failed: ${error}`
+        });
+        return;
       }
+
+      if (!token) {
+        this.updateState({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          isLoading: false,
+          error: 'OAuth login failed: No token received'
+        });
+        return;
+      }
+
+      // Set the token in the API service
+      this.apiService.setAuthToken(token);
+
+      // Get user data using the token
+      try {
+        // Decode the JWT token to get user ID
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const userId = tokenPayload.id;
+
+        // Fetch user data from the API
+        const response = await this.apiService.getUserById(userId);
+
+        if (response.success && response.data) {
+          const user = response.data;
+
+          // Update state with user data
+          this.updateState({
+            isAuthenticated: true,
+            user,
+            token,
+            isLoading: false,
+            error: null
+          });
+
+          // Save to localStorage for persistence
+          localStorage.setItem('authToken', token);
+          localStorage.setItem('user', JSON.stringify(user));
+        } else {
+          throw new Error(response.message || 'Failed to fetch user data');
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data:', error);
+        
+        // If we can't fetch user data, try to extract minimal info from token
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const minimalUser = {
+            id: tokenPayload.id,
+            username: tokenPayload.username,
+            email: ''
+          };
+
+          this.updateState({
+            isAuthenticated: true,
+            user: minimalUser,
+            token,
+            isLoading: false,
+            error: null
+          });
+
+          localStorage.setItem('authToken', token);
+          localStorage.setItem('user', JSON.stringify(minimalUser));
+        } catch (tokenError) {
+          throw new Error('Failed to parse token and fetch user data');
+        }
+      }
+
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      this.updateState({
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'OAuth login failed'
+      });
     }
   }
 }

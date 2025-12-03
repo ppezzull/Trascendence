@@ -15,6 +15,14 @@ export interface LoginResponse {
     username: string;
     email: string;
   };
+  data?: {
+    token?: string;
+    user?: {
+      id: string;
+      username: string;
+      email: string;
+    };
+  };
 }
 
 export interface User {

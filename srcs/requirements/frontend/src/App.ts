@@ -120,6 +120,7 @@ export class App {
     this.router.addRoute("/", () => this.renderHomePage());
     this.router.addRoute("/login", () => this.renderLoginPage());
     this.router.addRoute("/register", () => this.renderRegisterPage());
+    this.router.addRoute("/oauth/callback", () => this.handleOAuthCallback());
     this.router.addRoute("/games", () => this.renderGamesPage());
     this.router.addRoute("/pong", () => this.renderPongPage());
     this.router.addRoute("/breakout", () => this.renderBreakoutPage());
@@ -151,10 +152,6 @@ export class App {
             <p class="terminal-text mb-4">
               Entra nel mondo dei giochi retrò-futuristici con grafica cyberpunk e sfida altri giocatori in partite epiche.
             </p>
-            <div class="flex flex-col space-y-3">
-              <a href="/login" class="cyber-button text-center">Accedi</a>
-              <a href="/register" class="cyber-button text-center">Registrati</a>
-            </div>
           </div>
           
           <div class="cyber-card">
@@ -192,7 +189,11 @@ export class App {
             <input type="password" id="password" name="password" class="cyber-input" required>
           </div>
           <button type="submit" class="cyber-button w-full">Accedi</button>
-        </form>
+          </form>
+          <div class="mt-4 text-center">
+            <p class="text-sm">Oppure</p>
+            <button id="google-login-btn" class="cyber-button w-full flex items-center justify-center"> Accedi con Google</button>
+          </div>
         <div class="mt-4 text-center">
           <p class="text-sm">Non hai un account? <a href="/register" class="text-cyber-cyan hover:underline">Registrati</a></p>
         </div>
@@ -203,6 +204,12 @@ export class App {
     const loginForm = document.getElementById("login-form");
     if (loginForm) {
       loginForm.addEventListener("submit", this.handleLogin.bind(this));
+    }
+    
+    // Add Google login button handler
+    const googleLoginBtn = document.getElementById("google-login-btn");
+    if (googleLoginBtn) {
+      googleLoginBtn.addEventListener("click", this.handleGoogleLogin.bind(this));
     }
   }
 
@@ -3406,22 +3413,61 @@ export class App {
           })
         );
 
-        // Redirect to profile page
-
-        this.router.navigate("/profile");
+        // Redirect to home page
+        this.router.navigate("/");
       } else {
-        // Show error message
-        this.showNotification(
-          response.message || "Credenziali non valide. Riprova.",
-          "error"
-        );
+        // Show error notification
+        this.showNotification(response.message || "Login fallito", "error");
       }
     } catch (error) {
       console.error("Login error:", error);
-      this.showNotification(
-        "Errore durante il login. Riprova più tardi.",
-        "error"
-      );
+      this.showNotification("Errore durante il login", "error");
+    }
+  }
+
+  private async handleGoogleLogin() {
+    try {
+      // Use AuthService for Google OAuth login
+      await authService.loginWithGoogle();
+    } catch (error) {
+      console.error("Google login error:", error);
+      this.showNotification("Errore durante il login con Google", "error");
+    }
+  }
+
+  private async handleOAuthCallback() {
+    try {
+      // Use AuthService to handle OAuth callback
+      await authService.handleOAuthCallback();
+      
+      // Check if authentication was successful
+      const authState = authService.getState();
+      
+      if (authState.isAuthenticated) {
+        // Show success notification
+        this.showNotification("Login con Google effettuato con successo!", "success");
+        
+        // Update navbar with user data
+        if (this.navbar) {
+          const username = authState?.user?.username || "-";
+          this.navbar.updateUsername(username);
+          this.navbar["updateUserUI"]();
+        }
+        
+        // Trigger a custom event to notify other components about the login
+        window.dispatchEvent(
+          new CustomEvent("userLoggedIn", {
+            detail: { user: authState.user },
+          })
+        );
+        
+        // Redirect to home
+        this.router.navigate("/");
+      }
+    } catch (error) {
+      console.error("OAuth callback error:", error);
+      this.showNotification("Errore durante il login con Google", "error");
+      this.router.navigate("/login");
     }
   }
 
