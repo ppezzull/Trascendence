@@ -1,6 +1,11 @@
 import { Router } from "./router/Router";
 import { Navbar } from "./components/Navbar";
-import { ApiService } from "./services/ApiService";
+import {
+  ApiService,
+  ApiResponse,
+  User,
+  MatchDetails,
+} from "./services/ApiService";
 import { authService } from "./services/AuthService";
 import { createAuthGuard } from "./components/AuthGuard";
 import { PongCanvas } from "./components/PongCanvas";
@@ -24,6 +29,18 @@ declare global {
     app: App;
     chatBox: ChatBox;
   }
+}
+
+// Interface for match data
+interface Match {
+  id: number;
+  game_id: number;
+  status: "pending" | "in_progress" | "finished" | "cancelled";
+  winner_id: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  settings: any;
 }
 
 export class App {
@@ -705,6 +722,8 @@ export class App {
 
     // Initialize canvas
     const canvasContainer = document.getElementById("pong-canvas-container");
+
+    console.log("Rendering Pong Canvas ensomma");
     if (canvasContainer) {
       this.currentPongCanvas = new PongCanvas(
         async (winnerId: number | null) => {}, // finishGame
@@ -802,6 +821,8 @@ export class App {
     const canvasContainer = document.getElementById("pong-canvas-container");
     if (canvasContainer) {
       // Create a new canvas instance for the game state
+
+      console.log("Rendering Pong Game State ensomma");
       const pongCanvas = new PongCanvas(
         async (winnerId: number | null) => {
           // chiamate api per finire la partita
@@ -1948,12 +1969,12 @@ export class App {
     const gameContainer = document.getElementById("breakout-game-container");
     if (!gameContainer) return;
 
-    // Define game modes (only 1vs1 for Breakout)
+    // Define game modes (only solo and pvp for Breakout)
     const gameModes: GameMode[] = [
       {
         id: "pvp",
         name: "1 VS 1",
-        description: "Sfida un altro giocatore sullo stesso dispositivo",
+        description: "Sfida un altro giocatore",
         icon: "fas fa-users",
       },
     ];
@@ -2126,8 +2147,13 @@ export class App {
 
     this.currentBreakoutMode = modeId;
 
-    // Move to preparation state
-    this.renderBreakoutPreparationState(gameContainer, modeId);
+    // For PvP mode, use matchmaking
+    if (modeId === "pvp") {
+      this.renderBreakoutMatchmakingState(gameContainer);
+    } else {
+      // For solo mode, use preparation state
+      this.renderBreakoutPreparationState(gameContainer, modeId);
+    }
   }
 
   private onBreakoutSettingsChanged(settings: GameSettings) {
@@ -2168,13 +2194,20 @@ export class App {
     level: number,
     lives: number
   ) {
+    const authState = authService.getState();
+    const currentUserId = authState.user?.id;
+
     // Update score in backend if we have a match ID
     if (this.currentBreakoutMatchId) {
+      console.log("Updating match score:", this.currentBreakoutMatchId, {
+        score: score,
+        user_id: currentUserId,
+      });
+
       try {
         await this.apiService.updateMatchScore(this.currentBreakoutMatchId, {
           score: score,
-          level: level,
-          lives: lives,
+          user_id: currentUserId,
         });
       } catch (error) {
         console.error("Error updating match score:", error);
@@ -2344,6 +2377,13 @@ export class App {
   private currentBreakoutSettings: GameSettings | null = null;
   private currentBreakoutCanvas: BreakoutCanvas | null = null;
   private currentBreakoutMatchId: string | null = null;
+  private currentBreakoutOpponentId: string | null = null;
+  private currentBreakoutMatchHost: string | null = null;
+  private currentBreakoutOpponentUsername: string | null = null;
+  private currentBreakoutPlayer1Id: number | null = null;
+  private currentBreakoutPlayer2Id: number | null = null;
+  private lastReportedBreakoutScore: number = 0;
+  private breakoutMatchmakingCancelled: boolean = false;
 
   private renderTournamentsPage() {
     const contentElement = document.getElementById("content");
@@ -2978,7 +3018,7 @@ export class App {
         </div>
 
         <div id="profile-content" class="hidden">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni</h2>
               <div class="space-y-2">
@@ -3036,6 +3076,13 @@ export class App {
               </div>
             </div>
           </div>
+
+          <div class="cyber-card">
+            <h2 class="text-lg font-bold text-cyber-green mb-4">Cronologia Match</h2>
+            <div id="match-history" class="space-y-2">
+              <p class="text-gray-400">Caricamento cronologia...</p>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -3073,13 +3120,28 @@ export class App {
         authState.user.id
       );
 
-      if (userStatsResponse.success && userStatsResponse.data) {
+      // Get user match history from API
+      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
+        authState.user.id
+      );
+
+      if (userStatsResponse) {
         // Update profile with real data
-        this.updateProfileDisplay(authState.user, userStatsResponse.data);
+        this.updateProfileDisplay(authState.user, userStatsResponse);
       } else {
         // Show error and use basic user info
         this.updateProfileDisplay(authState.user, null);
         this.showNotification("Impossibile caricare le statistiche", "error");
+      }
+
+      // Update match history
+      if (matchHistoryResponse) {
+        this.updateMatchHistoryDisplay(matchHistoryResponse);
+      } else {
+        this.showNotification(
+          "Impossibile caricare la cronologia dei match",
+          "error"
+        );
       }
 
       // Hide loading, show content
@@ -3693,7 +3755,7 @@ export class App {
         this.loadTournaments(); // Reload tournaments list
       } else {
         this.showNotification(
-          response.message || "Errore nell'iscrizione al torneo",
+          (response as any).message || "Errore nell'iscrizione al torneo",
           "error"
         );
       }
@@ -4127,6 +4189,1090 @@ export class App {
     } catch (error) {
       console.error("Error navigating to match:", error);
       this.showNotification("Errore durante l'avvio della partita", "error");
+    }
+  }
+
+  private renderBreakoutMatchmakingState(container: HTMLElement) {
+    // Imposta l'HTML iniziale per il matchmaking
+    container.innerHTML = `
+      <div class="w-full flex flex-col items-center justify-center py-8">
+        <div class="cyber-card w-full max-w-2xl">
+          <h2 class="text-2xl font-bold text-cyber-green mb-6 text-center">RICERCA AVVERSARIO - BREAKOUT</h2>
+          
+          <div id="breakout-matchmaking-content" class="text-center">
+            <!-- Initial state: Checking for existing matches -->
+            <div class="mb-8">
+              <i class="fas fa-search text-4xl text-cyber-green mb-4 animate-pulse"></i>
+              <p class="text-lg text-cyber-green mb-2">Controllo partite in corso...</p>
+              <p class="text-sm text-gray-400">Verifica se ci sono partite pending</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Setup event listeners
+    const cancelButton = document.getElementById("cancel-breakout-matchmaking");
+    const backButton = document.getElementById("back-to-breakout-modes");
+
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        this.cancelBreakoutMatchmaking();
+      });
+    }
+
+    if (backButton) {
+      backButton.addEventListener("click", () => {
+        this.cancelBreakoutMatchmaking();
+        this.initializeBreakoutGameWithStates();
+      });
+    }
+
+    // Start the new matchmaking process
+    this.startNewBreakoutMatchmakingProcess();
+  }
+
+  private async startNewBreakoutMatchmakingProcess() {
+    const contentElement = document.getElementById(
+      "breakout-matchmaking-content"
+    );
+    if (!contentElement) return;
+
+    try {
+      // Reset flags
+      this.breakoutMatchmakingCancelled = false;
+
+      // Step 1: Check for existing pending matches
+      const pendingMatch = await this.checkForPendingBreakoutMatches();
+
+      if (pendingMatch) {
+        // Found a pending match, get its details
+        console.log("Found pending Breakout match:", pendingMatch);
+        await this.handlePendingBreakoutMatch(pendingMatch);
+        return;
+      }
+
+      // Step 2: No pending matches found, join matchmaking queue
+      this.updateBreakoutMatchmakingUI(contentElement, "joining");
+
+      try {
+        const joinResponse = await this.apiService.joinMatchmaking("2"); // game_id 2 for Breakout
+        console.log("Join Breakout matchmaking response:", joinResponse);
+
+        // Check if we're already in queue (this is not an error)
+        if (
+          joinResponse ||
+          joinResponse.message === "Joined matchmaking queue" ||
+          joinResponse.error === "Already in queue"
+        ) {
+          // Successfully joined queue or already in queue, now try to find a match
+          this.updateBreakoutMatchmakingUI(contentElement, "searching");
+
+          try {
+            console.log("Trying to find a Breakout match...");
+            const findResponse = await this.apiService.findMatch("2", 1000); // game_id 2, elo_range 1000
+            console.log("Find Breakout match response:", findResponse);
+
+            if (findResponse.success && findResponse.data) {
+              // Found a match through findMatch
+              console.log(
+                "Found Breakout match through findMatch:",
+                findResponse.data
+              );
+              await this.handlePendingBreakoutMatch(findResponse.data);
+            } else {
+              // No match found yet, start polling
+              console.log(
+                "No Breakout match found through findMatch, starting polling..."
+              );
+              await this.pollForBreakoutMatches(contentElement);
+            }
+          } catch (error) {
+            console.error("Error finding Breakout match:", error);
+            // Even if findMatch fails, start polling as fallback
+            await this.pollForBreakoutMatches(contentElement);
+          }
+        } else {
+          throw new Error(
+            joinResponse.message || "Failed to join Breakout matchmaking"
+          );
+        }
+      } catch (error) {
+        console.error("Error joining Breakout matchmaking:", error);
+        this.showBreakoutMatchmakingError(
+          contentElement,
+          "Errore nell'unirsi alla coda di matchmaking"
+        );
+      }
+    } catch (error) {
+      console.error("Breakout matchmaking process error:", error);
+      this.showBreakoutMatchmakingError(
+        contentElement,
+        "Errore durante il matchmaking"
+      );
+    }
+  }
+
+  private updateBreakoutMatchmakingUI(
+    contentElement: HTMLElement,
+    state: "joining" | "searching" | "found"
+  ) {
+    switch (state) {
+      case "joining":
+        contentElement.innerHTML = `
+          <div class="mb-8">
+            <i class="fas fa-sign-in-alt text-4xl text-cyber-green mb-4 animate-pulse"></i>
+            <p class="text-lg text-cyber-green mb-2">Accesso alla coda...</p>
+            <p class="text-sm text-gray-400">Sto entrando nella coda di matchmaking Breakout</p>
+          </div>
+        `;
+        break;
+      case "searching":
+        contentElement.innerHTML = `
+          <div class="mb-8">
+            <i class="fas fa-search text-4xl text-cyber-green mb-4 animate-pulse"></i>
+            <p class="text-lg text-cyber-green mb-2">Ricerca avversario in corso...</p>
+            <p class="text-sm text-gray-400">Potrebbero volerci alcuni secondi</p>
+          </div>
+        `;
+        break;
+      case "found":
+        contentElement.innerHTML = `
+          <div class="mb-8">
+            <i class="fas fa-check-circle text-4xl text-cyber-green mb-4"></i>
+            <p class="text-lg text-cyber-green mb-2">Avversario trovato!</p>
+            <p class="text-sm text-gray-400">Caricamento dettagli partita...</p>
+          </div>
+        `;
+        break;
+    }
+  }
+
+  private async pollForBreakoutMatches(contentElement: HTMLElement) {
+    const pollInterval = 3000; // Poll every 3 seconds
+
+    const poll = async () => {
+      if (this.breakoutMatchmakingCancelled) return;
+
+      try {
+        // Check for pending matches
+        const pendingMatch = await this.checkForPendingBreakoutMatches();
+
+        if (pendingMatch) {
+          // Found a pending match
+          this.updateBreakoutMatchmakingUI(contentElement, "found");
+          await this.handlePendingBreakoutMatch(pendingMatch);
+          return;
+        }
+
+        // No match found yet, continue polling
+        setTimeout(poll, pollInterval);
+      } catch (error) {
+        console.error("Error polling for Breakout matches:", error);
+        // Continue polling even on error
+        setTimeout(poll, pollInterval);
+      }
+    };
+
+    // Start polling
+    setTimeout(poll, pollInterval);
+  }
+
+  private async checkForPendingBreakoutMatches(): Promise<any> {
+    try {
+      const authState = authService.getState();
+      const userId = authState.user?.id?.toString();
+      if (!userId) return null;
+
+      console.log("Checking for pending Breakout matches for user:", userId);
+      const myMatches = await this.apiService.getUserMatchHistory(userId);
+      console.log("Breakout match history response:", myMatches);
+
+      // L'API restituisce direttamente un array di match, non un oggetto con proprietà .data.matches
+      const matchesArray = Array.isArray(myMatches.data)
+        ? myMatches.data
+        : myMatches;
+
+      // Filtra solo le partite pending per il gioco Breakout (game_id = 2)
+      const pendingMatches = (matchesArray as any).filter(
+        (m: any) => m.status === "pending" && Number(m.game_id) === 2
+      );
+
+      console.log("Pending Breakout matches found:", pendingMatches);
+
+      if (pendingMatches.length === 0) {
+        return null;
+      }
+
+      // Se ci sono più partite pending, prendi la più recente (con l'ID più grande)
+      const recentPending = pendingMatches.reduce((prev: any, current: any) =>
+        prev.id > current.id ? prev : current
+      );
+
+      console.log("Most recent pending Breakout match:", recentPending);
+      return recentPending;
+    } catch (err) {
+      console.error("Error checking for pending Breakout match:", err);
+      return null;
+    }
+  }
+
+  private async handlePendingBreakoutMatch(pendingMatch: any) {
+    try {
+      console.log("Handling pending Breakout match:", pendingMatch);
+
+      // Get detailed match information
+      const matchDetails = await this.apiService.getMatch(
+        pendingMatch.id.toString()
+      );
+      console.log("Breakout match details:", matchDetails);
+
+      if (matchDetails.success && matchDetails.data) {
+        const matchData = matchDetails.data;
+        console.log("Breakout match data retrieved:", matchData);
+
+        // Find opponent information
+        const authState = authService.getState();
+        const myId = authState.user?.id;
+        const opponentPlayer = matchData.players?.find(
+          (p: any) => String(p.user_id) !== String(myId)
+        );
+
+        let opponentUsername = "PLAYER 2";
+        if (opponentPlayer) {
+          const opponentId = String(opponentPlayer.user_id);
+          console.log("Found Breakout opponent player with ID:", opponentId);
+
+          try {
+            console.log(
+              "Calling getUserById with Breakout opponent ID:",
+              opponentId
+            );
+            const opp = await this.apiService.getUserById(opponentId);
+            console.log("User API response for Breakout:", opp);
+
+            if (opp.success && opp.data) {
+              opponentUsername = opp.data.username || "PLAYER 2";
+              console.log(
+                "Breakout opponent username retrieved:",
+                opponentUsername
+              );
+            } else {
+              console.error(
+                "API response for Breakout user was not successful:",
+                opp
+              );
+            }
+          } catch (error) {
+            console.error("Error getting Breakout opponent info:", error);
+          }
+        } else {
+          console.warn("No Breakout opponent player found in match data");
+        }
+
+        // Set match data
+        this.currentBreakoutMatchId = matchData.id.toString();
+        this.currentBreakoutOpponentId = opponentPlayer
+          ? String(opponentPlayer.user_id)
+          : null;
+        this.currentBreakoutOpponentUsername = opponentUsername;
+
+        // Show pending match UI
+        this.showPendingBreakoutMatchUI({
+          match: matchData,
+          opponentId: this.currentBreakoutOpponentId,
+          opponentUsername: this.currentBreakoutOpponentUsername,
+          myId: myId,
+        });
+      } else {
+        // If we can't get match details, try to continue with basic match info
+        console.warn(
+          "Could not get detailed Breakout match info, using basic match data"
+        );
+        this.handlePendingBreakoutMatchWithBasicInfo(pendingMatch);
+      }
+    } catch (error) {
+      console.error("Error handling pending Breakout match:", error);
+
+      // Try to continue with basic match info
+      try {
+        console.warn("Attempting to continue with basic Breakout match data");
+        this.handlePendingBreakoutMatchWithBasicInfo(pendingMatch);
+      } catch (fallbackError) {
+        console.error("Breakout fallback also failed:", fallbackError);
+        const contentElement = document.getElementById(
+          "breakout-matchmaking-content"
+        );
+        if (contentElement) {
+          this.showBreakoutMatchmakingError(
+            contentElement,
+            "Errore nel caricamento della partita. Riprova più tardi."
+          );
+        }
+      }
+    }
+  }
+
+  private async handlePendingBreakoutMatchWithBasicInfo(pendingMatch: any) {
+    console.log(
+      "Using basic match info for pending Breakout match:",
+      pendingMatch
+    );
+
+    // Set basic match data
+    this.currentBreakoutMatchId = pendingMatch.id.toString();
+    this.currentBreakoutOpponentId = null; // We don't know the opponent yet
+    this.currentBreakoutOpponentUsername = "Avversario";
+
+    // Try to get match details to find opponent info
+    try {
+      const matchDetails = await this.apiService.getMatch(
+        pendingMatch.id.toString()
+      );
+      console.log("Breakout match details for basic info:", matchDetails);
+
+      if (matchDetails) {
+        const authState = authService.getState();
+        const myId = authState.user?.id;
+
+        // Find opponent in the match data
+        const matchData = matchDetails.data || matchDetails; // Handle both response formats
+        console.log("Breakout match data:", matchData);
+
+        const opponentPlayer = matchData.players?.find(
+          (p: any) => String(p.user_id) !== String(myId)
+        );
+
+        console.log("Breakout opponent player:", opponentPlayer);
+
+        if (opponentPlayer) {
+          // We found the opponent, now get their user info
+          const opponentId = String(opponentPlayer.user_id);
+          console.log("Found Breakout opponent with ID:", opponentId);
+
+          try {
+            const opponentInfo = await this.apiService.getUserById(opponentId);
+            console.log("Breakout opponent info:", opponentInfo);
+
+            if (opponentInfo.success && opponentInfo.data) {
+              // Update opponent info with real data
+              this.currentBreakoutOpponentId = opponentId;
+              this.currentBreakoutOpponentUsername =
+                opponentInfo.data.username || "PLAYER 2";
+              console.log(
+                "Updated Breakout opponent username:",
+                this.currentBreakoutOpponentUsername
+              );
+            }
+          } catch (error) {
+            console.error("Error getting Breakout opponent info:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Error getting Breakout match details for basic info:",
+        error
+      );
+    }
+
+    // Create a minimal match object for UI
+    const minimalMatchData = {
+      id: pendingMatch.id,
+      game_id: pendingMatch.game_id,
+      status: pendingMatch.status,
+      players: [], // We don't have player details yet
+    };
+
+    // Show pending match UI with basic info
+    this.showPendingBreakoutMatchUI({
+      match: minimalMatchData,
+      opponentId: this.currentBreakoutOpponentId,
+      opponentUsername: this.currentBreakoutOpponentUsername,
+      myId: authService.getState().user?.id,
+    });
+  }
+
+  private showPendingBreakoutMatchUI(matchData: any) {
+    const contentElement = document.getElementById(
+      "breakout-matchmaking-content"
+    );
+
+    console.log("Breakout matchData", matchData);
+    console.log("Breakout contentElement", contentElement);
+
+    if (!contentElement) return;
+
+    console.log("showPendingBreakoutMatchUI called with data:", matchData);
+
+    // Imposta le variabili necessarie per il funzionamento dei pulsanti
+    this.currentBreakoutMatchId = matchData.match.id.toString();
+    this.currentBreakoutOpponentId = matchData.opponentId;
+    this.currentBreakoutOpponentUsername = matchData.opponentUsername;
+
+    console.log("Set Breakout opponent data:", {
+      id: this.currentBreakoutOpponentId,
+      username: this.currentBreakoutOpponentUsername,
+    });
+
+    // Mostra l'interfaccia del match trovato
+    const authState = authService.getState();
+    const meName = authState.user?.username || "PLAYER 1";
+    const oppName = matchData.opponentUsername || "Avversario";
+
+    console.log("Breakout display names:", { meName, oppName });
+
+    // Check if we have complete opponent info
+    const hasCompleteInfo =
+      matchData.opponentId && matchData.opponentUsername !== "Avversario";
+    const statusText = hasCompleteInfo
+      ? "In attesa che entrambi i giocatori siano pronti..."
+      : "Caricamento informazioni avversario...";
+
+    console.log("Breakout UI state:", { hasCompleteInfo, statusText });
+
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-check-circle text-4xl text-cyber-green mb-4"></i>
+        <p class="text-xl text-cyber-green mb-2">Avversario trovato!</p>
+        <p id="breakout-opponent-name" class="text-lg mb-4">${meName} <span class="text-cyber-cyan">VS</span> ${oppName}</p>
+        <div id="breakout-ready-status" class="space-y-2">
+          <p class="text-sm">${statusText}</p>
+        </div>
+      </div>
+      <div class="flex justify-center space-x-4">
+        <button id="breakout-ready-button" class="cyber-button" ${
+          !hasCompleteInfo ? "disabled" : ""
+        }>Sono Pronto</button>
+        <button id="breakout-abandon-match" class="cyber-button-secondary">Abbandona</button>
+      </div>
+    `;
+
+    // Aggiungi gli event listener per i pulsanti
+    document
+      .getElementById("breakout-ready-button")
+      ?.addEventListener("click", () => this.setBreakoutPlayerReady());
+    document
+      .getElementById("breakout-abandon-match")
+      ?.addEventListener("click", () => this.abandonBreakoutMatch());
+
+    // If we don't have complete info, try to get it
+    if (!hasCompleteInfo) {
+      this.tryToGetBreakoutOpponentInfo();
+    }
+
+    // Inizia il controllo dello stato di pronto
+    this.checkBreakoutMatchReady();
+  }
+
+  private async tryToGetBreakoutOpponentInfo() {
+    try {
+      // Try to get detailed match info again
+      const matchDetails = await this.apiService.getMatch(
+        this.currentBreakoutMatchId!
+      );
+      console.log(
+        "Getting Breakout match details for opponent info, match ID:",
+        this.currentBreakoutMatchId
+      );
+
+      if (matchDetails.success && matchDetails.data) {
+        const matchData = matchDetails.data;
+        console.log("Breakout match data retrieved:", matchData);
+
+        // Find opponent information
+        const authState = authService.getState();
+        const myId = authState.user?.id;
+        const opponentPlayer = matchData.players?.find(
+          (p: any) => String(p.user_id) !== String(myId)
+        );
+
+        if (opponentPlayer) {
+          const opponentId = String(opponentPlayer.user_id);
+          console.log("Found Breakout opponent player with ID:", opponentId);
+
+          try {
+            console.log(
+              "Calling getUserById with Breakout opponent ID:",
+              opponentId
+            );
+            const opp = await this.apiService.getUserById(opponentId);
+            console.log("User API response for Breakout:", opp);
+
+            if (opp.success && opp.data) {
+              // Update opponent info
+              this.currentBreakoutOpponentId = opponentId;
+              this.currentBreakoutOpponentUsername =
+                opp.data.username || "PLAYER 2";
+              console.log(
+                "Breakout opponent username retrieved:",
+                this.currentBreakoutOpponentUsername
+              );
+
+              // Update UI with new opponent info
+              const contentElement = document.getElementById(
+                "breakout-matchmaking-content"
+              );
+              if (contentElement) {
+                const meName = authState.user?.username || "PLAYER 1";
+                const oppName = this.currentBreakoutOpponentUsername;
+
+                // Update the opponent name in the UI
+                const opponentNameElement = document.getElementById(
+                  "breakout-opponent-name"
+                );
+                if (opponentNameElement) {
+                  opponentNameElement.innerHTML = `${meName} <span class="text-cyber-cyan">VS</span> ${oppName}`;
+                  console.log(
+                    "Updated Breakout opponent name in UI to:",
+                    oppName
+                  );
+                }
+
+                // Update status text
+                const statusElement = contentElement.querySelector(
+                  "#breakout-ready-status p"
+                );
+                if (statusElement) {
+                  statusElement.textContent =
+                    "In attesa che entrambi i giocatori siano pronti...";
+                }
+
+                // Enable the ready button
+                const readyButton = document.getElementById(
+                  "breakout-ready-button"
+                ) as HTMLButtonElement;
+                if (readyButton) {
+                  readyButton.disabled = false;
+                  console.log("Enabled Breakout ready button");
+                }
+              }
+            } else {
+              console.error(
+                "API response for Breakout user was not successful:",
+                opp
+              );
+            }
+          } catch (error) {
+            console.error("Error getting Breakout opponent info:", error);
+          }
+        } else {
+          console.warn("No Breakout opponent player found in match data");
+        }
+      } else {
+        console.error(
+          "Could not retrieve Breakout match details:",
+          matchDetails
+        );
+      }
+    } catch (error) {
+      console.error("Error getting Breakout match details:", error);
+    }
+  }
+
+  private async setBreakoutPlayerReady() {
+    if (!this.currentBreakoutMatchId) return;
+
+    try {
+      const authState = authService.getState();
+      if (!authState.user?.id) return;
+
+      const response = await this.apiService.readyMatch(
+        this.currentBreakoutMatchId.toString(),
+        Number(authState.user.id),
+        true
+      );
+
+      console.log("Breakout ready match response:", response);
+
+      if (response) {
+        // Update UI to show player is ready
+        const readyButton = document.getElementById("breakout-ready-button");
+        if (readyButton) {
+          readyButton.textContent = "Pronto! ✓";
+          readyButton.setAttribute("disabled", "true");
+          readyButton.classList.add("opacity-50");
+        }
+
+        // Check if both players are ready
+        this.checkBreakoutMatchReady();
+      } else {
+        this.showNotification("Errore nel segnarsi pronto", "error");
+      }
+    } catch (error) {
+      console.error("Error setting Breakout ready:", error);
+      this.showNotification("Errore nel segnarsi pronto", "error");
+    }
+  }
+
+  private async checkBreakoutMatchReady() {
+    if (!this.currentBreakoutMatchId) return;
+
+    try {
+      const response = await this.apiService.getMatch(
+        this.currentBreakoutMatchId.toString()
+      );
+
+      if (response) {
+        const match = response;
+        const authState = authService.getState();
+        const myIdNum: number | null = authState.user?.id
+          ? Number(authState.user.id)
+          : null;
+        const oppIdNum: number | null = this.currentBreakoutOpponentId
+          ? Number(this.currentBreakoutOpponentId)
+          : null;
+        const meName = authState.user?.username || "PLAYER 1";
+        const oppName = this.currentBreakoutOpponentUsername || "PLAYER 2";
+
+        // Find current player in the match
+        const currentPlayer = match.players?.find(
+          (p: any) => String(p.user_id) === String(myIdNum)
+        );
+
+        const allPlayersReady = match.players?.every((p: any) => p.is_ready);
+
+        console.log("Checking Breakout match ready status:", {
+          matchId: this.currentBreakoutMatchId,
+          matchStatus: match.status,
+          allPlayersReady,
+          currentPlayer,
+          players: match.players,
+        });
+
+        if (match.status === "cancelled") {
+          this.showNotification("Partita Breakout annullata", "error");
+          this.currentBreakoutMatchId = null;
+          this.currentBreakoutOpponentId = null;
+          this.currentBreakoutOpponentUsername = null;
+          this.initializeBreakoutGameWithStates();
+          return;
+        }
+
+        if (match.status === "pending" && allPlayersReady) {
+          // All players are ready but match is still pending, update status to in_progress
+          console.log(
+            "All Breakout players ready, updating match status to in_progress"
+          );
+
+          try {
+            const updateResponse = await this.apiService.updateMatchStatus(
+              this.currentBreakoutMatchId.toString(),
+              "in_progress"
+            );
+
+            console.log(
+              "Update Breakout match status response:",
+              updateResponse
+            );
+
+            if (updateResponse.success) {
+              // Status updated successfully, now check again
+              setTimeout(() => this.checkBreakoutMatchReady(), 2000);
+            } else {
+              console.error(
+                "Failed to update Breakout match status:",
+                updateResponse.message
+              );
+            }
+          } catch (error) {
+            console.error("Error updating Breakout match status:", error);
+          }
+        } else if (match.status === "pending" && !allPlayersReady) {
+          // Not all players are ready yet
+          if (currentPlayer && currentPlayer.is_ready) {
+            this.updateWaitingForBreakoutOpponentUI();
+          }
+          setTimeout(() => this.checkBreakoutMatchReady(), 2000);
+        } else if (match.status === "in_progress") {
+          // Match is in progress, determine who should start the game
+          if (allPlayersReady) {
+            // All players are ready and match is in progress
+            const hostId = Math.min(myIdNum!, oppIdNum!);
+            const amIHost = myIdNum === hostId;
+
+            console.log("Breakout match in progress, host determination:", {
+              myIdNum,
+              oppIdNum,
+              hostId,
+              amIHost,
+            });
+
+            // I'm the host, start the game on my machine
+            const gameContainer = document.getElementById(
+              "breakout-game-container"
+            );
+            if (gameContainer) {
+              this.currentBreakoutMatchHost = String(hostId);
+              this.renderBreakoutGameState(gameContainer, "pvp");
+              this.showNotification(
+                "Entrambi pronti. Puoi iniziare la partita Breakout.",
+                "success"
+              );
+            }
+          } else {
+            // Match is in progress but not all players are ready yet
+            setTimeout(() => this.checkBreakoutMatchReady(), 2000);
+          }
+        } else {
+          // Other status, poll again after a delay
+          setTimeout(() => this.checkBreakoutMatchReady(), 2000);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking Breakout match ready:", error);
+    }
+  }
+
+  private showBreakoutMatchHostedByOther(hostUsername: string) {
+    const contentElement = document.getElementById(
+      "breakout-matchmaking-content"
+    );
+    if (!contentElement) return;
+
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-gamepad text-4xl text-cyber-yellow mb-4"></i>
+        <p class="text-xl text-cyber-green mb-2">Partita in corso</p>
+        <p class="text-lg mb-4">La partita Breakout è in corso da <span class="text-cyber-cyan">${hostUsername}</span></p>
+        <p class="text-sm text-gray-400">Gioca sul PC di ${hostUsername} per partecipare alla partita</p>
+      </div>
+      <div class="flex justify-center">
+        <button id="back-to-breakout-menu" class="cyber-button">Torna al Menu</button>
+      </div>
+    `;
+
+    const backButton = document.getElementById("back-to-breakout-menu");
+    if (backButton) {
+      backButton.addEventListener("click", () => {
+        this.currentBreakoutMatchId = null;
+        this.currentBreakoutOpponentId = null;
+        this.initializeBreakoutGameWithStates();
+      });
+    }
+  }
+
+  private async abandonBreakoutMatch() {
+    if (!this.currentBreakoutMatchId) return;
+
+    try {
+      // Cancel the match using the new cancel API
+      const response = await this.apiService.cancelMatch(
+        this.currentBreakoutMatchId.toString()
+      );
+      console.log("Cancel Breakout match response:", response);
+
+      if (response.success) {
+        this.showNotification(
+          "Partita Breakout abbandonata con successo",
+          "info"
+        );
+      } else {
+        this.showNotification(
+          response.message || "Errore nell'abbandonare la partita Breakout",
+          "error"
+        );
+      }
+
+      // Reset match data
+      this.currentBreakoutMatchId = null;
+      this.currentBreakoutOpponentId = null;
+      this.currentBreakoutOpponentUsername = null;
+
+      // Go back to game selection
+      this.initializeBreakoutGameWithStates();
+    } catch (error) {
+      console.error("Error abandoning Breakout match:", error);
+      this.showNotification(
+        "Errore nell'abbandonare la partita Breakout",
+        "error"
+      );
+    }
+  }
+
+  private updateWaitingForBreakoutOpponentUI() {
+    const contentElement = document.getElementById(
+      "breakout-matchmaking-content"
+    );
+    if (!contentElement) return;
+
+    const authState = authService.getState();
+    const meName = authState.user?.username || "PLAYER 1";
+    const oppName = this.currentBreakoutOpponentUsername || "Avversario";
+
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-clock text-4xl text-cyber-yellow mb-4 animate-pulse"></i>
+        <p class="text-xl text-cyber-green mb-2">In attesa dell'avversario</p>
+        <p class="text-lg mb-4">${meName} <span class="text-cyber-cyan">VS</span> ${oppName}</p>
+        <div class="space-y-2">
+          <p class="text-sm text-cyber-yellow">Sei pronto! In attesa che l'avversario si segni come pronto...</p>
+        </div>
+      </div>
+      <div class="flex justify-center space-x-4">
+        <button id="breakout-abandon-match" class="cyber-button-secondary">Abbandona</button>
+      </div>
+    `;
+
+    // Add event listener for abandon button
+    document
+      .getElementById("breakout-abandon-match")
+      ?.addEventListener("click", () => this.abandonBreakoutMatch());
+  }
+
+  private showBreakoutMatchmakingError(
+    contentElement: HTMLElement,
+    message: string
+  ) {
+    contentElement.innerHTML = `
+      <div class="mb-8">
+        <i class="fas fa-times-circle text-4xl text-cyber-magenta mb-4"></i>
+        <p class="text-lg text-cyber-magenta mb-2">Errore</p>
+        <p class="text-sm text-gray-400">${message}</p>
+      </div>
+      <div class="flex justify-center space-x-4">
+        <button id="back-to-breakout-modes" class="cyber-button">Torna alle Modalità</button>
+      </div>
+    `;
+
+    // Add event listener for back button
+    const backButton = document.getElementById("back-to-breakout-modes");
+    if (backButton) {
+      backButton.addEventListener("click", () => {
+        this.initializeBreakoutGameWithStates();
+      });
+    }
+  }
+
+  private async cancelBreakoutMatchmaking() {
+    try {
+      this.breakoutMatchmakingCancelled = true;
+      // Leave matchmaking queue
+      await this.apiService.leaveMatchmaking();
+      this.showNotification("Matchmaking Breakout annullato", "info");
+    } catch (error) {
+      console.error("Error leaving Breakout matchmaking:", error);
+    }
+  }
+
+  private updateMatchHistoryDisplay(matches: any[]) {
+    const matchHistoryElement = document.getElementById("match-history");
+    if (!matchHistoryElement) return;
+
+    // Sort matches by creation date (newest first)
+    const sortedMatches = matches.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    // Limit to 10 most recent matches
+    const recentMatches = sortedMatches;
+
+    let matchHistoryHTML = '<div class="space-y-2">';
+
+    if (recentMatches.length === 0) {
+      matchHistoryHTML += '<p class="text-gray-400">Nessun match giocato</p>';
+    } else {
+      recentMatches.forEach((match) => {
+        const gameName = match.game_id === 1 ? "Pong" : "Breakout";
+        const statusClass = this.getStatusClass(match.status);
+        const statusText = this.getStatusText(match.status);
+        const createdAt = new Date(match.created_at).toLocaleString("it-IT");
+
+        matchHistoryHTML += `
+          <div class="cyber-card p-3 cursor-pointer hover:bg-cyber-dark/50 transition-colors" onclick="app.showMatchDetails(${
+            match.id
+          })">
+            <div class="flex justify-between items-center">
+              <div>
+                <span class="font-bold">${gameName}</span>
+                <span class="text-sm text-gray-400 ml-2">#${match.id}</span>
+              </div>
+              <div class="text-right">
+                <span class="${statusClass}">${statusText}</span>
+                <div class="text-xs text-gray-400 mt-1">${createdAt}</div>
+              </div>
+            </div>
+            ${
+              match.winner_id
+                ? `<div class="text-sm mt-2">Vincitore: ID ${match.winner_id}</div>`
+                : ""
+            }
+          </div>
+        `;
+      });
+    }
+
+    matchHistoryHTML += "</div>";
+    matchHistoryElement.innerHTML = matchHistoryHTML;
+  }
+
+  private getStatusClass(status: string): string {
+    switch (status) {
+      case "finished":
+        return "text-green-400";
+      case "in_progress":
+        return "text-yellow-400";
+      case "pending":
+        return "text-blue-400";
+      case "cancelled":
+        return "text-red-400";
+      default:
+        return "text-gray-400";
+    }
+  }
+
+  private getStatusText(status: string): string {
+    switch (status) {
+      case "finished":
+        return "Completato";
+      case "in_progress":
+        return "In corso";
+      case "pending":
+        return "In attesa";
+      case "cancelled":
+        return "Annullato";
+      default:
+        return status;
+    }
+  }
+
+  private showMatchDetails(matchId: number) {
+    // Fetch match details
+    this.apiService.getMatchDetails(matchId.toString()).then((response) => {
+      if (response) {
+        this.renderMatchDetailsModal(response);
+      } else {
+        this.showNotification(
+          "Impossibile caricare i dettagli del match",
+          "error"
+        );
+      }
+    });
+  }
+
+  private async renderMatchDetailsModal(matchDetails: MatchDetails) {
+    const gameName = matchDetails.game_id === 1 ? "Pong" : "Breakout";
+    const statusClass = this.getStatusClass(matchDetails.status);
+    const statusText = this.getStatusText(matchDetails.status);
+    const createdAt = new Date(matchDetails.created_at).toLocaleString("it-IT");
+    const startedAt = matchDetails.started_at
+      ? new Date(matchDetails.started_at).toLocaleString("it-IT")
+      : "Non iniziato";
+    const finishedAt = matchDetails.finished_at
+      ? new Date(matchDetails.finished_at).toLocaleString("it-IT")
+      : "Non concluso";
+
+    console.log("matchDetails", matchDetails);
+
+    const vinnernameid =
+      matchDetails.status === "finished"
+        ? matchDetails.players[1].score > matchDetails.players[0].score
+          ? matchDetails.players[1].user_id
+          : matchDetails.players[0].user_id
+        : "N/A";
+
+    const vinnername = await this.apiService.getUserById(
+      vinnernameid.toString()
+    );
+
+    console.log("vinnername", vinnername);
+
+    // Create modal HTML
+    const modalHTML = `
+      <div id="match-details-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="cyber-panel max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="cyber-title text-2xl">Dettagli Match #${
+              matchDetails.id
+            }</h2>
+            <button onclick="app.closeMatchDetailsModal()" class="cyber-button-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="cyber-card">
+              <h3 class="text-lg font-bold text-cyber-green mb-4">Informazioni Generali</h3>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span>Gioco:</span>
+                  <span>${gameName}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Stato:</span>
+                  <span class="${statusClass}">${statusText}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>ID Vincitore:</span>
+                  <span>${vinnername.data?.username || "N/A"}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Creato il:</span>
+                  <span>${createdAt}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Iniziato il:</span>
+                  <span>${startedAt}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Concluso il:</span>
+                  <span>${finishedAt}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="cyber-card">
+              <h3 class="text-lg font-bold text-cyber-green mb-4">Giocatori</h3>
+              <div class="space-y-2">
+                ${matchDetails.players
+                  .map(
+                    (player) => `
+                  <div class="flex justify-between items-center p-2 bg-cyber-dark/30 rounded">
+                    <div>
+                      <span class="font-bold">Giocatore ${
+                        player.position
+                      }</span>
+                      <span class="text-sm text-gray-400 ml-2">(ID: ${
+                        player.user_id
+                      })</span>
+                    </div>
+                    <div class="text-right">
+                      <span class="text-cyber-cyan">Punteggio: ${
+                        player.score
+                      }</span>
+                      <div class="text-xs text-gray-400">
+                        ${player.is_ready ? "Pronto" : "Non pronto"} • 
+                        Entrato: ${new Date(player.joined_at).toLocaleString(
+                          "it-IT"
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button onclick="app.closeMatchDetailsModal()" class="cyber-button">
+              Chiudi
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add modal to the page
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+  }
+
+  private closeMatchDetailsModal() {
+    const modal = document.getElementById("match-details-modal");
+    if (modal) {
+      modal.remove();
     }
   }
 }

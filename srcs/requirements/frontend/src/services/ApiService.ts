@@ -42,6 +42,37 @@ export interface GameSettings {
   theme: "classic" | "cyber" | "neon";
 }
 
+export interface Match {
+  id: number;
+  game_id: number;
+  status: "pending" | "in_progress" | "finished" | "cancelled";
+  winner_id: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  settings: any;
+}
+
+export interface MatchDetails {
+  id: number;
+  game_id: number;
+  status: "pending" | "in_progress" | "finished" | "cancelled";
+  winner_id: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  settings: any;
+  players: Array<{
+    match_id: number;
+    user_id: number;
+    score: number;
+    position: number;
+    is_ready: number;
+    joined_at: string;
+  }>;
+  tournament_players: any[];
+}
+
 export class ApiService {
   private baseUrl: string;
   private userBaseUrl: string;
@@ -696,7 +727,7 @@ export class ApiService {
     }
   }
 
-  async getUserMatchHistory(userId?: string): Promise<ApiResponse> {
+  async getUserMatchHistory(userId?: string): Promise<any> {
     try {
       const endpoint = userId
         ? `/api/users/${userId}/matches`
@@ -705,6 +736,15 @@ export class ApiService {
     } catch (error) {
       console.error("Get match history error:", error);
       return { success: false, message: "Failed to get match history" };
+    }
+  }
+
+  async getMatchDetails(matchId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}`);
+    } catch (error) {
+      console.error("Get match details error:", error);
+      return { success: false, message: "Failed to get match details" };
     }
   }
 
