@@ -42,6 +42,8 @@ export class ChatBox {
     this.initializeWebSocket();
     this.loadCurrentUser();
     this.loadBlockedUsers();
+    this.loadChatThreads();
+    this.loadPendingMatches();
   }
 
   private initializeWebSocket() {
@@ -147,6 +149,11 @@ export class ChatBox {
             <div id="chat-threads-list" class="space-y-2">
               <!-- Chat threads will be rendered here -->
             </div>
+            <!-- notifiche per inviti a pong ricevuti -->
+            <div id="invitation-notifications" class="space-y-2">
+            <h3 class="text-cyber-green font-bold mb-3 mt-4">Inviti a Pong ricevuti</h3>
+            <!-- Invitation notifications will be rendered here -->
+            </div>
           </div>
 
           <!-- Messages Area -->
@@ -187,6 +194,7 @@ export class ChatBox {
     // Load initial data
     this.loadUsers();
     this.loadMessages(); // Load welcome message
+    this.loadPendingMatches(); // Load pending matches
   }
 
   private addEventListeners() {
@@ -220,6 +228,7 @@ export class ChatBox {
     try {
       // Load chat threads instead of users
       await this.loadChatThreads();
+      await this.loadPendingMatches();
       // renderUsers is now called inside loadChatThreads
     } catch (error) {
       console.error("Error loading chat threads:", error);
@@ -372,6 +381,9 @@ export class ChatBox {
                     : ""
                 }
               </div>
+              <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="event.stopPropagation(); chatBox.inviteToPong(${otherParticipantId}, '${displayName}')" title="Invita a Pong">
+                <i class="fas fa-gamepad"></i>
+              </button>
               <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="event.stopPropagation(); chatBox.toggleBlockUser(${otherParticipantId})" title="Blocca/Sblocca utente">
                 <i class="fas fa-ban">${
                   this.blockedUsers.has(otherParticipantId)
@@ -729,9 +741,14 @@ export class ChatBox {
               user.display_name || user.username
             }</span>
           </div>
-          <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.startChatWithUser(${
-            user.id
-          }, '${user.username}')">Chat</button>
+          <div class="flex space-x-2">
+            <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.startChatWithUser(${
+              user.id
+            }, '${user.username}')">Chat</button>
+            <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="chatBox.inviteToPong(${
+              user.id
+            }, '${user.username}')">Invita a Pong</button>
+          </div>
         </div>
       </div>
     `
@@ -841,6 +858,7 @@ export class ChatBox {
 
         // Reload chat threads to include the new one
         await this.loadChatThreads();
+        await this.loadPendingMatches();
         this._chatThreads = [...this._chatThreads]; // Force reactivity
         this.renderUsers();
       } else {
@@ -881,6 +899,142 @@ export class ChatBox {
     } catch (error) {
       console.error("Error opening chat thread:", error);
       this.showNotification("Errore nell'apertura della chat", "error");
+    }
+  }
+
+  private async loadPendingMatches() {
+    try {
+      if (!this.currentUserId) return;
+
+      const response = await this.apiService.getUserMatches(
+        this.currentUserId.toString()
+      );
+
+      if (response) {
+        // Filtra solo le partite con stato "pending"
+        const pendingMatches = response.filter(
+          (match: any) => match.status === "pending"
+        );
+        this.renderPendingMatches(pendingMatches);
+      } else {
+        this.renderPendingMatches([]);
+      }
+    } catch (error) {
+      console.error("Error loading pending matches:", error);
+      this.renderPendingMatches([]);
+    }
+  }
+
+  private renderPendingMatches(pendingMatches: any[]) {
+    const invitationNotificationsElement = document.getElementById(
+      "invitation-notifications"
+    );
+    if (!invitationNotificationsElement) return;
+
+    if (pendingMatches.length === 0) {
+      invitationNotificationsElement.innerHTML = `
+        <h3 class="text-cyber-green font-bold mb-3 mt-4">Inviti a Pong ricevuti</h3>
+        <div class="text-cyber-green/50 text-sm text-center py-4">Nessun invito ricevuto</div>
+      `;
+      return;
+    }
+
+    invitationNotificationsElement.innerHTML = `
+      <h3 class="text-cyber-green font-bold mb-3 mt-4">Inviti a Pong ricevuti</h3>
+      ${pendingMatches
+        .map(
+          (match) => `
+        <div class="cyber-card p-2">
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-cyber-green text-sm">Partita #${match.id}</div>
+              <div class="text-cyber-green text-sm"></div>
+              <div class="text-cyber-green/50 text-xs">
+                Creata: ${new Date(match.created_at).toLocaleString()}
+              </div>
+            </div>
+            <button class="cyber-button-sm" onclick="chatBox.goToMatch(${
+              match.id
+            })">
+              Vai alla partita
+            </button>
+          </div>
+        </div>
+      `
+        )
+        .join("")}
+    `;
+  }
+
+  public goToMatch(matchId: number) {
+    // Reindirizza alla pagina del gioco con l'ID della partita
+    window.location.href = `/pong?matchId=${matchId}`;
+  }
+
+  public async inviteToPong(userId: number, username: string) {
+    try {
+      // Verifica che l'utente corrente sia autenticato
+      if (!this.currentUserId) {
+        this.showNotification(
+          "Devi essere autenticato per invitare qualcuno a giocare",
+          "error"
+        );
+        return;
+      }
+
+      // Crea la partita con l'utente invitato
+      const response = await this.apiService.createMatchWithPlayers("1", [
+        this.currentUserId,
+        userId,
+      ]);
+
+      if (response && response.success && response.data) {
+        const matchId = response.data.id;
+
+        // Invia un messaggio di sistema nella chat per notificare entrambi gli utenti
+        const systemMessage = `🎮 Partita di Pong creata! Partecipanti: Tu e ${username}. ID Partita: ${matchId}`;
+
+        // Se esiste già una chat con questo utente, invia il messaggio lì
+        const existingThread = this._chatThreads.find(
+          (thread) =>
+            thread.members.includes(userId) &&
+            thread.members.includes(this.currentUserId)
+        );
+
+        if (existingThread) {
+          await this.apiService.sendMessage(
+            existingThread.id.toString(),
+            systemMessage
+          );
+        } else {
+          // Altrimenti crea una nuova chat e invia il messaggio
+          const threadResponse =
+            await this.apiService.createDirectMessageThread(userId);
+          if (threadResponse && threadResponse.data) {
+            await this.apiService.sendMessage(
+              threadResponse.data.id.toString(),
+              systemMessage
+            );
+          }
+        }
+
+        // Mostra notifica di successo
+        this.showNotification(
+          `Invito a Pong inviato a ${username}! Partita creata con ID: ${matchId}`,
+          "success"
+        );
+
+        // Reindirizza alla pagina del gioco
+        window.location.href = `/pong?matchId=${matchId}`;
+      } else {
+        this.showNotification(
+          `Impossibile creare la partita con ${username}`,
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Error inviting to Pong:", error);
+      this.showNotification("Errore nell'invito a Pong", "error");
     }
   }
 

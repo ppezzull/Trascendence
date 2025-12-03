@@ -205,11 +205,14 @@ export class App {
     if (loginForm) {
       loginForm.addEventListener("submit", this.handleLogin.bind(this));
     }
-    
+
     // Add Google login button handler
     const googleLoginBtn = document.getElementById("google-login-btn");
     if (googleLoginBtn) {
-      googleLoginBtn.addEventListener("click", this.handleGoogleLogin.bind(this));
+      googleLoginBtn.addEventListener(
+        "click",
+        this.handleGoogleLogin.bind(this)
+      );
     }
   }
 
@@ -2950,9 +2953,9 @@ export class App {
     if (!contentElement) return;
 
     contentElement.innerHTML = `
-      <div class="cyber-panel w-full h-full mx-auto h-96">
+      <div class="cyber-panel w-full h-full mx-auto">
         <h1 class="cyber-title text-center">CHAT CYBER</h1>
-        <div class="flex h-80">
+        <div class="flex">
           <div id="chat-sidebar" class="w-1/3 border-r border-cyber-green pr-4">
             <h2 class="text-lg font-bold text-cyber-green mb-4">Utenti Online</h2>
             <div class="mb-3">
@@ -3025,7 +3028,7 @@ export class App {
         </div>
 
         <div id="profile-content" class="hidden">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni</h2>
               <div class="space-y-2">
@@ -3065,47 +3068,9 @@ export class App {
                 </div>
               </div>
             </div>
-
-            <div class="cyber-card">
-              <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Pong</h2>
-              <div class="space-y-2">
-                <div class="flex justify-between">
-                  <span>Vittorie:</span>
-                  <span id="pong-wins">-</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Sconfitte:</span>
-                  <span id="pong-losses">-</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Ratio:</span>
-                  <span id="pong-ratio">-</span>
-                </div>
-              </div>
-            </div>
           </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="cyber-card">
-              <h2 class="text-lg font-bold text-cyber-green mb-4">Statistiche Breakout</h2>
-              <div class="space-y-2">
-              <div class="flex justify-between">
-                <span>Livelli Completati:</span>
-                <span id="breakout-levels">15</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Punteggio Max:</span>
-                <span id="breakout-highscore">12500</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Power-up Raccolti:</span>
-                <span id="breakout-powerups">-</span>
-              </div>
-            </div>
-          </div>
-
           <div class="cyber-card">
-            <h2 class="text-lg font-bold text-cyber-green mb-4">Cronologia Match</h2>
+            <h2 class="text-lg font-bold text-cyber-green mb-4">Cronologia Match e Statistiche</h2>
             <div id="match-history" class="space-y-2">
               <p class="text-gray-400">Caricamento cronologia...</p>
             </div>
@@ -3439,28 +3404,31 @@ export class App {
     try {
       // Use AuthService to handle OAuth callback
       await authService.handleOAuthCallback();
-      
+
       // Check if authentication was successful
       const authState = authService.getState();
-      
+
       if (authState.isAuthenticated) {
         // Show success notification
-        this.showNotification("Login con Google effettuato con successo!", "success");
-        
+        this.showNotification(
+          "Login con Google effettuato con successo!",
+          "success"
+        );
+
         // Update navbar with user data
         if (this.navbar) {
           const username = authState?.user?.username || "-";
           this.navbar.updateUsername(username);
           this.navbar["updateUserUI"]();
         }
-        
+
         // Trigger a custom event to notify other components about the login
         window.dispatchEvent(
           new CustomEvent("userLoggedIn", {
             detail: { user: authState.user },
           })
         );
-        
+
         // Redirect to home
         this.router.navigate("/");
       }

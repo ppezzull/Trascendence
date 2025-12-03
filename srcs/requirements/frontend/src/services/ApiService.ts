@@ -458,6 +458,25 @@ export class ApiService {
     }
   }
 
+  async createMatchWithPlayers(
+    gameId: string,
+    playerIds: number[]
+  ): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>("/api/matches", {
+        method: "POST",
+        body: JSON.stringify({
+          game_id: parseInt(gameId),
+          player_ids: playerIds,
+          settings: {},
+        }),
+      });
+    } catch (error) {
+      console.error("Create match with players error:", error);
+      return { success: false, message: "Failed to create match with players" };
+    }
+  }
+
   async getMatches(): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>("/api/matches");
@@ -473,6 +492,17 @@ export class ApiService {
     } catch (error) {
       console.error("Get match error:", error);
       return { success: false, message: "Failed to get match" };
+    }
+  }
+
+  async getUserMatches(userId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/users/${userId}/matches`
+      );
+    } catch (error) {
+      console.error("Get user matches error:", error);
+      return { success: false, message: "Failed to get user matches" };
     }
   }
 
