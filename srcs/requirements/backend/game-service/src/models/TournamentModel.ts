@@ -561,9 +561,14 @@ export class TournamentModel {
       const matchResult = matchStmt.run(tournament.game_id);
       const matchId = matchResult.lastInsertRowid as number;
 
-      const tournamentMatchResult = tournamentMatchStmt.run(tournamentId, matchId, 1, matchNumber);
+      const tournamentMatchResult = tournamentMatchStmt.run(
+        tournamentId,
+        matchId,
+        1,
+        matchNumber
+      );
       const tournamentMatchId = tournamentMatchResult.lastInsertRowid as number;
-      
+
       matchMap.set(`1-${matchNumber}`, matchId);
       tournamentMatchMap.set(`1-${matchNumber}`, tournamentMatchId);
 
@@ -614,9 +619,15 @@ export class TournamentModel {
         const matchResult = matchStmt.run(tournament.game_id);
         const matchId = matchResult.lastInsertRowid as number;
 
-        const tournamentMatchResult = tournamentMatchStmt.run(tournamentId, matchId, currentRound, i);
-        const tournamentMatchId = tournamentMatchResult.lastInsertRowid as number;
-        
+        const tournamentMatchResult = tournamentMatchStmt.run(
+          tournamentId,
+          matchId,
+          currentRound,
+          i
+        );
+        const tournamentMatchId =
+          tournamentMatchResult.lastInsertRowid as number;
+
         matchMap.set(`${currentRound}-${i}`, matchId);
         tournamentMatchMap.set(`${currentRound}-${i}`, tournamentMatchId);
       }
@@ -629,7 +640,9 @@ export class TournamentModel {
             : Math.floor((Math.floor(numPlayers / 2) + (numPlayers % 2)) / 2); // Round 2
 
         for (let i = 1; i <= prevRoundMatches; i++) {
-          const prevTournamentMatchId = tournamentMatchMap.get(`${currentRound - 1}-${i}`);
+          const prevTournamentMatchId = tournamentMatchMap.get(
+            `${currentRound - 1}-${i}`
+          );
           const nextTournamentMatchId = tournamentMatchMap.get(
             `${currentRound}-${Math.ceil(i / 2)}`
           );
