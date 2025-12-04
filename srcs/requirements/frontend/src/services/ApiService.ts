@@ -350,15 +350,40 @@ export class ApiService {
   }
 
   // Friends management
-  async sendFriendRequest(userId: string): Promise<ApiResponse> {
+  async sendFriendRequest(addresseeId: number): Promise<ApiResponse> {
     try {
       return await this.userRequest<ApiResponse>("/api/users/friends/request", {
         method: "POST",
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ addressee_id: addresseeId }),
       });
     } catch (error) {
       console.error("Send friend request error:", error);
       return { success: false, message: "Failed to send friend request" };
+    }
+  }
+
+  async getFriends(userId?: string): Promise<ApiResponse> {
+    try {
+      let endpoint;
+
+      if (userId) {
+        // Get friends for a specific user
+        endpoint = `/api/users/${userId}/friends`;
+      } else {
+        // Get friends for the current user
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          endpoint = `/api/users/${user.id}/friends`;
+        } else {
+          return { success: false, message: "User not authenticated" };
+        }
+      }
+
+      return await this.userRequest<ApiResponse>(endpoint);
+    } catch (error) {
+      console.error("Get friends error:", error);
+      return { success: false, message: "Failed to get friends" };
     }
   }
 
@@ -375,15 +400,15 @@ export class ApiService {
   }
 
   async respondToFriendRequest(
-    userId: string,
-    accept: boolean
+    requestId: number,
+    action: "accept" | "reject"
   ): Promise<ApiResponse> {
     try {
       return await this.userRequest<ApiResponse>(
-        `/api/users/friends/${userId}/respond`,
+        `/api/users/friends/${requestId}/respond`,
         {
-          method: "PUT",
-          body: JSON.stringify({ accept }),
+          method: "POST",
+          body: JSON.stringify({ action }),
         }
       );
     } catch (error) {
@@ -394,10 +419,19 @@ export class ApiService {
 
   async removeFriend(userId: string): Promise<ApiResponse> {
     try {
+      // Get current user ID
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        return { success: false, message: "User not authenticated" };
+      }
+
+      const user = JSON.parse(userStr);
+
       return await this.userRequest<ApiResponse>(
-        `/api/users/${userId}/friends`,
+        `/api/users/${user.id}/friends`,
         {
           method: "DELETE",
+          body: JSON.stringify({ friend_id: parseInt(userId) }),
         }
       );
     } catch (error) {
@@ -901,15 +935,12 @@ export class ApiService {
 
   async unblockUser(targetUserId: string): Promise<ApiResponse> {
     try {
-      return await this.chatRequest<ApiResponse>(
-        `/api/chat/blocks`,
-        {
-          method: "DELETE",
-          body: JSON.stringify({
-            blockedUserId: parseInt(targetUserId)
-          }),
-        }
-      );
+      return await this.chatRequest<ApiResponse>(`/api/chat/blocks`, {
+        method: "DELETE",
+        body: JSON.stringify({
+          blockedUserId: parseInt(targetUserId),
+        }),
+      });
     } catch (error) {
       console.error("Unblock user error:", error);
       return { success: false, message: "Failed to unblock user" };

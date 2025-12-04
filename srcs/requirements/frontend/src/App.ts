@@ -129,6 +129,7 @@ export class App {
       this.renderTournamentDetailsPage(params.id)
     );
     this.router.addRoute("/chat", () => this.renderChatPage());
+    this.router.addRoute("/friends", () => this.renderFriendsPage());
     this.router.addRoute("/profile", () => this.renderProfilePage());
     this.router.addRoute("/settings", () => this.renderSettingsPage());
 
@@ -5514,7 +5515,7 @@ export class App {
     }
   }
 
-  private async loadProfileData() {
+  private async loadOwnProfileData() {
     try {
       const authState = authService.getState();
 
@@ -5575,64 +5576,422 @@ export class App {
     }
   }
 
-  private async loadOwnProfileData() {
+  private renderFriendsPage() {
+    const contentElement = document.getElementById("content");
+    if (!contentElement) return;
+
+    contentElement.innerHTML = `
+      <div class="cyber-panel w-full h-full mx-auto">
+        <h1 class="cyber-title text-center text-4xl mb-8">AMICI</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Search Users -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">Cerca Utenti</h2>
+            <div class="space-y-4">
+              <div class="flex space-x-2">
+                <input type="text" id="user-search" placeholder="Cerca per username..." class="cyber-input flex-1">
+                <button id="search-btn" class="cyber-button">Cerca</button>
+              </div>
+              <div id="search-results" class="space-y-2 max-h-60 overflow-y-auto">
+                <!-- Search results will appear here -->
+              </div>
+            </div>
+          </div>
+          
+          <!-- Friend Requests -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">Richieste di Amicizia</h2>
+            <div id="friend-requests" class="space-y-2 max-h-60 overflow-y-auto">
+              <!-- Friend requests will appear here -->
+            </div>
+          </div>
+          
+          <!-- Friends List -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">I Tuoi Amici</h2>
+            <div id="friends-list" class="space-y-2 max-h-60 overflow-y-auto">
+              <!-- Friends list will appear here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Setup event listeners
+    this.setupFriendsPageEventListeners();
+
+    // Load initial data
+    this.loadFriendsData();
+
+    // Initialize WebSocket for presence updates
+    this.initializeFriendsPresence();
+  }
+
+  private initializeFriendsPresence() {
+    // Import ChatWebSocketService dynamically to avoid circular dependencies
+    import("./services/ChatWebSocketService")
+      .then(({ chatWebSocketService }) => {
+        // Subscribe to presence updates
+        chatWebSocketService.onPresence((userId: number, status: string) => {
+          this.updateFriendPresenceStatus(userId, status);
+        });
+
+        // Connect to WebSocket if not already connected
+        if (!chatWebSocketService.isConnected()) {
+          const authState = authService.getState();
+          if (authState.isAuthenticated && authState.token) {
+            chatWebSocketService.connect(authState.token);
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load ChatWebSocketService:", error);
+      });
+  }
+
+  private updateFriendPresenceStatus(userId: number, status: string) {
+    // Find all friend elements with this user ID
+    const friendElements = document.querySelectorAll(
+      `[data-friend-id="${userId}"]`
+    );
+
+    friendElements.forEach((element) => {
+      const statusElement = element.querySelector(".friend-status");
+      if (statusElement) {
+        // Remove existing status classes
+        statusElement.classList.remove(
+          "text-cyber-green",
+          "text-cyber-gray",
+          "text-cyber-yellow"
+        );
+
+        // Add appropriate status class and text
+        switch (status) {
+          case "online":
+            statusElement.classList.add("text-cyber-green");
+            statusElement.textContent = "Online";
+            break;
+          case "away":
+            statusElement.classList.add("text-cyber-yellow");
+            statusElement.textContent = "Away";
+            break;
+          case "offline":
+          default:
+            statusElement.classList.add("text-cyber-gray");
+            statusElement.textContent = "Offline";
+            break;
+        }
+      }
+    });
+  }
+
+  private setupFriendsPageEventListeners() {
+    const searchBtn = document.getElementById("search-btn");
+    const userSearch = document.getElementById(
+      "user-search"
+    ) as HTMLInputElement;
+
+    if (searchBtn && userSearch) {
+      searchBtn.addEventListener("click", () => {
+        this.searchUsers(userSearch.value);
+      });
+
+      userSearch.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          this.searchUsers(userSearch.value);
+        }
+      });
+    }
+  }
+
+  private async loadFriendsData() {
+    await this.loadFriends();
+    await this.loadPendingFriendRequests();
+  }
+
+  private async searchUsers(query: string) {
+    if (!query.trim()) {
+      document.getElementById(
+        "search-results"
+      )!.innerHTML = `<p class="text-cyber-gray text-sm">Inserisci un termine di ricerca</p>`;
+      return;
+    }
+
     try {
-      const authState = authService.getState();
+      const response = await this.apiService.searchUsers(query);
+      const searchResultsElement = document.getElementById("search-results");
 
-      if (!authState.isAuthenticated || !authState.user) {
-        this.router.navigate("/login");
-        return;
-      }
+      console.log("ensommafra che dici", response);
 
-      // Show loading
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
+      if (!searchResultsElement) return;
 
-      if (loadingElement) loadingElement.classList.remove("hidden");
-      if (contentElement) contentElement.classList.add("hidden");
+      if (response && response.success && response.data) {
+        const users = Array.isArray(response.data?.users)
+          ? response.data?.users
+          : [];
 
-      // Get user stats from API
-      const userStatsResponse = await this.apiService.getUserStats(
-        authState.user.id
-      );
+        console.log("ensommafra che dici", users);
 
-      // Get user match history from API
-      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
-        authState.user.id
-      );
+        if (users.length === 0) {
+          searchResultsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessun utente trovato</p>`;
+          return;
+        }
 
-      if (userStatsResponse) {
-        // Update profile with real data
-        this.updateProfileDisplay(authState.user, userStatsResponse);
+        searchResultsElement.innerHTML = users
+          .map(
+            (user: any) => `
+            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded">
+              <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
+                  ${
+                    user.avatar_url
+                      ? `<img src="${user.avatar_url}" alt="${user.display_name}" class="w-8 h-8 rounded-full">`
+                      : `<span class="text-cyber-green text-xs">${user.display_name
+                          ?.charAt(0)
+                          .toUpperCase()}</span>`
+                  }
+                </div>
+                <span class="text-cyber-white">${
+                  user.display_name || user.username
+                }</span>
+              </div>
+              <button class="cyber-button text-xs" onclick="app.sendFriendRequest(${
+                user.id
+              })">
+                Aggiungi
+              </button>
+            </div>
+          `
+          )
+          .join("");
       } else {
-        // Show error and use basic user info
-        this.updateProfileDisplay(authState.user, null);
-        this.showNotification("Impossibile caricare le statistiche", "error");
+        searchResultsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
       }
+    } catch (error) {
+      console.error("Search users error:", error);
+      document.getElementById(
+        "search-results"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
+    }
+  }
 
-      // Update match history
-      if (matchHistoryResponse) {
-        this.updateMatchHistoryDisplay(matchHistoryResponse);
+  private async loadFriends() {
+    try {
+      const response = await this.apiService.getFriends();
+      const friendsListElement = document.getElementById("friends-list");
+
+      if (!friendsListElement) return;
+
+      if (
+        response.success &&
+        response.data &&
+        Array.isArray(response.data.friends)
+      ) {
+        const friends = response.data.friends;
+
+        if (friends.length === 0) {
+          friendsListElement.innerHTML = `<p class="text-cyber-gray text-sm">Non hai ancora amici</p>`;
+          return;
+        }
+
+        // Import ChatWebSocketService to get presence info
+        const { chatWebSocketService } = await import(
+          "./services/ChatWebSocketService"
+        );
+
+        friendsListElement.innerHTML = friends
+          .map((friend: any) => {
+            // Get presence status from WebSocket service
+            const presenceStatus = this.getFriendPresenceStatus(
+              friend.id,
+              chatWebSocketService
+            );
+
+            return `
+            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded" data-friend-id="${
+              friend.id
+            }">
+              <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
+                  ${
+                    friend.avatar_url
+                      ? `<img src="${friend.avatar_url}" alt="${friend.display_name}" class="w-8 h-8 rounded-full">`
+                      : `<span class="text-cyber-green text-xs">${friend.display_name
+                          ?.charAt(0)
+                          .toUpperCase()}</span>`
+                  }
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-cyber-white">${
+                    friend.display_name || friend.username
+                  }</span>
+                  <span class="friend-status text-xs ${presenceStatus.class}">${
+              presenceStatus.text
+            }</span>
+                </div>
+              </div>
+              <button class="cyber-button-secondary text-xs" onclick="app.removeFriend(${
+                friend.id
+              })">
+                Rimuovi
+              </button>
+            </div>
+          `;
+          })
+          .join("");
+      } else {
+        friendsListElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
+      }
+    } catch (error) {
+      console.error("Load friends error:", error);
+      document.getElementById(
+        "friends-list"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
+    }
+  }
+
+  private getFriendPresenceStatus(
+    friendId: number,
+    chatWebSocketService: any
+  ): { class: string; text: string } {
+    // This is a simplified approach - in a real implementation, you would
+    // maintain a presence map in the WebSocket service or query the API
+
+    // For now, we'll use a default status and update it via WebSocket events
+    return {
+      class: "text-cyber-gray",
+      text: "Offline",
+    };
+  }
+
+  private async loadPendingFriendRequests() {
+    try {
+      const response = await this.apiService.getPendingFriendRequests();
+      const friendRequestsElement = document.getElementById("friend-requests");
+
+      if (!friendRequestsElement) return;
+
+      console.log("ensommafra che dici pending friend requests", response);
+
+      if (response.success && response.data && Array.isArray(response.data)) {
+        const requests = response.data;
+
+        if (requests.length === 0) {
+          friendRequestsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessuna richiesta in sospeso</p>`;
+          return;
+        }
+
+        friendRequestsElement.innerHTML = requests
+          .map(
+            (request) => `
+          <div class="p-2 border border-cyber-green/30 rounded">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-cyber-white">${
+                request.display_name || request.username
+              }</span>
+              <span class="text-cyber-gray text-xs">${new Date(
+                request.created_at
+              ).toLocaleDateString()}</span>
+            </div>
+            <div class="flex space-x-2">
+              <button class="cyber-button text-xs" onclick="app.respondToFriendRequest(${
+                request.id
+              }, 'accept')">
+                Accetta
+              </button>
+              <button class="cyber-button-secondary text-xs" onclick="app.respondToFriendRequest(${
+                request.id
+              }, 'reject')">
+                Rifiuta
+              </button>
+            </div>
+          </div>
+        `
+          )
+          .join("");
+      } else {
+        friendRequestsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
+      }
+    } catch (error) {
+      console.error("Load friend requests error:", error);
+      document.getElementById(
+        "friend-requests"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
+    }
+  }
+
+  async sendFriendRequest(userId: number) {
+    try {
+      const response = await this.apiService.sendFriendRequest(userId);
+
+      if (response.success) {
+        this.showNotification(
+          "Richiesta di amicizia inviata con successo",
+          "success"
+        );
+        // Clear search results
+        document.getElementById("search-results")!.innerHTML = "";
+        (document.getElementById("user-search") as HTMLInputElement).value = "";
       } else {
         this.showNotification(
-          "Impossibile caricare la cronologia dei match",
+          response.message || "Errore nell'invio della richiesta",
           "error"
         );
       }
-
-      // Hide loading, show content
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
     } catch (error) {
-      console.error("Error loading profile data:", error);
+      console.error("Send friend request error:", error);
+      this.showNotification("Errore nell'invio della richiesta", "error");
+    }
+  }
 
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
+  async respondToFriendRequest(requestId: number, action: "accept" | "reject") {
+    try {
+      const response = await this.apiService.respondToFriendRequest(
+        requestId,
+        action
+      );
 
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
+      if (response.success) {
+        this.showNotification(
+          `Richiesta di amicizia ${
+            action === "accept" ? "accettata" : "rifiutata"
+          } con successo`,
+          "success"
+        );
+        // Reload friends and requests
+        this.loadFriendsData();
+      } else {
+        this.showNotification(
+          response.message || "Errore nella risposta",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Respond to friend request error:", error);
+      this.showNotification("Errore nella risposta", "error");
+    }
+  }
 
-      this.showNotification("Errore nel caricamento del profilo", "error");
+  async removeFriend(userId: number) {
+    if (!confirm("Sei sicuro di voler rimuovere questo amico?")) return;
+
+    try {
+      const response = await this.apiService.removeFriend(userId.toString());
+
+      if (response.success) {
+        this.showNotification("Amico rimosso con successo", "success");
+        // Reload friends list
+        this.loadFriends();
+      } else {
+        this.showNotification(
+          response.message || "Errore nella rimozione",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Remove friend error:", error);
+      this.showNotification("Errore nella rimozione", "error");
     }
   }
 }

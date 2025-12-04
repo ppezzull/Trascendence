@@ -115,9 +115,16 @@ export class ChatBox {
   }
 
   private handlePresenceUpdate(userId: number, status: string) {
-    const user = this.users.find((u) => parseInt(u.id) === userId);
-    if (user) {
-      user.status = status as "online" | "offline" | "away";
+    // Update presence status in thread participants cache
+    const participantInfo = this.threadParticipants.get(userId);
+    if (participantInfo) {
+      // Update the cached participant info with new status
+      this.threadParticipants.set(userId, {
+        ...participantInfo,
+        status,
+      });
+
+      // Re-render users to show updated status
       this.renderUsers();
     }
   }
@@ -355,58 +362,51 @@ export class ChatBox {
           ? participantInfo.display_name || participantInfo.username
           : `Utente ${otherParticipantId}`;
 
+        // Get presence status for this user
+        const presenceStatus = this.getUserPresenceStatus(otherParticipantId);
+
         console.log(
           "Thread:",
           thread,
           "Other participant:",
           otherParticipantId,
           "Display name:",
-          displayName
+          displayName,
+          "Presence status:",
+          presenceStatus
         );
 
         return `
-        <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-thread-id="${
-          thread.id
-        }">
-          <div class="flex justify-between items-center">
-            <div class="flex-1" onclick="chatBox.openChatThread(${thread.id})">
-              <div class="text-cyber-green text-sm font-medium cursor-pointer hover:text-cyber-cyan" onclick="event.stopPropagation(); chatBox.viewUserProfile(${otherParticipantId})">${displayName}</div>
-              <div class="text-cyber-green/50 text-xs mt-1">${lastMessagePreview}</div>
-            </div>
+        <div class="cyber-card p-2 cursor-pointer hover:border-cyber-cyan" data-thread-id="${thread.id}">
+          <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
-              <div class="text-cyber-green/30 text-xs">
-                ${
-                  lastMessage
-                    ? this.formatTime(new Date(lastMessage.created_at))
-                    : ""
-                }
-              </div>
-              <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="event.stopPropagation(); chatBox.inviteToPong(${otherParticipantId}, '${displayName}')" title="Invita a Pong">
-                <i class="fas fa-gamepad"></i>
-              </button>
-              <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="event.stopPropagation(); chatBox.toggleBlockUser(${otherParticipantId})" title="Blocca/Sblocca utente">
-                <i class="fas fa-ban">${
-                  this.blockedUsers.has(otherParticipantId)
-                    ? "sblocca"
-                    : "blocca"
-                }</i>
-              </button>
+              <div class="w-2 h-2 rounded-full bg-cyber-green"></div>
+              <span class="text-cyber-green text-sm cursor-pointer hover:text-cyber-cyan" onclick="chatBox.viewUserProfile(${otherParticipantId})">${displayName}</span>
+              <span class="user-status text-xs ${presenceStatus.class}">${presenceStatus.text}</span>
+            </div>
+            <div class="flex space-x-2">
+              <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.startChatWithUser(${otherParticipantId}, '${displayName}')">Chat</button>
+              <button class="text-cyber-magenta hover:text-cyber-red text-xs" onclick="chatBox.inviteToPong(${otherParticipantId}, '${displayName}')">Invita a Pong</button>
             </div>
           </div>
         </div>
       `;
       })
       .join("");
+  }
 
-    // Add click event to open chat thread
-    chatThreadsList
-      .querySelectorAll("[data-thread-id]")
-      .forEach((threadElement) => {
-        threadElement.addEventListener("click", () => {
-          const threadId = threadElement.getAttribute("data-thread-id");
-          if (threadId) this.openChatThread(parseInt(threadId));
-        });
-      });
+  private getUserPresenceStatus(userId: number): {
+    class: string;
+    text: string;
+  } {
+    // This is a simplified approach - in a real implementation, you would
+    // maintain a presence map in the WebSocket service or query the API
+
+    // For now, we'll use a default status and update it via WebSocket events
+    return {
+      class: "text-cyber-gray",
+      text: "Offline",
+    };
   }
 
   private renderMessages() {

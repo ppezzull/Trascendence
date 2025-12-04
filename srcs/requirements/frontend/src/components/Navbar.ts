@@ -31,6 +31,9 @@ export class Navbar {
                 <a href="/tournaments" class="text-cyber-green hover:text-cyber-cyan transition-colors">Tornei</a>
               </li>
               <li>
+                <a href="/friends" class="text-cyber-green hover:text-cyber-cyan transition-colors">Amici</a>
+              </li>
+              <li>
                 <a href="/chat" class="text-cyber-green hover:text-cyber-cyan transition-colors">Chat</a>
               </li>
               <li>
@@ -77,6 +80,7 @@ export class Navbar {
             <a href="/" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Home</a>
             <a href="/games" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Giochi</a>
             <a href="/tournaments" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Tornei</a>
+            <a href="/friends" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Amici</a>
             <a href="/chat" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Chat</a>
             <a href="/profile" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Profilo</a>
             <a href="/settings" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Impostazioni</a>

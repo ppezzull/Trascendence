@@ -634,6 +634,68 @@ export class UserController {
     }
   }
 
+  // Rimuovi un amico
+  async removeFriend(
+    request: FastifyRequest<{
+      Params: { id: number };
+      Body: { friend_id: number };
+    }>,
+    reply: FastifyReply
+  ): Promise<ApiResponse> {
+    try {
+      const { id } = request.params;
+      const { friend_id } = request.body;
+
+      // Verifica l'autenticazione
+      try {
+        await request.jwtVerify();
+      } catch (error) {
+        return reply.status(401).send({
+          success: false,
+          message: "Non autorizzato",
+        });
+      }
+
+      // Verifica che l'utente stia rimuovendo un amico dal proprio profilo
+      const jwtPayload = request.user as any;
+      if (jwtPayload.id !== id) {
+        return reply.status(403).send({
+          success: false,
+          message: "Non sei autorizzato a rimuovere amici da questo profilo",
+        });
+      }
+
+      // Verifica se l'utente esiste
+      const existingUser = await UserModel.findById(id);
+      if (!existingUser) {
+        return reply.status(404).send({
+          success: false,
+          message: "Utente non trovato",
+        });
+      }
+
+      // Rimuovi l'amicizia (cambia lo stato a 'rejected')
+      const removed = await UserModel.removeFriend(id, friend_id);
+      if (!removed) {
+        return reply.status(500).send({
+          success: false,
+          message: "Errore durante la rimozione dell'amicizia",
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: "Amico rimosso con successo",
+      });
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        message: "Errore durante la rimozione dell'amicizia",
+      });
+    }
+  }
+
   // Ottieni le richieste di amicizia in sospeso
   async getPendingFriendRequests(
     request: FastifyRequest,
