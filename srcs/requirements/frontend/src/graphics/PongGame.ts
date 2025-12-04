@@ -54,7 +54,7 @@ export class PongGame {
   }
 
   private updatePaddleSpeed(): void {
-    if (!this.paddle1) return;
+    if (!this.paddle1 || this.gameMode === "pvp") return;
 
     console.log("Updating paddle speed for difficulty:", this.botDifficulty);
 
@@ -212,13 +212,13 @@ export class PongGame {
   }
 
   private checkScoring(): void {
-    console.log("checkScoring");
+    // console.log("checkScoring");
 
     if (!this.ball) return;
 
     // Check if ball is out of bounds
     if (this.ball.isOutOfBounds()) {
-      console.log("Ball is out of bounds");
+      // console.log("Ball is out of bounds");
 
       // Determine which player scored
       if (this.ball.getPosition().x < 0) {

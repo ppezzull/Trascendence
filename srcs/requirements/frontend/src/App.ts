@@ -11,7 +11,6 @@ import { createAuthGuard } from "./components/AuthGuard";
 import { PongCanvas } from "./components/PongCanvas";
 import { ChatBox } from "./components/ChatBox";
 import { BreakoutCanvas } from "./components/BreakoutCanvas";
-import { GameSettingsComponent } from "./components/GameSettings";
 import {
   GameModeSelector,
   GameMode,
@@ -130,7 +129,6 @@ export class App {
     );
     this.router.addRoute("/chat", () => this.renderChatPage());
     this.router.addRoute("/profile", () => this.renderProfilePage());
-    this.router.addRoute("/settings", () => this.renderSettingsPage());
 
     // Handle 404
     this.router.setNotFoundCallback(() => this.renderNotFoundPage());
@@ -775,12 +773,19 @@ export class App {
       player2Name?: string;
     }
   ) {
+    // Check if a game canvas already exists and dispose it
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.dispose();
+      this.currentPongCanvas = null;
+    }
+
     // Get player names for PvP
     let player1Name = options?.player1Name || "PLAYER 1";
     let player2Name =
       options?.player2Name ||
       (mode === "pvp" ? "PLAYER 2" : `BOT (${difficulty?.toUpperCase()})`);
 
+    console.log("IN RENDER PONG GAME STATE");
     if (mode === "pvp" && this.currentMatchId) {
       try {
         const authState = authService.getState();
@@ -1627,6 +1632,7 @@ export class App {
               );
               if (gameContainer) {
                 this.currentMatchHost = String(hostId);
+                console.log("INIZIO PARTITA PVP");
                 this.renderPongGameState(
                   gameContainer,
                   "pvp",
@@ -1872,73 +1878,28 @@ export class App {
   }
 
   private async exitPongGame() {
-    // Pause the game while showing confirmation
+    // Finish match only for PvP games
+    if (this.currentMatchId && this.currentPongMode === "pvp") {
+      try {
+        await this.apiService.finishMatch(this.currentMatchId, {
+          status: "abandoned",
+        });
+      } catch (error) {
+        console.error("Error finishing match:", error);
+      }
+    }
+
+    // Dispose of the canvas
     if (this.currentPongCanvas) {
-      this.currentPongCanvas.pauseGame();
+      this.currentPongCanvas.dispose();
+      this.currentPongCanvas = null;
     }
 
-    // Show confirmation dialog
-    const gameContainer = document.getElementById("pong-game-container");
-    if (!gameContainer) return;
+    // Clear the match ID
+    this.currentMatchId = null;
 
-    gameContainer.innerHTML = `
-      <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-        <div class="cyber-card max-w-md mx-auto p-6">
-          <h2 class="text-xl font-bold text-cyber-green mb-4">CONFERMA USCITA</h2>
-          <p class="text-center mb-6">Sei sicuro di voler uscire dalla partita?</p>
-          <div class="flex justify-center space-x-4">
-            <button id="confirm-exit" class="cyber-button">Esci</button>
-            <button id="cancel-exit" class="cyber-button-secondary">Annulla</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Setup event listeners
-    const confirmButton = document.getElementById("confirm-exit");
-    if (confirmButton) {
-      confirmButton.addEventListener("click", async () => {
-        // Finish the match only for PvP games
-        if (this.currentMatchId && this.currentPongMode === "pvp") {
-          try {
-            await this.apiService.finishMatch(this.currentMatchId, {
-              status: "abandoned",
-            });
-          } catch (error) {
-            console.error("Error finishing match:", error);
-          }
-        }
-
-        // Dispose of the canvas
-        if (this.currentPongCanvas) {
-          this.currentPongCanvas.dispose();
-          this.currentPongCanvas = null;
-        }
-
-        // Clear the match ID
-        this.currentMatchId = null;
-
-        // Go back to selection
-        this.initializePongGameWithStates();
-      });
-    }
-
-    const cancelButton = document.getElementById("cancel-exit");
-    if (cancelButton) {
-      cancelButton.addEventListener("click", () => {
-        // Resume the game and go back to game state
-        if (this.currentPongCanvas) {
-          this.currentPongCanvas.resumeGame();
-        }
-        this.renderPongGameState(
-          gameContainer,
-          this.currentPongMode || "",
-          this.currentPongPlayer1Id || 1,
-          this.currentPongPlayer2Id || 2,
-          this.currentPongDifficulty || undefined
-        );
-      });
-    }
+    // Go back to selection
+    this.initializePongGameWithStates();
   }
 
   // Properties to track current game state
@@ -3339,20 +3300,20 @@ export class App {
     }
   }
 
-  private async renderSettingsPage() {
-    const contentElement = document.getElementById("content");
-    if (!contentElement) return;
+  // private async renderSettingsPage() {
+  //   const contentElement = document.getElementById("content");
+  //   if (!contentElement) return;
 
-    contentElement.innerHTML = `
-      <div id="settings-container" class="max-w-4xl mx-auto">
-        <!-- GameSettings component will be rendered here -->
-      </div>
-    `;
+  //   contentElement.innerHTML = `
+  //     <div id="settings-container" class="max-w-4xl mx-auto">
+  //       <!-- GameSettings component will be rendered here -->
+  //     </div>
+  //   `;
 
-    // Create and initialize GameSettings component
-    const gameSettings = new GameSettingsComponent();
-    gameSettings.render(document.getElementById("settings-container")!);
-  }
+  //   // Create and initialize GameSettings component
+  //   const gameSettings = new GameSettingsComponent();
+  //   gameSettings.render(document.getElementById("settings-container")!);
+  // }
 
   private renderNotFoundPage() {
     const contentElement = document.getElementById("content");
@@ -3658,13 +3619,6 @@ export class App {
         this.startBreakoutGame("pvp");
       });
     }
-
-    const settingsButton = document.getElementById("breakout-settings");
-    if (settingsButton) {
-      settingsButton.addEventListener("click", () => {
-        this.router.navigate("/settings");
-      });
-    }
   }
 
   private initializeTournamentsPage() {
@@ -3869,7 +3823,7 @@ export class App {
           );
           
           if (aliasExists) {
-            this.showNotification("Alias già in uso per questo torneo", "warning");
+            this.showNotification("Alias già in uso per questo torneo", "error");
             return;
           }
         }
