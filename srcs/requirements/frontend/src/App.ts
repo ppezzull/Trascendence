@@ -3025,6 +3025,13 @@ export class App {
           <h1 class="cyber-title text-3xl">${
             isViewingOtherUser ? "PROFILO UTENTE" : "PROFILO PERSONALE"
           }</h1>
+          ${
+            !isViewingOtherUser
+              ? `<button id="edit-profile-btn" class="cyber-button">
+                  <i class="fas fa-edit mr-2"></i>Modifica Profilo
+                </button>`
+              : ""
+          }
         </div>
 
         <div id="profile-loading" class="text-center text-cyber-green py-8">
@@ -3036,7 +3043,7 @@ export class App {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Informazioni</h2>
-              <div class="space-y-2">
+              <div id="profile-info" class="space-y-2">
                 <div class="flex justify-between">
                   <span>Username:</span>
                   <span id="profile-username">-</span>
@@ -3052,6 +3059,28 @@ export class App {
                 <div class="flex justify-between">
                   <span>Stato:</span>
                   <span id="profile-status" class="text-cyber-cyan">Online</span>
+                </div>
+              </div>
+              <div id="profile-edit-form" class="space-y-4 hidden">
+                <div>
+                  <label class="block text-cyber-green mb-1">Username:</label>
+                  <input type="text" id="edit-username" class="cyber-input w-full">
+                </div>
+                <div>
+                  <label class="block text-cyber-green mb-1">Email:</label>
+                  <input type="email" id="edit-email" class="cyber-input w-full">
+                </div>
+                <div>
+                  <label class="block text-cyber-green mb-1">Display Name:</label>
+                  <input type="text" id="edit-display-name" class="cyber-input w-full">
+                </div>
+                <div class="flex space-x-2">
+                  <button id="save-profile-btn" class="cyber-button">
+                    <i class="fas fa-save mr-2"></i>Salva
+                  </button>
+                  <button id="cancel-edit-btn" class="cyber-button bg-cyber-magenta">
+                    <i class="fas fa-times mr-2"></i>Annulla
+                  </button>
                 </div>
               </div>
             </div>
@@ -3104,6 +3133,7 @@ export class App {
     } else {
       this.loadOwnProfileData();
       this.setupAvatarHandlers();
+      this.setupProfileEditHandlers();
       // Add logout event listener
       const logoutBtn = document.getElementById("logout-btn");
       if (logoutBtn) {
@@ -3284,43 +3314,31 @@ export class App {
     reader.onload = (e) => {
       const result = e.target?.result as string;
       if (result) {
-        // Save to localStorage
+        // Save to localStorage only
         this.apiService.saveAvatarToLocalStorage(result);
 
         // Update display
         this.updateAvatarDisplay(result);
 
-        // Try to update on server
-        this.apiService.updateAvatar(result).then((response) => {
-          if (response.success) {
-            this.showNotification("Avatar aggiornato con successo", "success");
-          } else {
-            this.showNotification(
-              "Errore nell'aggiornamento dell'avatar",
-              "error"
-            );
-          }
-        });
+        // Show success message
+        this.showNotification(
+          "Avatar salvato localmente con successo",
+          "success"
+        );
       }
     };
     reader.readAsDataURL(file);
   }
 
   private handleAvatarRemove() {
-    // Remove from localStorage
+    // Remove from localStorage only
     this.apiService.removeAvatarFromLocalStorage();
 
     // Update display
     this.updateAvatarDisplay();
 
-    // Try to remove from server
-    this.apiService.updateAvatar("").then((response) => {
-      if (response.success) {
-        this.showNotification("Avatar rimosso con successo", "success");
-      } else {
-        this.showNotification("Errore nella rimozione dell'avatar", "error");
-      }
-    });
+    // Show success message
+    this.showNotification("Avatar rimosso localmente con successo", "success");
   }
 
   private async handleLogout() {
@@ -5993,5 +6011,151 @@ export class App {
       console.error("Remove friend error:", error);
       this.showNotification("Errore nella rimozione", "error");
     }
+  }
+
+  private setupProfileEditHandlers() {
+    const editProfileBtn = document.getElementById("edit-profile-btn");
+    const saveProfileBtn = document.getElementById("save-profile-btn");
+    const cancelEditBtn = document.getElementById("cancel-edit-btn");
+    const profileInfo = document.getElementById("profile-info");
+    const profileEditForm = document.getElementById("profile-edit-form");
+
+    if (
+      !editProfileBtn ||
+      !saveProfileBtn ||
+      !cancelEditBtn ||
+      !profileInfo ||
+      !profileEditForm
+    ) {
+      return;
+    }
+
+    // Show edit form when edit button is clicked
+    editProfileBtn.addEventListener("click", () => {
+      // Get current values
+      const username =
+        document.getElementById("profile-username")?.textContent || "";
+      const email = document.getElementById("profile-email")?.textContent || "";
+      const displayName =
+        document.getElementById("profile-display-name")?.textContent || "";
+
+      // Populate form with current values
+      const editUsername = document.getElementById(
+        "edit-username"
+      ) as HTMLInputElement;
+      const editEmail = document.getElementById(
+        "edit-email"
+      ) as HTMLInputElement;
+      const editDisplayName = document.getElementById(
+        "edit-display-name"
+      ) as HTMLInputElement;
+
+      if (editUsername) editUsername.value = username;
+      if (editEmail) editEmail.value = email;
+      if (editDisplayName) editDisplayName.value = displayName;
+
+      // Toggle visibility
+      profileInfo.classList.add("hidden");
+      profileEditForm.classList.remove("hidden");
+      editProfileBtn.classList.add("hidden");
+    });
+
+    // Save profile when save button is clicked
+    saveProfileBtn.addEventListener("click", async () => {
+      const editUsername = document.getElementById(
+        "edit-username"
+      ) as HTMLInputElement;
+      const editEmail = document.getElementById(
+        "edit-email"
+      ) as HTMLInputElement;
+      const editDisplayName = document.getElementById(
+        "edit-display-name"
+      ) as HTMLInputElement;
+
+      if (!editUsername || !editEmail || !editDisplayName) {
+        return;
+      }
+
+      // Get current user ID
+      const authState = authService.getState();
+      if (!authState.user || !authState.user.id) {
+        console.error("User not authenticated");
+        return;
+      }
+
+      const userId = authState.user.id.toString();
+
+      try {
+        // Show loading state
+        saveProfileBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin mr-2"></i>Salvataggio...';
+        (saveProfileBtn as HTMLButtonElement).disabled = true;
+
+        // Get avatar URL from localStorage
+        const avatarUrl = this.apiService.getAvatarFromLocalStorage();
+
+        // Call API to update profile
+        const response = await this.apiService.updateProfile(
+          userId,
+          editUsername.value,
+          editEmail.value,
+          editDisplayName.value,
+          avatarUrl || undefined
+        );
+
+        if (response.success) {
+          // Update the displayed information
+          document.getElementById("profile-username")!.textContent =
+            editUsername.value;
+          document.getElementById("profile-email")!.textContent =
+            editEmail.value;
+          document.getElementById("profile-display-name")!.textContent =
+            editDisplayName.value;
+
+          // Update user data in auth state
+          if (authState.user) {
+            authState.user.username = editUsername.value;
+            authState.user.email = editEmail.value;
+            // Note: display_name might not be in the User interface, but we'll update it if it exists
+            if ("display_name" in authState.user) {
+              (authState.user as any).display_name = editDisplayName.value;
+            }
+            localStorage.setItem("user", JSON.stringify(authState.user));
+          }
+
+          // Show success message
+          this.showNotification("Profilo aggiornato con successo", "success");
+
+          // Toggle visibility back to view mode
+          profileInfo.classList.remove("hidden");
+          profileEditForm.classList.add("hidden");
+          editProfileBtn.classList.remove("hidden");
+        } else {
+          // Show error message
+          this.showNotification(
+            response.message || "Errore durante l'aggiornamento del profilo",
+            "error"
+          );
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        this.showNotification(
+          "Errore durante l'aggiornamento del profilo",
+          "error"
+        );
+      } finally {
+        // Reset button state
+        saveProfileBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Salva';
+        (saveProfileBtn as HTMLButtonElement).disabled = false;
+      }
+    });
+
+    // Cancel edit when cancel button is clicked
+    cancelEditBtn.addEventListener("click", () => {
+      // Toggle visibility back to view mode
+      profileInfo.classList.remove("hidden");
+      profileEditForm.classList.add("hidden");
+      editProfileBtn.classList.remove("hidden");
+    });
   }
 }

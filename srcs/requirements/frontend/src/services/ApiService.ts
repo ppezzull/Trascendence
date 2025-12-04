@@ -325,6 +325,30 @@ export class ApiService {
     }
   }
 
+  async updateProfile(
+    userId: string,
+    username?: string,
+    email?: string,
+    displayName?: string,
+    avatarUrl?: string
+  ): Promise<ApiResponse> {
+    try {
+      const data: any = {};
+      if (username) data.username = username;
+      if (email) data.email = email;
+      if (displayName) data.display_name = displayName;
+      if (avatarUrl) data.avatar_url = avatarUrl;
+
+      return await this.userRequest<ApiResponse>(`/api/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      console.error("Update profile error:", error);
+      return { success: false, message: "Failed to update profile" };
+    }
+  }
+
   async updateAvatar(avatarData: string): Promise<ApiResponse> {
     try {
       return await this.userRequest<ApiResponse>("/api/users/me/avatar", {

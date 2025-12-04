@@ -997,8 +997,8 @@ export class ChatBox {
         userId,
       ]);
 
-      if (response && response.success && response.data) {
-        const matchId = response.data.id;
+      if (response) {
+        const matchId = response.id;
 
         // Invia un messaggio di sistema nella chat per notificare entrambi gli utenti
         const systemMessage = `🎮 Partita di Pong creata! Partecipanti: Tu e ${username}. ID Partita: ${matchId}`;
