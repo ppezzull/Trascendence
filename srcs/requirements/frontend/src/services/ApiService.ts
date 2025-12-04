@@ -298,7 +298,7 @@ export class ApiService {
     }
   }
 
-  async searchUsers(query: string): Promise<ApiResponse<User[]>> {
+  async searchUsers(query: string): Promise<any> {
     try {
       return await this.userRequest<User[]>(
         `/api/users/search?q=${encodeURIComponent(query)}`

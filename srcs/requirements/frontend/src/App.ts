@@ -3667,7 +3667,7 @@ export class App {
         // and to check if current user is already registered
         const authState = authService.getState();
         const currentUserId = authState.user?.id;
-        
+
         for (const tournament of activeTournaments) {
           if (tournament.status === "registration") {
             try {
@@ -3679,7 +3679,7 @@ export class App {
                 tournament.registrationsCount = regResponse.length;
                 tournament.maxPlayers =
                   tournament.max_players || tournament.maxParticipants;
-                
+
                 // Check if current user is already registered
                 if (currentUserId) {
                   tournament.isUserRegistered = regResponse.some(
@@ -3722,7 +3722,11 @@ export class App {
         <div class="text-center text-gray-400 py-4">
           <p>Nessun torneo ${
             // se non è attivo o passato è partito
-            containerId === "active-tournaments" ? "attivo" : containerId === "past-tournaments" ? "passato" : "partito"
+            containerId === "active-tournaments"
+              ? "attivo"
+              : containerId === "past-tournaments"
+              ? "passato"
+              : "partito"
           } disponibile</p>
         </div>
       `;
@@ -3823,24 +3827,34 @@ export class App {
     try {
       // Get current user from auth state
       const authState = authService.getState();
-      
+
       // Ask user for alias
-      const alias = prompt("Inserisci l'alias con cui vuoi partecipare al torneo:", authState.user?.username || "");
-      
+      const alias = prompt(
+        "Inserisci l'alias con cui vuoi partecipare al torneo:",
+        authState.user?.username || ""
+      );
+
       // Check if user provided an alias
       if (!alias || alias.trim() === "") {
-        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
+        this.showNotification(
+          "Devi inserire un alias per iscriverti al torneo",
+          "error"
+        );
         return;
       }
 
       // Check if alias is already in use for this tournament
       try {
-        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        const registrations = await this.apiService.getTournamentRegistrations(
+          tournamentId
+        );
         if (registrations && Array.isArray(registrations)) {
-          const aliasExists = registrations.some((reg: any) => 
-            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          const aliasExists = registrations.some(
+            (reg: any) =>
+              reg.alias &&
+              reg.alias.toLowerCase() === alias.trim().toLowerCase()
           );
-          
+
           if (aliasExists) {
             this.showNotification("Alias già in uso per questo torneo", "info");
             return;
@@ -5596,13 +5610,13 @@ export class App {
           profileInfo.classList.remove("hidden");
           profileEditForm.classList.add("hidden");
           editProfileBtn.classList.remove("hidden");
-      } else {
+        } else {
           // Show error message
-        this.showNotification(
+          this.showNotification(
             response.message || "Errore durante l'aggiornamento del profilo",
-          "error"
-        );
-      }
+            "error"
+          );
+        }
       } catch (error) {
         console.error("Error updating profile:", error);
         this.showNotification(
@@ -5641,27 +5655,34 @@ export class App {
     try {
       // Get current user from auth state
       const authState = authService.getState();
-      
+
       // Check if alias is provided
       if (!alias || alias.trim() === "") {
-        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
+        this.showNotification(
+          "Devi inserire un alias per iscriverti al torneo",
+          "error"
+        );
         return;
       }
 
       // Check if alias is already in use for this tournament
       try {
-        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        const registrations = await this.apiService.getTournamentRegistrations(
+          tournamentId
+        );
         if (registrations && Array.isArray(registrations)) {
-          const aliasExists = registrations.some((reg: any) => 
-            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          const aliasExists = registrations.some(
+            (reg: any) =>
+              reg.alias &&
+              reg.alias.toLowerCase() === alias.trim().toLowerCase()
           );
-          
+
           if (aliasExists) {
             this.showNotification("Alias già in uso per questo torneo", "info");
             return;
           }
         }
-    } catch (error) {
+      } catch (error) {
         console.error("Error checking alias availability:", error);
         // Continue with registration attempt if we can't check aliases
       }
@@ -5673,10 +5694,7 @@ export class App {
 
       if (response) {
         this.closeTournamentRegistrationModal();
-        this.showNotification(
-          "Registrato con successo",
-          "success"
-        );
+        this.showNotification("Registrato con successo", "success");
         this.loadTournaments(); // Reload tournaments list
       } else {
         this.showNotification(
@@ -5686,9 +5704,12 @@ export class App {
       }
     } catch (error) {
       console.error("Join tournament error:", error);
-      
+
       // Check if the error is because user is already registered
-      if (error instanceof Error && error.message === "User already registered") {
+      if (
+        error instanceof Error &&
+        error.message === "User already registered"
+      ) {
         this.showNotification("Sei già registrato a questo torneo", "error");
       } else {
         this.showNotification("Errore durante l'iscrizione al torneo", "error");
@@ -5724,10 +5745,12 @@ export class App {
     `;
 
     // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
 
     // Add form submission handler
-    const form = document.getElementById("create-tournament-form") as HTMLFormElement;
+    const form = document.getElementById(
+      "create-tournament-form"
+    ) as HTMLFormElement;
     if (form) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -5750,7 +5773,10 @@ export class App {
     this.showNotification("Creazione torneo annullata", "info");
   }
 
-  private async createTournamentWithName(maxParticipants: number, name: string) {
+  private async createTournamentWithName(
+    maxParticipants: number,
+    name: string
+  ) {
     try {
       // Check if name is provided
       if (!name || name.trim() === "") {
@@ -5869,10 +5895,12 @@ export class App {
     `;
 
     // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
 
     // Add form submission handler
-    const form = document.getElementById("tournament-registration-form") as HTMLFormElement;
+    const form = document.getElementById(
+      "tournament-registration-form"
+    ) as HTMLFormElement;
     if (form) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -6127,9 +6155,7 @@ export class App {
       if (!searchResultsElement) return;
 
       if (response && response.success && response.data) {
-        const users = Array.isArray(response.data)
-          ? response.data
-          : [];
+        const users = response.data.users;
 
         console.log("ensommafra che dici", users);
 
