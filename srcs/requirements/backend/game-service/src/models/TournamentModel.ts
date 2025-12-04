@@ -550,6 +550,7 @@ export class TournamentModel {
 
     // Mappa per tenere traccia dei match creati e dei loro ID
     const matchMap: Map<string, number> = new Map();
+    const tournamentMatchMap: Map<string, number> = new Map(); // Mappa per i record in tournament_matches
 
     // Crea i match del primo round
     let matchNumber = 1;
@@ -560,8 +561,11 @@ export class TournamentModel {
       const matchResult = matchStmt.run(tournament.game_id);
       const matchId = matchResult.lastInsertRowid as number;
 
-      tournamentMatchStmt.run(tournamentId, matchId, 1, matchNumber);
+      const tournamentMatchResult = tournamentMatchStmt.run(tournamentId, matchId, 1, matchNumber);
+      const tournamentMatchId = tournamentMatchResult.lastInsertRowid as number;
+      
       matchMap.set(`1-${matchNumber}`, matchId);
+      tournamentMatchMap.set(`1-${matchNumber}`, tournamentMatchId);
 
       // Assegna i giocatori al match
       if (
@@ -610,8 +614,11 @@ export class TournamentModel {
         const matchResult = matchStmt.run(tournament.game_id);
         const matchId = matchResult.lastInsertRowid as number;
 
-        tournamentMatchStmt.run(tournamentId, matchId, currentRound, i);
+        const tournamentMatchResult = tournamentMatchStmt.run(tournamentId, matchId, currentRound, i);
+        const tournamentMatchId = tournamentMatchResult.lastInsertRowid as number;
+        
         matchMap.set(`${currentRound}-${i}`, matchId);
+        tournamentMatchMap.set(`${currentRound}-${i}`, tournamentMatchId);
       }
 
       // Aggiorna i next_match_id dei match del round precedente
@@ -622,18 +629,18 @@ export class TournamentModel {
             : Math.floor((Math.floor(numPlayers / 2) + (numPlayers % 2)) / 2); // Round 2
 
         for (let i = 1; i <= prevRoundMatches; i++) {
-          const prevMatchId = matchMap.get(`${currentRound - 1}-${i}`);
-          const nextMatchId = matchMap.get(
+          const prevTournamentMatchId = tournamentMatchMap.get(`${currentRound - 1}-${i}`);
+          const nextTournamentMatchId = tournamentMatchMap.get(
             `${currentRound}-${Math.ceil(i / 2)}`
           );
 
-          if (prevMatchId && nextMatchId) {
+          if (prevTournamentMatchId && nextTournamentMatchId) {
             const updateStmt = this.db.prepare(`
               UPDATE tournament_matches 
               SET next_match_id = ?
-              WHERE match_id = ?
+              WHERE id = ?
             `);
-            updateStmt.run(nextMatchId, prevMatchId);
+            updateStmt.run(nextTournamentMatchId, prevTournamentMatchId);
           }
         }
 
