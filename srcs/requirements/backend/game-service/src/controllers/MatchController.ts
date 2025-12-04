@@ -191,11 +191,23 @@ export class MatchController {
         | { tournament_id: number }
         | undefined;
 
+      console.log(
+        `finishMatch: Checking if match ${matchId} is part of a tournament. Result:`,
+        tournamentMatch
+      );
+
       // Se la partita fa parte di un torneo, aggiorna lo stato del torneo
       if (tournamentMatch) {
+        console.log(
+          `finishMatch: Match ${matchId} is part of tournament ${tournamentMatch.tournament_id}. Updating tournament progress.`
+        );
         TournamentModel.updateTournamentProgress(
           tournamentMatch.tournament_id,
           matchId
+        );
+      } else {
+        console.log(
+          `finishMatch: Match ${matchId} is not part of any tournament.`
         );
       }
 

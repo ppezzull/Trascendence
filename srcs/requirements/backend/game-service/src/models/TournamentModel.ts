@@ -568,7 +568,12 @@ export class TournamentModel {
         registrations[playerIndex]?.user_id !== null &&
         registrations[playerIndex]?.user_id !== undefined
       ) {
-        this.addPlayerToMatch(matchId, registrations[playerIndex].user_id!, 1);
+        this.addPlayerToMatch(
+          matchId,
+          registrations[playerIndex].user_id!,
+          1,
+          true
+        );
       }
       if (
         registrations[playerIndex + 1]?.user_id !== null &&
@@ -577,7 +582,8 @@ export class TournamentModel {
         this.addPlayerToMatch(
           matchId,
           registrations[playerIndex + 1].user_id!,
-          2
+          2,
+          true
         );
       }
 
@@ -642,7 +648,8 @@ export class TournamentModel {
             this.addPlayerToMatch(
               firstMatchSecondRound,
               registrations[numPlayers - 1].user_id!,
-              1
+              1,
+              true
             );
           }
         }
@@ -660,13 +667,20 @@ export class TournamentModel {
   private static addPlayerToMatch(
     matchId: number,
     userId: number,
-    position: number
+    position: number,
+    sendNotification: boolean = true
   ): void {
+    console.log(
+      `addPlayerToMatch: Called with matchId=${matchId}, userId=${userId}, position=${position}, sendNotification=${sendNotification}`
+    );
+
     const playerStmt = db.prepare(`
       INSERT INTO match_players (match_id, user_id, position)
       VALUES (?, ?, ?)
     `);
     playerStmt.run(matchId, userId, position);
+
+    console.log(`addPlayerToMatch: Player added to match successfully`);
 
     // Verifica se ora ci sono due giocatori nel match
     const playersCountStmt = db.prepare(`
@@ -679,8 +693,15 @@ export class TournamentModel {
       player_ids: string;
     };
 
-    // Se ci sono esattamente due giocatori, invia un messaggio di notifica
-    if (playersResult.count === 2) {
+    console.log(
+      `addPlayerToMatch: Players in match: count=${playersResult.count}, ids=${playersResult.player_ids}`
+    );
+
+    // Se ci sono esattamente due giocatori e sendNotification è true, invia un messaggio di notifica
+    if (playersResult.count === 2 && sendNotification) {
+      console.log(
+        `addPlayerToMatch: Sending notification for match with 2 players`
+      );
       const playerIds = playersResult.player_ids
         .split(",")
         .map((id) => parseInt(id));
@@ -699,6 +720,9 @@ export class TournamentModel {
       };
 
       if (tournamentInfo) {
+        console.log(
+          `addPlayerToMatch: Tournament info found: ${tournamentInfo.tournament_name}`
+        );
         // Invia il messaggio in modo asincrono senza bloccare il flusso principale
         sendTournamentMatchMessage(
           player1Id,
@@ -708,7 +732,56 @@ export class TournamentModel {
         ).catch((error) => {
           console.error("Errore nell'invio del messaggio di torneo:", error);
         });
+      } else {
+        console.log(
+          `addPlayerToMatch: No tournament info found for match ${matchId}`
+        );
       }
+    } else if (playersResult.count === 2 && !sendNotification) {
+      // Se ci sono due giocatori ma sendNotification è false, invia comunque una notifica
+      // perché potrebbe essere un vincitore che viene aggiunto a una partita successiva
+      console.log(
+        `addPlayerToMatch: Sending notification for tournament match with 2 players (sendNotification=false)`
+      );
+      const playerIds = playersResult.player_ids
+        .split(",")
+        .map((id) => parseInt(id));
+      const [player1Id, player2Id] = playerIds;
+
+      // Ottieni informazioni sul torneo e sul match
+      const tournamentMatchStmt = db.prepare(`
+        SELECT tm.tournament_id, t.name as tournament_name
+        FROM tournament_matches tm
+        JOIN tournaments t ON tm.tournament_id = t.id
+        WHERE tm.match_id = ?
+      `);
+      const tournamentInfo = tournamentMatchStmt.get(matchId) as {
+        tournament_id: number;
+        tournament_name: string;
+      };
+
+      if (tournamentInfo) {
+        console.log(
+          `addPlayerToMatch: Tournament info found: ${tournamentInfo.tournament_name}`
+        );
+        // Invia il messaggio in modo asincrono senza bloccare il flusso principale
+        sendTournamentMatchMessage(
+          player1Id,
+          player2Id,
+          tournamentInfo.tournament_name,
+          matchId
+        ).catch((error) => {
+          console.error("Errore nell'invio del messaggio di torneo:", error);
+        });
+      } else {
+        console.log(
+          `addPlayerToMatch: No tournament info found for match ${matchId}`
+        );
+      }
+    } else {
+      console.log(
+        `addPlayerToMatch: Not sending notification. Players count: ${playersResult.count}, sendNotification: ${sendNotification}`
+      );
     }
   }
 
@@ -814,8 +887,15 @@ export class TournamentModel {
    * Aggiorna lo stato del torneo dopo il completamento di un match
    */
   static updateTournamentProgress(tournamentId: number, matchId: number): void {
+    console.log(
+      `updateTournamentProgress: Called with tournamentId=${tournamentId}, matchId=${matchId}`
+    );
+
     const tournament = this.getById(tournamentId);
     if (!tournament || tournament.status !== "in_progress") {
+      console.log(
+        `updateTournamentProgress: Tournament not found or not in progress. Status: ${tournament?.status}`
+      );
       return;
     }
 
@@ -825,8 +905,13 @@ export class TournamentModel {
     `);
     const match = matchStmt.get(matchId) as any;
 
+    console.log(`updateTournamentProgress: Match details:`, match);
+
     // Modifica: controlla se lo stato è 'finished' invece di 'completed'
     if (!match || match.status !== "finished" || !match.winner_id) {
+      console.log(
+        `updateTournamentProgress: Match not finished or no winner. Status: ${match?.status}, Winner: ${match?.winner_id}`
+      );
       return;
     }
 
@@ -836,7 +921,15 @@ export class TournamentModel {
     `);
     const tournamentMatch = tournamentMatchStmt.get(matchId) as any;
 
+    console.log(
+      `updateTournamentProgress: Tournament match details:`,
+      tournamentMatch
+    );
+
     if (!tournamentMatch || !tournamentMatch.next_match_id) {
+      console.log(
+        `updateTournamentProgress: No tournament match or no next match. Next match ID: ${tournamentMatch?.next_match_id}`
+      );
       return;
     }
 
@@ -848,7 +941,15 @@ export class TournamentModel {
       tournamentMatch.next_match_id
     ) as any;
 
+    console.log(
+      `updateTournamentProgress: Next tournament match details:`,
+      nextTournamentMatch
+    );
+
     if (!nextTournamentMatch) {
+      console.log(
+        `updateTournamentProgress: Next tournament match not found with ID ${tournamentMatch.next_match_id}`
+      );
       return;
     }
 
@@ -861,13 +962,26 @@ export class TournamentModel {
       count: number;
     };
 
+    console.log(
+      `updateTournamentProgress: Players count in next match: ${playersCount.count}`
+    );
+
     const position = playersCount.count + 1;
+
+    console.log(
+      `updateTournamentProgress: Adding winner ${match.winner_id} to next match ${nextTournamentMatch.match_id} at position ${position}`
+    );
 
     // Aggiungi il vincitore al match successivo
     this.addPlayerToMatch(
       nextTournamentMatch.match_id,
       match.winner_id,
-      position
+      position,
+      true // Non inviare notifica quando si aggiunge un vincitore a un match esistente
+    );
+
+    console.log(
+      `updateTournamentProgress: Winner added to next match successfully`
     );
 
     // Verifica se tutti i match sono completati
