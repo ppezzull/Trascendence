@@ -11,7 +11,6 @@ import { createAuthGuard } from "./components/AuthGuard";
 import { PongCanvas } from "./components/PongCanvas";
 import { ChatBox } from "./components/ChatBox";
 import { BreakoutCanvas } from "./components/BreakoutCanvas";
-import { GameSettingsComponent } from "./components/GameSettings";
 import {
   GameModeSelector,
   GameMode,
@@ -131,7 +130,6 @@ export class App {
     this.router.addRoute("/chat", () => this.renderChatPage());
     this.router.addRoute("/friends", () => this.renderFriendsPage());
     this.router.addRoute("/profile", () => this.renderProfilePage());
-    this.router.addRoute("/settings", () => this.renderSettingsPage());
 
     // Handle 404
     this.router.setNotFoundCallback(() => this.renderNotFoundPage());
@@ -273,19 +271,19 @@ export class App {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">PONG 3D</h2>
-            <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D e stile cyberpunk</p>
+            <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D</p>
             <a href="/pong" class="cyber-button inline-block">Gioca Ora</a>
           </div>
           
           <div class="cyber-card text-center">
-            <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT CYBER</h2>
-            <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica con effetti speciali</p>
+            <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT</h2>
+            <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica</p>
             <a href="/breakout" class="cyber-button inline-block">Gioca Ora</a>
           </div>
           
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI CYBER</h2>
-            <p class="terminal-text mb-4">Partecipa a tornei epici e diventa il campione della piattaforma</p>
+            <p class="terminal-text mb-4">Partecipa a tornei epici e diventa il campione</p>
             <a href="/tournaments" class="cyber-button inline-block">Scopri Tornei</a>
           </div>
         </div>
@@ -776,12 +774,19 @@ export class App {
       player2Name?: string;
     }
   ) {
+    // Check if a game canvas already exists and dispose it
+    if (this.currentPongCanvas) {
+      this.currentPongCanvas.dispose();
+      this.currentPongCanvas = null;
+    }
+
     // Get player names for PvP
     let player1Name = options?.player1Name || "PLAYER 1";
     let player2Name =
       options?.player2Name ||
       (mode === "pvp" ? "PLAYER 2" : `BOT (${difficulty?.toUpperCase()})`);
 
+    console.log("IN RENDER PONG GAME STATE");
     if (mode === "pvp" && this.currentMatchId) {
       try {
         const authState = authService.getState();
@@ -1628,6 +1633,7 @@ export class App {
               );
               if (gameContainer) {
                 this.currentMatchHost = String(hostId);
+                console.log("INIZIO PARTITA PVP");
                 this.renderPongGameState(
                   gameContainer,
                   "pvp",
@@ -1873,73 +1879,28 @@ export class App {
   }
 
   private async exitPongGame() {
-    // Pause the game while showing confirmation
+    // Finish match only for PvP games
+    if (this.currentMatchId && this.currentPongMode === "pvp") {
+      try {
+        await this.apiService.finishMatch(this.currentMatchId, {
+          status: "abandoned",
+        });
+      } catch (error) {
+        console.error("Error finishing match:", error);
+      }
+    }
+
+    // Dispose of the canvas
     if (this.currentPongCanvas) {
-      this.currentPongCanvas.pauseGame();
+      this.currentPongCanvas.dispose();
+      this.currentPongCanvas = null;
     }
 
-    // Show confirmation dialog
-    const gameContainer = document.getElementById("pong-game-container");
-    if (!gameContainer) return;
+    // Clear the match ID
+    this.currentMatchId = null;
 
-    gameContainer.innerHTML = `
-      <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-        <div class="cyber-card max-w-md mx-auto p-6">
-          <h2 class="text-xl font-bold text-cyber-green mb-4">CONFERMA USCITA</h2>
-          <p class="text-center mb-6">Sei sicuro di voler uscire dalla partita?</p>
-          <div class="flex justify-center space-x-4">
-            <button id="confirm-exit" class="cyber-button">Esci</button>
-            <button id="cancel-exit" class="cyber-button-secondary">Annulla</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Setup event listeners
-    const confirmButton = document.getElementById("confirm-exit");
-    if (confirmButton) {
-      confirmButton.addEventListener("click", async () => {
-        // Finish the match only for PvP games
-        if (this.currentMatchId && this.currentPongMode === "pvp") {
-          try {
-            await this.apiService.finishMatch(this.currentMatchId, {
-              status: "abandoned",
-            });
-          } catch (error) {
-            console.error("Error finishing match:", error);
-          }
-        }
-
-        // Dispose of the canvas
-        if (this.currentPongCanvas) {
-          this.currentPongCanvas.dispose();
-          this.currentPongCanvas = null;
-        }
-
-        // Clear the match ID
-        this.currentMatchId = null;
-
-        // Go back to selection
-        this.initializePongGameWithStates();
-      });
-    }
-
-    const cancelButton = document.getElementById("cancel-exit");
-    if (cancelButton) {
-      cancelButton.addEventListener("click", () => {
-        // Resume the game and go back to game state
-        if (this.currentPongCanvas) {
-          this.currentPongCanvas.resumeGame();
-        }
-        this.renderPongGameState(
-          gameContainer,
-          this.currentPongMode || "",
-          this.currentPongPlayer1Id || 1,
-          this.currentPongPlayer2Id || 2,
-          this.currentPongDifficulty || undefined
-        );
-      });
-    }
+    // Go back to selection
+    this.initializePongGameWithStates();
   }
 
   // Properties to track current game state
@@ -1963,7 +1924,7 @@ export class App {
 
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
-        <h1 class="cyber-title text-center">BREAKOUT CYBER</h1>
+        <h1 class="cyber-title text-center">BREAKOUT</h1>
         
         <!-- Game State Container -->
         <div id="breakout-game-container" class="flex flex-col items-center">
@@ -2407,13 +2368,13 @@ export class App {
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T4</h2>
             <p class="terminal-text mb-4">Torneo a eliminazione diretta con 4 partecipanti</p>
-            <button id="create-t4-tournament" class="cyber-button inline-block">Crea Torneo T4</button>
+            <button id="create-t4-tournament" class="cyber-button inline-block" onclick="app.showCreateTournamentDialog(4)">Crea Torneo T4</button>
           </div>
           
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T8</h2>
             <p class="terminal-text mb-4">Torneo a eliminazione diretta con 8 partecipanti</p>
-            <button id="create-t8-tournament" class="cyber-button inline-block">Crea Torneo T8</button>
+            <button id="create-t8-tournament" class="cyber-button inline-block" onclick="app.showCreateTournamentDialog(8)">Crea Torneo T8</button>
           </div>
         </div>
 
@@ -3144,7 +3105,7 @@ export class App {
     }
   }
 
-  private async loadProfileData() {
+  private async loadOwnProfileData() {
     try {
       const authState = authService.getState();
 
@@ -3358,20 +3319,20 @@ export class App {
     }
   }
 
-  private async renderSettingsPage() {
-    const contentElement = document.getElementById("content");
-    if (!contentElement) return;
+  // private async renderSettingsPage() {
+  //   const contentElement = document.getElementById("content");
+  //   if (!contentElement) return;
 
-    contentElement.innerHTML = `
-      <div id="settings-container" class="max-w-4xl mx-auto">
-        <!-- GameSettings component will be rendered here -->
-      </div>
-    `;
+  //   contentElement.innerHTML = `
+  //     <div id="settings-container" class="max-w-4xl mx-auto">
+  //       <!-- GameSettings component will be rendered here -->
+  //     </div>
+  //   `;
 
-    // Create and initialize GameSettings component
-    const gameSettings = new GameSettingsComponent();
-    gameSettings.render(document.getElementById("settings-container")!);
-  }
+  //   // Create and initialize GameSettings component
+  //   const gameSettings = new GameSettingsComponent();
+  //   gameSettings.render(document.getElementById("settings-container")!);
+  // }
 
   private renderNotFoundPage() {
     const contentElement = document.getElementById("content");
@@ -3677,66 +3638,11 @@ export class App {
         this.startBreakoutGame("pvp");
       });
     }
-
-    const settingsButton = document.getElementById("breakout-settings");
-    if (settingsButton) {
-      settingsButton.addEventListener("click", () => {
-        this.router.navigate("/settings");
-      });
-    }
   }
 
   private initializeTournamentsPage() {
-    // Add event listeners for tournament creation
-    const createT4Button = document.getElementById("create-t4-tournament");
-    if (createT4Button) {
-      createT4Button.addEventListener("click", () => {
-        this.createTournament(4);
-      });
-    }
-
-    const createT8Button = document.getElementById("create-t8-tournament");
-    if (createT8Button) {
-      createT8Button.addEventListener("click", () => {
-        this.createTournament(8);
-      });
-    }
-
     // Load tournaments
     this.loadTournaments();
-  }
-
-  private async createTournament(maxParticipants: number) {
-    try {
-      const tournamentType = maxParticipants === 4 ? "T4" : "T8";
-      const tournamentData = {
-        name: `Torneo ${tournamentType} - ${new Date().toLocaleDateString()}`,
-        gameType: "pong", // Default to pong, could be extended
-        max_players: maxParticipants,
-        min_players: maxParticipants - 1,
-
-        game_id: 1,
-        type: tournamentType.toLowerCase(),
-      };
-
-      const response = await this.apiService.createTournament(tournamentData);
-
-      if (response) {
-        this.showNotification(
-          `Torneo ${tournamentType} creato con successo!`,
-          "success"
-        );
-        this.loadTournaments(); // Reload tournaments list
-      } else {
-        this.showNotification(
-          response.message || "Errore nella creazione del torneo",
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Create tournament error:", error);
-      this.showNotification("Errore durante la creazione del torneo", "error");
-    }
   }
 
   private async loadTournaments() {
@@ -3758,6 +3664,10 @@ export class App {
         );
 
         // Load registrations for tournaments in registration status to check if they're full
+        // and to check if current user is already registered
+        const authState = authService.getState();
+        const currentUserId = authState.user?.id;
+        
         for (const tournament of activeTournaments) {
           if (tournament.status === "registration") {
             try {
@@ -3769,6 +3679,13 @@ export class App {
                 tournament.registrationsCount = regResponse.length;
                 tournament.maxPlayers =
                   tournament.max_players || tournament.maxParticipants;
+                
+                // Check if current user is already registered
+                if (currentUserId) {
+                  tournament.isUserRegistered = regResponse.some(
+                    (reg: any) => reg.user_id === currentUserId
+                  );
+                }
               }
             } catch (error) {
               console.error(
@@ -3804,7 +3721,8 @@ export class App {
       container.innerHTML = `
         <div class="text-center text-gray-400 py-4">
           <p>Nessun torneo ${
-            containerId === "active-tournaments" ? "attivo" : "passato"
+            // se non è attivo o passato è partito
+            containerId === "active-tournaments" ? "attivo" : containerId === "past-tournaments" ? "passato" : "partito"
           } disponibile</p>
         </div>
       `;
@@ -3849,7 +3767,9 @@ export class App {
           <div class="flex space-x-2">
             ${
               tournament.status === "registration" && !isFull
-                ? `<button class="cyber-button-sm" onclick="app.joinTournament('${tournament.id}')">Iscriviti</button>`
+                ? tournament.isUserRegistered
+                  ? `<button class="cyber-button-sm bg-cyber-green/20 text-cyber-green cursor-not-allowed" disabled>Iscritto</button>`
+                  : `<button class="cyber-button-sm" onclick="app.showTournamentRegistrationDialog('${tournament.id}')">Iscriviti</button>`
                 : tournament.status === "registration" && isFull
                 ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
                 : tournament.status === "in_progress"
@@ -3901,13 +3821,39 @@ export class App {
 
   async joinTournament(tournamentId: string) {
     try {
-      // Get current username from auth state
+      // Get current user from auth state
       const authState = authService.getState();
-      const username = authState.user?.username || undefined;
+      
+      // Ask user for alias
+      const alias = prompt("Inserisci l'alias con cui vuoi partecipare al torneo:", authState.user?.username || "");
+      
+      // Check if user provided an alias
+      if (!alias || alias.trim() === "") {
+        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
+        return;
+      }
+
+      // Check if alias is already in use for this tournament
+      try {
+        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        if (registrations && Array.isArray(registrations)) {
+          const aliasExists = registrations.some((reg: any) => 
+            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          );
+          
+          if (aliasExists) {
+            this.showNotification("Alias già in uso per questo torneo", "info");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking alias availability:", error);
+        // Continue with registration attempt if we can't check aliases
+      }
 
       const response = await this.apiService.registerForTournament(
         tournamentId,
-        JSON.stringify({ alias: username, user_id: authState.user?.id })
+        JSON.stringify({ alias: alias.trim(), user_id: authState.user?.id })
       );
 
       if (response) {
@@ -5533,486 +5479,6 @@ export class App {
     }
   }
 
-  private async loadOwnProfileData() {
-    try {
-      const authState = authService.getState();
-
-      if (!authState.isAuthenticated || !authState.user) {
-        this.router.navigate("/login");
-        return;
-      }
-
-      // Show loading
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
-
-      if (loadingElement) loadingElement.classList.remove("hidden");
-      if (contentElement) contentElement.classList.add("hidden");
-
-      // Get user stats from API
-      const userStatsResponse = await this.apiService.getUserStats(
-        authState.user.id
-      );
-
-      // Get user match history from API
-      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
-        authState.user.id
-      );
-
-      if (userStatsResponse) {
-        // Update profile with real data
-        this.updateProfileDisplay(authState.user, userStatsResponse);
-      } else {
-        // Show error and use basic user info
-        this.updateProfileDisplay(authState.user, null);
-        this.showNotification("Impossibile caricare le statistiche", "error");
-      }
-
-      // Update match history
-      if (matchHistoryResponse) {
-        this.updateMatchHistoryDisplay(matchHistoryResponse);
-      } else {
-        this.showNotification(
-          "Impossibile caricare la cronologia dei match",
-          "error"
-        );
-      }
-
-      // Hide loading, show content
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
-    } catch (error) {
-      console.error("Error loading profile data:", error);
-
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
-
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
-
-      this.showNotification("Errore nel caricamento del profilo", "error");
-    }
-  }
-
-  private renderFriendsPage() {
-    const contentElement = document.getElementById("content");
-    if (!contentElement) return;
-
-    contentElement.innerHTML = `
-      <div class="cyber-panel w-full h-full mx-auto">
-        <h1 class="cyber-title text-center text-4xl mb-8">AMICI</h1>
-        
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Search Users -->
-          <div class="cyber-card">
-            <h2 class="text-xl font-bold text-cyber-green mb-4">Cerca Utenti</h2>
-            <div class="space-y-4">
-              <div class="flex space-x-2">
-                <input type="text" id="user-search" placeholder="Cerca per username..." class="cyber-input flex-1">
-                <button id="search-btn" class="cyber-button">Cerca</button>
-              </div>
-              <div id="search-results" class="space-y-2 max-h-60 overflow-y-auto">
-                <!-- Search results will appear here -->
-              </div>
-            </div>
-          </div>
-          
-          <!-- Friend Requests -->
-          <div class="cyber-card">
-            <h2 class="text-xl font-bold text-cyber-green mb-4">Richieste di Amicizia</h2>
-            <div id="friend-requests" class="space-y-2 max-h-60 overflow-y-auto">
-              <!-- Friend requests will appear here -->
-            </div>
-          </div>
-          
-          <!-- Friends List -->
-          <div class="cyber-card">
-            <h2 class="text-xl font-bold text-cyber-green mb-4">I Tuoi Amici</h2>
-            <div id="friends-list" class="space-y-2 max-h-60 overflow-y-auto">
-              <!-- Friends list will appear here -->
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Setup event listeners
-    this.setupFriendsPageEventListeners();
-
-    // Load initial data
-    this.loadFriendsData();
-
-    // Initialize WebSocket for presence updates
-    this.initializeFriendsPresence();
-  }
-
-  private initializeFriendsPresence() {
-    // Import ChatWebSocketService dynamically to avoid circular dependencies
-    import("./services/ChatWebSocketService")
-      .then(({ chatWebSocketService }) => {
-        // Subscribe to presence updates
-        chatWebSocketService.onPresence((userId: number, status: string) => {
-          this.updateFriendPresenceStatus(userId, status);
-        });
-
-        // Connect to WebSocket if not already connected
-        if (!chatWebSocketService.isConnected()) {
-          const authState = authService.getState();
-          if (authState.isAuthenticated && authState.token) {
-            chatWebSocketService.connect(authState.token);
-          }
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load ChatWebSocketService:", error);
-      });
-  }
-
-  private updateFriendPresenceStatus(userId: number, status: string) {
-    // Find all friend elements with this user ID
-    const friendElements = document.querySelectorAll(
-      `[data-friend-id="${userId}"]`
-    );
-
-    friendElements.forEach((element) => {
-      const statusElement = element.querySelector(".friend-status");
-      if (statusElement) {
-        // Remove existing status classes
-        statusElement.classList.remove(
-          "text-cyber-green",
-          "text-cyber-gray",
-          "text-cyber-yellow"
-        );
-
-        // Add appropriate status class and text
-        switch (status) {
-          case "online":
-            statusElement.classList.add("text-cyber-green");
-            statusElement.textContent = "Online";
-            break;
-          case "away":
-            statusElement.classList.add("text-cyber-yellow");
-            statusElement.textContent = "Away";
-            break;
-          case "offline":
-          default:
-            statusElement.classList.add("text-cyber-gray");
-            statusElement.textContent = "Offline";
-            break;
-        }
-      }
-    });
-  }
-
-  private setupFriendsPageEventListeners() {
-    const searchBtn = document.getElementById("search-btn");
-    const userSearch = document.getElementById(
-      "user-search"
-    ) as HTMLInputElement;
-
-    if (searchBtn && userSearch) {
-      searchBtn.addEventListener("click", () => {
-        this.searchUsers(userSearch.value);
-      });
-
-      userSearch.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {
-          this.searchUsers(userSearch.value);
-        }
-      });
-    }
-  }
-
-  private async loadFriendsData() {
-    await this.loadFriends();
-    await this.loadPendingFriendRequests();
-  }
-
-  private async searchUsers(query: string) {
-    if (!query.trim()) {
-      document.getElementById(
-        "search-results"
-      )!.innerHTML = `<p class="text-cyber-gray text-sm">Inserisci un termine di ricerca</p>`;
-      return;
-    }
-
-    try {
-      const response = await this.apiService.searchUsers(query);
-      const searchResultsElement = document.getElementById("search-results");
-
-      console.log("ensommafra che dici", response);
-
-      if (!searchResultsElement) return;
-
-      if (response && response.success && response.data) {
-        const users = Array.isArray(response.data?.users)
-          ? response.data?.users
-          : [];
-
-        console.log("ensommafra che dici", users);
-
-        if (users.length === 0) {
-          searchResultsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessun utente trovato</p>`;
-          return;
-        }
-
-        searchResultsElement.innerHTML = users
-          .map(
-            (user: any) => `
-            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded">
-              <div class="flex items-center space-x-2">
-                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
-                  ${
-                    user.avatar_url
-                      ? `<img src="${user.avatar_url}" alt="${user.display_name}" class="w-8 h-8 rounded-full">`
-                      : `<span class="text-cyber-green text-xs">${user.display_name
-                          ?.charAt(0)
-                          .toUpperCase()}</span>`
-                  }
-                </div>
-                <span class="text-cyber-white">${
-                  user.display_name || user.username
-                }</span>
-              </div>
-              <button class="cyber-button text-xs" onclick="app.sendFriendRequest(${
-                user.id
-              })">
-                Aggiungi
-              </button>
-            </div>
-          `
-          )
-          .join("");
-      } else {
-        searchResultsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
-      }
-    } catch (error) {
-      console.error("Search users error:", error);
-      document.getElementById(
-        "search-results"
-      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
-    }
-  }
-
-  private async loadFriends() {
-    try {
-      const response = await this.apiService.getFriends();
-      const friendsListElement = document.getElementById("friends-list");
-
-      if (!friendsListElement) return;
-
-      if (
-        response.success &&
-        response.data &&
-        Array.isArray(response.data.friends)
-      ) {
-        const friends = response.data.friends;
-
-        if (friends.length === 0) {
-          friendsListElement.innerHTML = `<p class="text-cyber-gray text-sm">Non hai ancora amici</p>`;
-          return;
-        }
-
-        // Import ChatWebSocketService to get presence info
-        const { chatWebSocketService } = await import(
-          "./services/ChatWebSocketService"
-        );
-
-        friendsListElement.innerHTML = friends
-          .map((friend: any) => {
-            // Get presence status from WebSocket service
-            const presenceStatus = this.getFriendPresenceStatus(
-              friend.id,
-              chatWebSocketService
-            );
-
-            return `
-            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded" data-friend-id="${
-              friend.id
-            }">
-              <div class="flex items-center space-x-2">
-                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
-                  ${
-                    friend.avatar_url
-                      ? `<img src="${friend.avatar_url}" alt="${friend.display_name}" class="w-8 h-8 rounded-full">`
-                      : `<span class="text-cyber-green text-xs">${friend.display_name
-                          ?.charAt(0)
-                          .toUpperCase()}</span>`
-                  }
-                </div>
-                <div class="flex flex-col">
-                  <span class="text-cyber-white">${
-                    friend.display_name || friend.username
-                  }</span>
-                  <span class="friend-status text-xs ${presenceStatus.class}">${
-              presenceStatus.text
-            }</span>
-                </div>
-              </div>
-              <button class="cyber-button-secondary text-xs" onclick="app.removeFriend(${
-                friend.id
-              })">
-                Rimuovi
-              </button>
-            </div>
-          `;
-          })
-          .join("");
-      } else {
-        friendsListElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
-      }
-    } catch (error) {
-      console.error("Load friends error:", error);
-      document.getElementById(
-        "friends-list"
-      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
-    }
-  }
-
-  private getFriendPresenceStatus(
-    friendId: number,
-    chatWebSocketService: any
-  ): { class: string; text: string } {
-    // This is a simplified approach - in a real implementation, you would
-    // maintain a presence map in the WebSocket service or query the API
-
-    // For now, we'll use a default status and update it via WebSocket events
-    return {
-      class: "text-cyber-gray",
-      text: "Offline",
-    };
-  }
-
-  private async loadPendingFriendRequests() {
-    try {
-      const response = await this.apiService.getPendingFriendRequests();
-      const friendRequestsElement = document.getElementById("friend-requests");
-
-      if (!friendRequestsElement) return;
-
-      console.log("ensommafra che dici pending friend requests", response);
-
-      if (response.success && response.data && Array.isArray(response.data)) {
-        const requests = response.data;
-
-        if (requests.length === 0) {
-          friendRequestsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessuna richiesta in sospeso</p>`;
-          return;
-        }
-
-        friendRequestsElement.innerHTML = requests
-          .map(
-            (request) => `
-          <div class="p-2 border border-cyber-green/30 rounded">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-cyber-white">${
-                request.display_name || request.username
-              }</span>
-              <span class="text-cyber-gray text-xs">${new Date(
-                request.created_at
-              ).toLocaleDateString()}</span>
-            </div>
-            <div class="flex space-x-2">
-              <button class="cyber-button text-xs" onclick="app.respondToFriendRequest(${
-                request.id
-              }, 'accept')">
-                Accetta
-              </button>
-              <button class="cyber-button-secondary text-xs" onclick="app.respondToFriendRequest(${
-                request.id
-              }, 'reject')">
-                Rifiuta
-              </button>
-            </div>
-          </div>
-        `
-          )
-          .join("");
-      } else {
-        friendRequestsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
-      }
-    } catch (error) {
-      console.error("Load friend requests error:", error);
-      document.getElementById(
-        "friend-requests"
-      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
-    }
-  }
-
-  async sendFriendRequest(userId: number) {
-    try {
-      const response = await this.apiService.sendFriendRequest(userId);
-
-      if (response.success) {
-        this.showNotification(
-          "Richiesta di amicizia inviata con successo",
-          "success"
-        );
-        // Clear search results
-        document.getElementById("search-results")!.innerHTML = "";
-        (document.getElementById("user-search") as HTMLInputElement).value = "";
-      } else {
-        this.showNotification(
-          response.message || "Errore nell'invio della richiesta",
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Send friend request error:", error);
-      this.showNotification("Errore nell'invio della richiesta", "error");
-    }
-  }
-
-  async respondToFriendRequest(requestId: number, action: "accept" | "reject") {
-    try {
-      const response = await this.apiService.respondToFriendRequest(
-        requestId,
-        action
-      );
-
-      if (response.success) {
-        this.showNotification(
-          `Richiesta di amicizia ${
-            action === "accept" ? "accettata" : "rifiutata"
-          } con successo`,
-          "success"
-        );
-        // Reload friends and requests
-        this.loadFriendsData();
-      } else {
-        this.showNotification(
-          response.message || "Errore nella risposta",
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Respond to friend request error:", error);
-      this.showNotification("Errore nella risposta", "error");
-    }
-  }
-
-  async removeFriend(userId: number) {
-    if (!confirm("Sei sicuro di voler rimuovere questo amico?")) return;
-
-    try {
-      const response = await this.apiService.removeFriend(userId.toString());
-
-      if (response.success) {
-        this.showNotification("Amico rimosso con successo", "success");
-        // Reload friends list
-        this.loadFriends();
-      } else {
-        this.showNotification(
-          response.message || "Errore nella rimozione",
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Remove friend error:", error);
-      this.showNotification("Errore nella rimozione", "error");
-    }
-  }
-
   private setupProfileEditHandlers() {
     const editProfileBtn = document.getElementById("edit-profile-btn");
     const saveProfileBtn = document.getElementById("save-profile-btn");
@@ -6130,13 +5596,13 @@ export class App {
           profileInfo.classList.remove("hidden");
           profileEditForm.classList.add("hidden");
           editProfileBtn.classList.remove("hidden");
-        } else {
+      } else {
           // Show error message
-          this.showNotification(
+        this.showNotification(
             response.message || "Errore durante l'aggiornamento del profilo",
-            "error"
-          );
-        }
+          "error"
+        );
+      }
       } catch (error) {
         console.error("Error updating profile:", error);
         this.showNotification(
@@ -6157,5 +5623,630 @@ export class App {
       profileEditForm.classList.add("hidden");
       editProfileBtn.classList.remove("hidden");
     });
+  }
+
+  private closeTournamentRegistrationModal() {
+    const modal = document.getElementById("tournament-registration-modal");
+    if (modal) {
+      modal.remove();
+    }
+  }
+
+  cancelTournamentRegistration() {
+    this.closeTournamentRegistrationModal();
+    this.showNotification("Registrazione annullata", "info");
+  }
+
+  async joinTournamentWithAlias(tournamentId: string, alias: string) {
+    try {
+      // Get current user from auth state
+      const authState = authService.getState();
+      
+      // Check if alias is provided
+      if (!alias || alias.trim() === "") {
+        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
+        return;
+      }
+
+      // Check if alias is already in use for this tournament
+      try {
+        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        if (registrations && Array.isArray(registrations)) {
+          const aliasExists = registrations.some((reg: any) => 
+            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          );
+          
+          if (aliasExists) {
+            this.showNotification("Alias già in uso per questo torneo", "info");
+            return;
+          }
+        }
+    } catch (error) {
+        console.error("Error checking alias availability:", error);
+        // Continue with registration attempt if we can't check aliases
+      }
+
+      const response = await this.apiService.registerForTournament(
+        tournamentId,
+        JSON.stringify({ alias: alias.trim(), user_id: authState.user?.id })
+      );
+
+      if (response) {
+        this.closeTournamentRegistrationModal();
+        this.showNotification(
+          "Registrato con successo",
+          "success"
+        );
+        this.loadTournaments(); // Reload tournaments list
+      } else {
+        this.showNotification(
+          (response as any).message || "Errore nell'iscrizione al torneo",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Join tournament error:", error);
+      
+      // Check if the error is because user is already registered
+      if (error instanceof Error && error.message === "User already registered") {
+        this.showNotification("Sei già registrato a questo torneo", "error");
+      } else {
+        this.showNotification("Errore durante l'iscrizione al torneo", "error");
+      }
+    }
+  }
+
+  showCreateTournamentDialog(maxParticipants: number) {
+    // Create modal HTML
+    const modalHTML = `
+      <div id="create-tournament-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="cyber-panel max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="cyber-title text-2xl">Crea Torneo T${maxParticipants}</h2>
+            <button onclick="app.closeCreateTournamentModal()" class="cyber-button-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <form id="create-tournament-form">
+            <div class="mb-4">
+              <label for="tournament-name" class="block text-cyber-green mb-2">Nome del torneo</label>
+              <input type="text" id="tournament-name" name="name" class="cyber-input w-full" required maxlength="50" value="Torneo T${maxParticipants} - ${new Date().toLocaleDateString()}">
+              <p class="text-xs text-gray-400 mt-1">Inserisci un nome per il torneo</p>
+            </div>
+            <div class="flex space-x-2">
+              <button type="submit" class="cyber-button flex-1">Crea</button>
+              <button type="button" onclick="app.cancelCreateTournament()" class="cyber-button bg-cyber-magenta flex-1">Annulla</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Add form submission handler
+    const form = document.getElementById("create-tournament-form") as HTMLFormElement;
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const name = formData.get("name") as string;
+        this.createTournamentWithName(maxParticipants, name);
+      });
+    }
+  }
+
+  private closeCreateTournamentModal() {
+    const modal = document.getElementById("create-tournament-modal");
+    if (modal) {
+      modal.remove();
+    }
+  }
+
+  cancelCreateTournament() {
+    this.closeCreateTournamentModal();
+    this.showNotification("Creazione torneo annullata", "info");
+  }
+
+  private async createTournamentWithName(maxParticipants: number, name: string) {
+    try {
+      // Check if name is provided
+      if (!name || name.trim() === "") {
+        this.showNotification("Devi inserire un nome per il torneo", "error");
+        return;
+      }
+
+      const tournamentType = maxParticipants === 4 ? "T4" : "T8";
+      const tournamentData = {
+        name: name.trim(),
+        gameType: "pong", // Default to pong, could be extended
+        max_players: maxParticipants,
+        min_players: maxParticipants - 1,
+        game_id: 1,
+        type: tournamentType.toLowerCase(),
+      };
+
+      const response = await this.apiService.createTournament(tournamentData);
+
+      if (response) {
+        this.closeCreateTournamentModal();
+        this.showNotification(
+          `Torneo ${tournamentType} creato con successo!`,
+          "success"
+        );
+        this.loadTournaments(); // Reload tournaments list
+      } else {
+        this.showNotification(
+          response.message || "Errore nella creazione del torneo",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Create tournament error:", error);
+      this.showNotification("Errore durante la creazione del torneo", "error");
+    }
+  }
+
+  private renderFriendsPage() {
+    const contentElement = document.getElementById("content");
+    if (!contentElement) return;
+
+    contentElement.innerHTML = `
+      <div class="cyber-panel w-full h-full mx-auto">
+        <h1 class="cyber-title text-center text-4xl mb-8">AMICI</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Search Users -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">Cerca Utenti</h2>
+            <div class="space-y-4">
+              <div class="flex space-x-2">
+                <input type="text" id="user-search" placeholder="Cerca per username..." class="cyber-input flex-1">
+                <button id="search-btn" class="cyber-button">Cerca</button>
+              </div>
+              <div id="search-results" class="space-y-2 max-h-60 overflow-y-auto">
+                <!-- Search results will appear here -->
+              </div>
+            </div>
+          </div>
+          
+          <!-- Friend Requests -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">Richieste di Amicizia</h2>
+            <div id="friend-requests" class="space-y-2 max-h-60 overflow-y-auto">
+              <!-- Friend requests will appear here -->
+            </div>
+          </div>
+          
+          <!-- Friends List -->
+          <div class="cyber-card">
+            <h2 class="text-xl font-bold text-cyber-green mb-4">I Tuoi Amici</h2>
+            <div id="friends-list" class="space-y-2 max-h-60 overflow-y-auto">
+              <!-- Friends list will appear here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Setup event listeners
+    this.setupFriendsPageEventListeners();
+
+    // Load initial data
+    this.loadFriendsData();
+
+    // Initialize WebSocket for presence updates
+    this.initializeFriendsPresence();
+  }
+
+  showTournamentRegistrationDialog(tournamentId: string) {
+    // Create modal HTML
+    const modalHTML = `
+      <div id="tournament-registration-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="cyber-panel max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="cyber-title text-2xl">Registrati al Torneo</h2>
+            <button onclick="app.closeTournamentRegistrationModal()" class="cyber-button-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <form id="tournament-registration-form">
+            <div class="mb-4">
+              <label for="tournament-alias" class="block text-cyber-green mb-2">Alias</label>
+              <input type="text" id="tournament-alias" name="alias" class="cyber-input w-full" required maxlength="50" placeholder="Inserisci un alias">
+              <p class="text-xs text-gray-400 mt-1">Inserisci un alias unico per questo torneo</p>
+            </div>
+            <div class="flex space-x-2">
+              <button type="submit" class="cyber-button flex-1">Registrati</button>
+              <button type="button" onclick="app.cancelTournamentRegistration()" class="cyber-button bg-cyber-magenta flex-1">Annulla</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Add form submission handler
+    const form = document.getElementById("tournament-registration-form") as HTMLFormElement;
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const alias = formData.get("alias") as string;
+        this.joinTournamentWithAlias(tournamentId, alias);
+      });
+    }
+  }
+
+  private async loadFriendsData() {
+    await this.loadFriends();
+    await this.loadPendingFriendRequests();
+  }
+
+  private setupFriendsPageEventListeners() {
+    const searchBtn = document.getElementById("search-btn");
+    const userSearch = document.getElementById(
+      "user-search"
+    ) as HTMLInputElement;
+
+    if (searchBtn && userSearch) {
+      searchBtn.addEventListener("click", () => {
+        this.searchUsers(userSearch.value);
+      });
+
+      userSearch.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          this.searchUsers(userSearch.value);
+        }
+      });
+    }
+  }
+
+  private initializeFriendsPresence() {
+    // Import ChatWebSocketService dynamically to avoid circular dependencies
+    import("./services/ChatWebSocketService")
+      .then(({ chatWebSocketService }) => {
+        // Subscribe to presence updates
+        chatWebSocketService.onPresence((userId: number, status: string) => {
+          this.updateFriendPresenceStatus(userId, status);
+        });
+
+        // Connect to WebSocket if not already connected
+        if (!chatWebSocketService.isConnected()) {
+          const authState = authService.getState();
+          if (authState.isAuthenticated && authState.token) {
+            chatWebSocketService.connect(authState.token);
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load ChatWebSocketService:", error);
+      });
+  }
+
+  private updateFriendPresenceStatus(userId: number, status: string) {
+    // Find all friend elements with this user ID
+    const friendElements = document.querySelectorAll(
+      `[data-friend-id="${userId}"]`
+    );
+
+    friendElements.forEach((element) => {
+      const statusElement = element.querySelector(".friend-status");
+      if (statusElement) {
+        // Remove existing status classes
+        statusElement.classList.remove(
+          "text-cyber-green",
+          "text-cyber-gray",
+          "text-cyber-yellow"
+        );
+
+        // Add appropriate status class and text
+        switch (status) {
+          case "online":
+            statusElement.classList.add("text-cyber-green");
+            statusElement.textContent = "Online";
+            break;
+          case "away":
+            statusElement.classList.add("text-cyber-yellow");
+            statusElement.textContent = "Away";
+            break;
+          case "offline":
+          default:
+            statusElement.classList.add("text-cyber-gray");
+            statusElement.textContent = "Offline";
+            break;
+        }
+      }
+    });
+  }
+
+  private async loadFriends() {
+    try {
+      const response = await this.apiService.getFriends();
+      const friendsListElement = document.getElementById("friends-list");
+
+      if (!friendsListElement) return;
+
+      if (
+        response.success &&
+        response.data &&
+        Array.isArray(response.data.friends)
+      ) {
+        const friends = response.data.friends;
+
+        if (friends.length === 0) {
+          friendsListElement.innerHTML = `<p class="text-cyber-gray text-sm">Non hai ancora amici</p>`;
+          return;
+        }
+
+        // Import ChatWebSocketService to get presence info
+        const { chatWebSocketService } = await import(
+          "./services/ChatWebSocketService"
+        );
+
+        friendsListElement.innerHTML = friends
+          .map((friend: any) => {
+            // Get presence status from WebSocket service
+            const presenceStatus = this.getFriendPresenceStatus(
+              friend.id,
+              chatWebSocketService
+            );
+
+            return `
+            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded" data-friend-id="${
+              friend.id
+            }">
+              <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
+                  ${
+                    friend.avatar_url
+                      ? `<img src="${friend.avatar_url}" alt="${friend.display_name}" class="w-8 h-8 rounded-full">`
+                      : `<span class="text-cyber-green text-xs">${friend.display_name
+                          ?.charAt(0)
+                          .toUpperCase()}</span>`
+                  }
+                </div>
+                <div class="flex flex-col">
+                  <span class="text-cyber-white">${
+                    friend.display_name || friend.username
+                  }</span>
+                  <span class="friend-status text-xs ${presenceStatus.class}">${
+              presenceStatus.text
+            }</span>
+                </div>
+              </div>
+              <button class="cyber-button-secondary text-xs" onclick="app.removeFriend(${
+                friend.id
+              })">
+                Rimuovi
+              </button>
+            </div>
+          `;
+          })
+          .join("");
+      } else {
+        friendsListElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
+      }
+    } catch (error) {
+      console.error("Load friends error:", error);
+      document.getElementById(
+        "friends-list"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento degli amici</p>`;
+    }
+  }
+
+  private getFriendPresenceStatus(
+    friendId: number,
+    chatWebSocketService: any
+  ): { class: string; text: string } {
+    // This is a simplified approach - in a real implementation, you would
+    // maintain a presence map in WebSocket service or query the API
+
+    // For now, we'll use a default status and update it via WebSocket events
+    return {
+      class: "text-cyber-gray",
+      text: "Offline",
+    };
+  }
+
+  private async loadPendingFriendRequests() {
+    try {
+      const response = await this.apiService.getPendingFriendRequests();
+      const friendRequestsElement = document.getElementById("friend-requests");
+
+      if (!friendRequestsElement) return;
+
+      console.log("ensommafra che dici pending friend requests", response);
+
+      if (response.success && response.data && Array.isArray(response.data)) {
+        const requests = response.data;
+
+        if (requests.length === 0) {
+          friendRequestsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessuna richiesta in sospeso</p>`;
+          return;
+        }
+
+        friendRequestsElement.innerHTML = requests
+          .map(
+            (request) => `
+          <div class="p-2 border border-cyber-green/30 rounded">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-cyber-white">${
+                request.display_name || request.username
+              }</span>
+              <span class="text-cyber-gray text-xs">${new Date(
+                request.created_at
+              ).toLocaleDateString()}</span>
+            </div>
+            <div class="flex space-x-2">
+              <button class="cyber-button text-xs" onclick="app.respondToFriendRequest(${
+                request.id
+              }, 'accept')">
+                Accetta
+              </button>
+              <button class="cyber-button-secondary text-xs" onclick="app.respondToFriendRequest(${
+                request.id
+              }, 'reject')">
+                Rifiuta
+              </button>
+            </div>
+          </div>
+        `
+          )
+          .join("");
+      } else {
+        friendRequestsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
+      }
+    } catch (error) {
+      console.error("Load friend requests error:", error);
+      document.getElementById(
+        "friend-requests"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nel caricamento delle richieste</p>`;
+    }
+  }
+
+  private async searchUsers(query: string) {
+    if (!query.trim()) {
+      document.getElementById(
+        "search-results"
+      )!.innerHTML = `<p class="text-cyber-gray text-sm">Inserisci un termine di ricerca</p>`;
+      return;
+    }
+
+    try {
+      const response = await this.apiService.searchUsers(query);
+      const searchResultsElement = document.getElementById("search-results");
+
+      console.log("ensommafra che dici", response);
+
+      if (!searchResultsElement) return;
+
+      if (response && response.success && response.data) {
+        const users = Array.isArray(response.data)
+          ? response.data
+          : [];
+
+        console.log("ensommafra che dici", users);
+
+        if (users.length === 0) {
+          searchResultsElement.innerHTML = `<p class="text-cyber-gray text-sm">Nessun utente trovato</p>`;
+          return;
+        }
+
+        searchResultsElement.innerHTML = users
+          .map(
+            (user: any) => `
+            <div class="flex items-center justify-between p-2 border border-cyber-green/30 rounded">
+              <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-full bg-cyber-green/20 flex items-center justify-center">
+                  ${
+                    user.avatar_url
+                      ? `<img src="${user.avatar_url}" alt="${user.display_name}" class="w-8 h-8 rounded-full">`
+                      : `<span class="text-cyber-green text-xs">${user.display_name
+                          ?.charAt(0)
+                          .toUpperCase()}</span>`
+                  }
+                </div>
+                <span class="text-cyber-white">${
+                  user.display_name || user.username
+                }</span>
+              </div>
+              <button class="cyber-button text-xs" onclick="app.sendFriendRequest(${
+                user.id
+              })">
+                Aggiungi
+              </button>
+            </div>
+          `
+          )
+          .join("");
+      } else {
+        searchResultsElement.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
+      }
+    } catch (error) {
+      console.error("Search users error:", error);
+      document.getElementById(
+        "search-results"
+      )!.innerHTML = `<p class="text-cyber-red text-sm">Errore nella ricerca</p>`;
+    }
+  }
+
+  async sendFriendRequest(userId: number) {
+    try {
+      const response = await this.apiService.sendFriendRequest(userId);
+
+      if (response.success) {
+        this.showNotification(
+          "Richiesta di amicizia inviata con successo",
+          "success"
+        );
+        // Clear search results
+        document.getElementById("search-results")!.innerHTML = "";
+        (document.getElementById("user-search") as HTMLInputElement).value = "";
+      } else {
+        this.showNotification(
+          response.message || "Errore nell'invio della richiesta",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Send friend request error:", error);
+      this.showNotification("Errore nell'invio della richiesta", "error");
+    }
+  }
+
+  async respondToFriendRequest(requestId: number, action: "accept" | "reject") {
+    try {
+      const response = await this.apiService.respondToFriendRequest(
+        requestId,
+        action
+      );
+
+      if (response.success) {
+        this.showNotification(
+          `Richiesta di amicizia ${
+            action === "accept" ? "accettata" : "rifiutata"
+          } con successo`,
+          "success"
+        );
+        // Reload friends and requests
+        this.loadFriendsData();
+      } else {
+        this.showNotification(
+          response.message || "Errore nella risposta",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Respond to friend request error:", error);
+      this.showNotification("Errore nella risposta", "error");
+    }
+  }
+
+  async removeFriend(userId: number) {
+    if (!confirm("Sei sicuro di voler rimuovere questo amico?")) return;
+
+    try {
+      const response = await this.apiService.removeFriend(userId.toString());
+
+      if (response.success) {
+        this.showNotification("Amico rimosso con successo", "success");
+        // Reload friends list
+        this.loadFriendsData();
+      } else {
+        this.showNotification(
+          response.message || "Errore nella rimozione",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Remove friend error:", error);
+      this.showNotification("Errore nella rimozione", "error");
+    }
   }
 }

@@ -20,10 +20,10 @@ export class GameSettingsPanel {
     this.container = document.createElement('div')
     this.container.className = 'game-settings-panel'
     
-    this.render()
+    this.renderContent()
   }
 
-  private render() {
+  private renderContent() {
     this.container.innerHTML = `
       <div class="cyber-card">
         <h2 class="text-lg font-bold text-cyber-green mb-4 text-center">IMPOSTAZIONI PARTITA</h2>

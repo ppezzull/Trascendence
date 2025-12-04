@@ -39,9 +39,6 @@ export class Navbar {
               <li>
                 <a href="/profile" class="text-cyber-green hover:text-cyber-cyan transition-colors">Profilo</a>
               </li>
-              <li>
-                <a href="/settings" class="text-cyber-green hover:text-cyber-cyan transition-colors">Impostazioni</a>
-              </li>
             </ul>
           </nav>
           
@@ -83,7 +80,6 @@ export class Navbar {
             <a href="/friends" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Amici</a>
             <a href="/chat" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Chat</a>
             <a href="/profile" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Profilo</a>
-            <a href="/settings" class="block px-3 py-2 text-cyber-green hover:text-cyber-cyan">Impostazioni</a>
             
             <div class="pt-4 pb-3 border-t border-cyber-green">
               <!-- Mobile guest actions -->
