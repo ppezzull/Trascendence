@@ -23,7 +23,10 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   );
 
   // POST /tournaments/:id/register - Registra un giocatore al torneo
-  fastify.post(
+  fastify.post<{
+    Params: { id: string };
+    Body: { alias: string; user_id?: number };
+  }>(
     "/tournaments/:id/register",
     {
       preHandler: [fastify.authenticate],
@@ -32,7 +35,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   );
 
   // DELETE /tournaments/:id/register/:registrationId - Rimuove una registrazione
-  fastify.delete(
+  fastify.delete<{ Params: { id: string; registrationId: string } }>(
     "/tournaments/:id/register/:registrationId",
     {
       preHandler: [fastify.authenticate],
@@ -41,13 +44,13 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   );
 
   // GET /tournaments/:id/registrations - Lista le registrazioni di un torneo
-  fastify.get(
+  fastify.get<{ Params: { id: string } }>(
     "/tournaments/:id/registrations",
     tournamentController.getRegistrations.bind(tournamentController)
   );
 
   // POST /tournaments/:id/start - Avvia un torneo
-  fastify.post(
+  fastify.post<{ Params: { id: string } }>(
     "/tournaments/:id/start",
     {
       preHandler: [fastify.authenticate],
@@ -56,25 +59,25 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   );
 
   // GET /tournaments/:id/bracket - Ottiene il bracket di un torneo
-  fastify.get(
+  fastify.get<{ Params: { id: string } }>(
     "/tournaments/:id/bracket",
     tournamentController.getBracket.bind(tournamentController)
   );
 
   // GET /tournaments/:id/next-matches - Ottiene i prossimi match da giocare
-  fastify.get(
+  fastify.get<{ Params: { id: string } }>(
     "/tournaments/:id/next-matches",
     tournamentController.getNextMatches.bind(tournamentController)
   );
 
   // GET /tournaments/:id/stats - Ottiene le statistiche di un torneo
-  fastify.get(
+  fastify.get<{ Params: { id: string } }>(
     "/tournaments/:id/stats",
-    tournamentController.getStats.bind(tournamentController)
+    tournamentController.getTournamentStats.bind(tournamentController)
   );
 
   // POST /tournaments/:id/cancel - Cancella un torneo
-  fastify.post(
+  fastify.post<{ Params: { id: string } }>(
     "/tournaments/:id/cancel",
     {
       preHandler: [fastify.authenticate],
@@ -83,7 +86,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   );
 
   // POST /tournaments/:id/matches/:matchId/complete - Callback quando un match viene completato
-  fastify.post(
+  fastify.post<{ Params: { id: string; matchId: string } }>(
     "/tournaments/:id/matches/:matchId/complete",
     {
       preHandler: [fastify.authenticate],
