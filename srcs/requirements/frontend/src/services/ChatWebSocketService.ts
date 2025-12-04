@@ -68,7 +68,7 @@ export class ChatWebSocketService {
     this.isConnecting = true;
 
     try {
-      const wsUrl = `ws://localhost:3002/api/chat/ws?token=${token}`;
+      const wsUrl = `wss://localhost:8090/api/chat/ws?token=${token}`;
       console.log("ChatWebSocket: Connecting to:", wsUrl);
 
       this.ws = new WebSocket(wsUrl);
