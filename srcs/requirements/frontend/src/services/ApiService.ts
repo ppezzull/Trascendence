@@ -891,7 +891,7 @@ export class ApiService {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/blocks", {
         method: "POST",
-        body: JSON.stringify({ blockedUserId: targetUserId }),
+        body: JSON.stringify({ blockedUserId: parseInt(targetUserId) }),
       });
     } catch (error) {
       console.error("Block user error:", error);
@@ -902,9 +902,12 @@ export class ApiService {
   async unblockUser(targetUserId: string): Promise<ApiResponse> {
     try {
       return await this.chatRequest<ApiResponse>(
-        `/api/chat/blocks/${targetUserId}`,
+        `/api/chat/blocks`,
         {
           method: "DELETE",
+          body: JSON.stringify({
+            blockedUserId: parseInt(targetUserId)
+          }),
         }
       );
     } catch (error) {

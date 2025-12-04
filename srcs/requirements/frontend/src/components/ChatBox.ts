@@ -619,6 +619,8 @@ export class ChatBox {
         if (response) {
           this.blockedUsers.delete(userId);
           this.showNotification(`${userName} sbloccato`, "success");
+        } else {
+          this.showNotification(`"Impossibile sbloccare l'utente"}`, "error");
         }
       } else {
         // Block user
@@ -626,6 +628,8 @@ export class ChatBox {
         if (response) {
           this.blockedUsers.add(userId);
           this.showNotification(`${userName} bloccato`, "success");
+        } else {
+          this.showNotification(`"Impossibile bloccare l'utente"}`, "error");
         }
       }
 

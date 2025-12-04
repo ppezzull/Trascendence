@@ -175,7 +175,7 @@ export class App {
   private renderLoginPage() {
     const contentElement = document.getElementById("content");
     if (!contentElement) return;
-
+    const googleIcon = `<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/2560px-Google_Favicon_2025.svg.png" alt="Google" class="w-4 h-4">`;
     contentElement.innerHTML = `
       <div class="cyber-panel max-w-md mx-auto">
         <h1 class="cyber-title text-center">ACCESSO</h1>
@@ -191,8 +191,8 @@ export class App {
           <button type="submit" class="cyber-button w-full">Accedi</button>
           </form>
           <div class="mt-4 text-center">
-            <p class="text-sm">Oppure</p>
-            <button id="google-login-btn" class="cyber-button w-full flex items-center justify-center"> Accedi con Google</button>
+             <p class="text-sm mb-4">Oppure</p>
+            <button id="google-login-btn" class="cyber-button w-full flex items-center justify-center gap-2"> ${googleIcon}Accedi con Google</button>
           </div>
         <div class="mt-4 text-center">
           <p class="text-sm">Non hai un account? <a href="/register" class="text-cyber-cyan hover:underline">Registrati</a></p>
