@@ -370,7 +370,7 @@ export class ChatBox {
         }">
           <div class="flex justify-between items-center">
             <div class="flex-1" onclick="chatBox.openChatThread(${thread.id})">
-              <div class="text-cyber-green text-sm font-medium">${displayName}</div>
+              <div class="text-cyber-green text-sm font-medium cursor-pointer hover:text-cyber-cyan" onclick="event.stopPropagation(); chatBox.viewUserProfile(${otherParticipantId})">${displayName}</div>
               <div class="text-cyber-green/50 text-xs mt-1">${lastMessagePreview}</div>
             </div>
             <div class="flex items-center space-x-2">
@@ -737,9 +737,9 @@ export class ChatBox {
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <div class="w-2 h-2 rounded-full bg-cyber-green"></div>
-            <span class="text-cyber-green text-sm">${
-              user.display_name || user.username
-            }</span>
+            <span class="text-cyber-green text-sm cursor-pointer hover:text-cyber-cyan" onclick="chatBox.viewUserProfile(${
+              user.id
+            })">${user.display_name || user.username}</span>
           </div>
           <div class="flex space-x-2">
             <button class="text-cyber-cyan hover:text-cyber-green text-xs" onclick="chatBox.startChatWithUser(${
@@ -964,6 +964,11 @@ export class ChatBox {
         )
         .join("")}
     `;
+  }
+
+  public viewUserProfile(userId: number) {
+    // Reindirizza alla pagina del profilo dell'utente
+    window.location.href = `/profile?userId=${userId}`;
   }
 
   public goToMatch(matchId: number) {

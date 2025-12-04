@@ -3008,6 +3008,11 @@ export class App {
       return;
     }
 
+    // Check if we're viewing another user's profile
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get("userId");
+    const isViewingOtherUser = userId !== null;
+
     console.log("Profile page - User authenticated, showing profile");
     // Create and apply auth guard to profile page
     const authGuard = createAuthGuard(contentElement);
@@ -3016,10 +3021,9 @@ export class App {
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
         <div class="flex justify-between items-center mb-8">
-          <h1 class="cyber-title text-3xl">PROFILO UTENTE</h1>
-          <button id="logout-btn" class="cyber-button-sm">
-            <i class="fas fa-sign-out-alt mr-2"></i>Logout
-          </button>
+          <h1 class="cyber-title text-3xl">${
+            isViewingOtherUser ? "PROFILO UTENTE" : "PROFILO PERSONALE"
+          }</h1>
         </div>
 
         <div id="profile-loading" class="text-center text-cyber-green py-8">
@@ -3050,24 +3054,31 @@ export class App {
                 </div>
               </div>
             </div>
-
+               ${
+                 !isViewingOtherUser
+                   ? `
             <div class="cyber-card">
               <h2 class="text-lg font-bold text-cyber-green mb-4">Avatar</h2>
               <div class="flex flex-col items-center space-y-4">
                 <div id="avatar-preview" class="w-24 h-24 rounded-full bg-cyber-dark/50 flex items-center justify-center overflow-hidden">
                   <i class="fas fa-user text-cyber-green text-2xl"></i>
                 </div>
-                <div class="flex space-x-2">
-                  <input type="file" id="avatar-input" accept="image/*" class="hidden">
-                  <button id="upload-avatar-btn" class="cyber-button-sm">
-                    <i class="fas fa-upload mr-2"></i>Carica Avatar
-                  </button>
-                  <button id="remove-avatar-btn" class="cyber-button-sm bg-cyber-magenta">
-                    <i class="fas fa-trash mr-2"></i>Rimuovi
-                  </button>
-                </div>
+
+                  <div class="flex space-x-2">
+                    <input type="file" id="avatar-input" accept="image/*" class="hidden">
+                    <button id="upload-avatar-btn" class="cyber-button-sm">
+                      <i class="fas fa-upload mr-2"></i>Carica Avatar -
+                    </button>
+                    <button id="remove-avatar-btn" class="cyber-button-sm bg-cyber-magenta">
+                      <i class="fas fa-trash mr-2"></i>Rimuovi
+                    </button>
+                  </div>
+
               </div>
             </div>
+                            `
+                   : ""
+               }
           </div>
           <div class="cyber-card">
             <h2 class="text-lg font-bold text-cyber-green mb-4">Cronologia Match e Statistiche</h2>
@@ -3079,18 +3090,26 @@ export class App {
       </div>
     `;
 
-    // Load real user data and stats
-    this.loadProfileData();
-
-    // Setup avatar handlers
-    this.setupAvatarHandlers();
-
-    // Add logout event listener
-    const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", () => {
-        this.handleLogout();
-      });
+    // Load user data based on whether we're viewing our own profile or someone else's
+    if (isViewingOtherUser) {
+      this.loadOtherUserProfileData(userId);
+      // Add back to profile button event listener
+      const backToProfileBtn = document.getElementById("back-to-profile-btn");
+      if (backToProfileBtn) {
+        backToProfileBtn.addEventListener("click", () => {
+          this.router.navigate("/profile");
+        });
+      }
+    } else {
+      this.loadOwnProfileData();
+      this.setupAvatarHandlers();
+      // Add logout event listener
+      const logoutBtn = document.getElementById("logout-btn");
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+          authService.logout();
+        });
+      }
     }
   }
 
@@ -3165,7 +3184,7 @@ export class App {
     if (emailElement) emailElement.textContent = user.email || "-";
     if (displayNameElement)
       displayNameElement.textContent =
-        user.display_name || user.username || "-";
+        (user as any).display_name || user.username || "-";
 
     // Update avatar
     this.updateAvatarDisplay(user.avatar);
@@ -5398,6 +5417,222 @@ export class App {
     const modal = document.getElementById("match-details-modal");
     if (modal) {
       modal.remove();
+    }
+  }
+
+  private async loadOtherUserProfileData(userId: string) {
+    try {
+      // Get user data
+      const userResponse = await this.apiService.getUserById(userId);
+
+      if (userResponse && userResponse.success && userResponse.data) {
+        const user = userResponse.data;
+
+        // Update profile information
+        const usernameElement = document.getElementById("profile-username");
+        const emailElement = document.getElementById("profile-email");
+        const displayNameElement = document.getElementById(
+          "profile-display-name"
+        );
+
+        if (usernameElement) usernameElement.textContent = user.username || "-";
+        if (emailElement) emailElement.textContent = user.email || "-";
+        if (displayNameElement)
+          displayNameElement.textContent =
+            (user as any).display_name || user.username || "-";
+
+        // Load user's match history
+        this.loadUserMatchHistory(userId);
+
+        // Show profile content
+        const loadingElement = document.getElementById("profile-loading");
+        const contentElement = document.getElementById("profile-content");
+
+        if (loadingElement) loadingElement.classList.add("hidden");
+        if (contentElement) contentElement.classList.remove("hidden");
+      } else {
+        this.showNotification(
+          "Impossibile caricare il profilo dell'utente",
+          "error"
+        );
+        this.router.navigate("/profile");
+      }
+    } catch (error) {
+      console.error("Error loading other user profile:", error);
+      this.showNotification("Errore nel caricamento del profilo", "error");
+      this.router.navigate("/profile");
+    }
+  }
+
+  private async loadUserMatchHistory(userId: string) {
+    try {
+      const matchesResponse = await this.apiService.getUserMatches(userId);
+
+      if (matchesResponse && Array.isArray(matchesResponse)) {
+        const matchHistoryElement = document.getElementById("match-history");
+
+        if (matchHistoryElement) {
+          if (matchesResponse.length === 0) {
+            matchHistoryElement.innerHTML =
+              '<p class="text-gray-400">Nessuna partita giocata</p>';
+          } else {
+            matchHistoryElement.innerHTML = matchesResponse
+              .filter((match) => match.status !== "pending") // Exclude pending matches
+              .slice(0, 10) // Show only last 10 matches
+              .map(
+                (match) => `
+                <div class="flex justify-between items-center p-2 border-b border-cyber-green/20">
+                  <div>
+                    <div class="text-cyber-green">Partita #${match.id}</div>
+                    <div class="text-cyber-green/50 text-xs">
+                      ${new Date(match.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div class="text-cyber-cyan text-sm">
+                    ${
+                      match.status === "finished"
+                        ? "Completata"
+                        : match.status === "cancelled"
+                        ? "Annullata"
+                        : match.status
+                    }
+                  </div>
+                </div>
+              `
+              )
+              .join("");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading user match history:", error);
+      const matchHistoryElement = document.getElementById("match-history");
+      if (matchHistoryElement) {
+        matchHistoryElement.innerHTML =
+          '<p class="text-gray-400">Errore nel caricamento della cronologia</p>';
+      }
+    }
+  }
+
+  private async loadProfileData() {
+    try {
+      const authState = authService.getState();
+
+      if (!authState.isAuthenticated || !authState.user) {
+        this.router.navigate("/login");
+        return;
+      }
+
+      // Show loading
+      const loadingElement = document.getElementById("profile-loading");
+      const contentElement = document.getElementById("profile-content");
+
+      if (loadingElement) loadingElement.classList.remove("hidden");
+      if (contentElement) contentElement.classList.add("hidden");
+
+      // Get user stats from API
+      const userStatsResponse = await this.apiService.getUserStats(
+        authState.user.id
+      );
+
+      // Get user match history from API
+      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
+        authState.user.id
+      );
+
+      if (userStatsResponse) {
+        // Update profile with real data
+        this.updateProfileDisplay(authState.user, userStatsResponse);
+      } else {
+        // Show error and use basic user info
+        this.updateProfileDisplay(authState.user, null);
+        this.showNotification("Impossibile caricare le statistiche", "error");
+      }
+
+      // Update match history
+      if (matchHistoryResponse) {
+        this.updateMatchHistoryDisplay(matchHistoryResponse);
+      } else {
+        this.showNotification(
+          "Impossibile caricare la cronologia dei match",
+          "error"
+        );
+      }
+
+      // Hide loading, show content
+      if (loadingElement) loadingElement.classList.add("hidden");
+      if (contentElement) contentElement.classList.remove("hidden");
+    } catch (error) {
+      console.error("Error loading profile data:", error);
+
+      const loadingElement = document.getElementById("profile-loading");
+      const contentElement = document.getElementById("profile-content");
+
+      if (loadingElement) loadingElement.classList.add("hidden");
+      if (contentElement) contentElement.classList.remove("hidden");
+
+      this.showNotification("Errore nel caricamento del profilo", "error");
+    }
+  }
+
+  private async loadOwnProfileData() {
+    try {
+      const authState = authService.getState();
+
+      if (!authState.isAuthenticated || !authState.user) {
+        this.router.navigate("/login");
+        return;
+      }
+
+      // Show loading
+      const loadingElement = document.getElementById("profile-loading");
+      const contentElement = document.getElementById("profile-content");
+
+      if (loadingElement) loadingElement.classList.remove("hidden");
+      if (contentElement) contentElement.classList.add("hidden");
+
+      // Get user stats from API
+      const userStatsResponse = await this.apiService.getUserStats(
+        authState.user.id
+      );
+
+      // Get user match history from API
+      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
+        authState.user.id
+      );
+
+      if (userStatsResponse) {
+        // Update profile with real data
+        this.updateProfileDisplay(authState.user, userStatsResponse);
+      } else {
+        // Show error and use basic user info
+        this.updateProfileDisplay(authState.user, null);
+        this.showNotification("Impossibile caricare le statistiche", "error");
+      }
+
+      // Update match history
+      if (matchHistoryResponse) {
+        this.updateMatchHistoryDisplay(matchHistoryResponse);
+      } else {
+        this.showNotification(
+          "Impossibile caricare la cronologia dei match",
+          "error"
+        );
+      }
+
+      // Hide loading, show content
+      if (loadingElement) loadingElement.classList.add("hidden");
+      if (contentElement) contentElement.classList.remove("hidden");
+    } catch (error) {
+      console.error("Error loading profile data:", error);
+
+      const loadingElement = document.getElementById("profile-loading");
+      const contentElement = document.getElementById("profile-content");
+
+      if (loadingElement) loadingElement.classList.add("hidden");
+      if (contentElement) contentElement.classList.remove("hidden");
+
+      this.showNotification("Errore nel caricamento del profilo", "error");
     }
   }
 }
