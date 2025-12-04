@@ -47,6 +47,11 @@ info:
 # Start all services (build if needed)
 up:
 	@echo "$(GREEN)Starting all services...$(NC)"
+	@if [ "$$(uname)" = "Linux" ]; then \
+		echo "$(YELLOW)Fixing bind mount permissions for Linux...$(NC)"; \
+		sudo chown -R 1001:1001 requirements/backend/user-service/data requirements/backend/game-service/data requirements/backend/chat-service/data 2>/dev/null || \
+			echo "$(RED)Warning: Could not fix permissions. If services fail, ask an admin to run: sudo chown -R 1001:1001 requirements/backend/*/data$(NC)"; \
+	fi
 	docker compose -f $(COMPOSE_FILE) up --build -d
 	@echo "$(GREEN)Services started!$(NC)"
 	@echo ""
