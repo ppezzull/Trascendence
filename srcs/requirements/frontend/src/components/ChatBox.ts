@@ -146,12 +146,12 @@ export class ChatBox {
           <!-- Users Sidebar -->
           <div class="w-1/3 border-r border-cyber-green pr-4 overflow-y-auto">
             <h3 class="text-cyber-green font-bold mb-3">Le tue chat</h3>
-            <div id="chat-threads-list" class="space-y-2">
+            <div id="chat-threads-list" class="space-y-2 max-h-48 overflow-y-auto">
               <!-- Chat threads will be rendered here -->
             </div>
             <!-- notifiche per inviti a pong ricevuti -->
-            <div id="invitation-notifications" class="space-y-2">
             <h3 class="text-cyber-green font-bold mb-3 mt-4">Inviti a Pong ricevuti</h3>
+            <div id="invitation-notifications" class="space-y-2 max-h-48 overflow-y-auto">
             <!-- Invitation notifications will be rendered here -->
             </div>
           </div>
@@ -164,7 +164,7 @@ export class ChatBox {
             </div>
 
             <!-- Messages Container -->
-            <div id="messages-container" class="flex-1 overflow-y-auto mb-4 space-y-2">
+            <div id="messages-container" class="flex-1 overflow-y-auto mb-4 space-y-2 max-h-96">
               <!-- Messages will be rendered here -->
             </div>
 

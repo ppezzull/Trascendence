@@ -272,19 +272,19 @@ export class App {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">PONG 3D</h2>
-            <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D e stile cyberpunk</p>
+            <p class="terminal-text mb-4">Il classico gioco Pong con grafica 3D</p>
             <a href="/pong" class="cyber-button inline-block">Gioca Ora</a>
           </div>
           
           <div class="cyber-card text-center">
-            <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT CYBER</h2>
-            <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica con effetti speciali</p>
+            <h2 class="text-xl font-bold text-cyber-green mb-4">BREAKOUT</h2>
+            <p class="terminal-text mb-4">Distruggi i mattoni in un'arena futuristica</p>
             <a href="/breakout" class="cyber-button inline-block">Gioca Ora</a>
           </div>
           
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEI CYBER</h2>
-            <p class="terminal-text mb-4">Partecipa a tornei epici e diventa il campione della piattaforma</p>
+            <p class="terminal-text mb-4">Partecipa a tornei epici e diventa il campione</p>
             <a href="/tournaments" class="cyber-button inline-block">Scopri Tornei</a>
           </div>
         </div>
@@ -1962,7 +1962,7 @@ export class App {
 
     contentElement.innerHTML = `
       <div class="cyber-panel w-full h-full mx-auto">
-        <h1 class="cyber-title text-center">BREAKOUT CYBER</h1>
+        <h1 class="cyber-title text-center">BREAKOUT</h1>
         
         <!-- Game State Container -->
         <div id="breakout-game-container" class="flex flex-col items-center">
@@ -3739,6 +3739,10 @@ export class App {
         );
 
         // Load registrations for tournaments in registration status to check if they're full
+        // and to check if current user is already registered
+        const authState = authService.getState();
+        const currentUserId = authState.user?.id;
+        
         for (const tournament of activeTournaments) {
           if (tournament.status === "registration") {
             try {
@@ -3750,6 +3754,13 @@ export class App {
                 tournament.registrationsCount = regResponse.length;
                 tournament.maxPlayers =
                   tournament.max_players || tournament.maxParticipants;
+                
+                // Check if current user is already registered
+                if (currentUserId) {
+                  tournament.isUserRegistered = regResponse.some(
+                    (reg: any) => reg.user_id === currentUserId
+                  );
+                }
               }
             } catch (error) {
               console.error(
@@ -3830,7 +3841,9 @@ export class App {
           <div class="flex space-x-2">
             ${
               tournament.status === "registration" && !isFull
-                ? `<button class="cyber-button-sm" onclick="app.joinTournament('${tournament.id}')">Iscriviti</button>`
+                ? tournament.isUserRegistered
+                  ? `<button class="cyber-button-sm bg-cyber-green/20 text-cyber-green cursor-not-allowed" disabled>Iscritto</button>`
+                  : `<button class="cyber-button-sm" onclick="app.showTournamentRegistrationDialog('${tournament.id}')">Iscriviti</button>`
                 : tournament.status === "registration" && isFull
                 ? `<button class="cyber-button-sm" onclick="app.viewTournament('${tournament.id}')">Visualizza</button>`
                 : tournament.status === "in_progress"
@@ -3882,13 +3895,21 @@ export class App {
 
   async joinTournament(tournamentId: string) {
     try {
-      // Get current username from auth state
+      // Get current user from auth state
       const authState = authService.getState();
-      const username = authState.user?.username || undefined;
+      
+      // Ask user for alias
+      const alias = prompt("Inserisci l'alias con cui vuoi partecipare al torneo:", authState.user?.username || "");
+      
+      // Check if user provided an alias
+      if (!alias || alias.trim() === "") {
+        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
+        return;
+      }
 
       const response = await this.apiService.registerForTournament(
         tournamentId,
-        JSON.stringify({ alias: username, user_id: authState.user?.id })
+        JSON.stringify({ alias: alias.trim(), user_id: authState.user?.id })
       );
 
       if (response) {
@@ -5514,7 +5535,8 @@ export class App {
     }
   }
 
-  private async loadProfileData() {
+
+  private async loadOwnProfileData() {
     try {
       const authState = authService.getState();
 
@@ -5575,64 +5597,98 @@ export class App {
     }
   }
 
-  private async loadOwnProfileData() {
-    try {
-      const authState = authService.getState();
+  showTournamentRegistrationDialog(tournamentId: string) {
+    // Create modal HTML
+    const modalHTML = `
+      <div id="tournament-registration-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="cyber-panel max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="cyber-title text-2xl">Iscrizione al Torneo</h2>
+            <button onclick="app.closeTournamentRegistrationModal()" class="cyber-button-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <form id="tournament-registration-form">
+            <div class="mb-4">
+              <label for="tournament-alias" class="block text-cyber-green mb-2">Alias per il torneo</label>
+              <input type="text" id="tournament-alias" name="alias" class="cyber-input w-full" required maxlength="20">
+              <p class="text-xs text-gray-400 mt-1">Inserisci l'alias con cui vuoi partecipare al torneo</p>
+            </div>
+            <div class="flex space-x-2">
+              <button type="submit" class="cyber-button flex-1">Iscriviti</button>
+              <button type="button" onclick="app.cancelTournamentRegistration()" class="cyber-button bg-cyber-magenta flex-1">Annulla</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
 
-      if (!authState.isAuthenticated || !authState.user) {
-        this.router.navigate("/login");
+    // Add modal to the page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Add form submission handler
+    const form = document.getElementById("tournament-registration-form") as HTMLFormElement;
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const alias = formData.get("alias") as string;
+        this.joinTournamentWithAlias(tournamentId, alias);
+      });
+    }
+  }
+
+  private closeTournamentRegistrationModal() {
+    const modal = document.getElementById("tournament-registration-modal");
+    if (modal) {
+      modal.remove();
+    }
+  }
+
+  cancelTournamentRegistration() {
+    this.closeTournamentRegistrationModal();
+    this.showNotification("Registrazione annullata", "info");
+  }
+
+  async joinTournamentWithAlias(tournamentId: string, alias: string) {
+    try {
+      // Get current user from auth state
+      const authState = authService.getState();
+      
+      // Check if alias is provided
+      if (!alias || alias.trim() === "") {
+        this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
         return;
       }
 
-      // Show loading
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
-
-      if (loadingElement) loadingElement.classList.remove("hidden");
-      if (contentElement) contentElement.classList.add("hidden");
-
-      // Get user stats from API
-      const userStatsResponse = await this.apiService.getUserStats(
-        authState.user.id
+      const response = await this.apiService.registerForTournament(
+        tournamentId,
+        JSON.stringify({ alias: alias.trim(), user_id: authState.user?.id })
       );
 
-      // Get user match history from API
-      const matchHistoryResponse = await this.apiService.getUserMatchHistory(
-        authState.user.id
-      );
-
-      if (userStatsResponse) {
-        // Update profile with real data
-        this.updateProfileDisplay(authState.user, userStatsResponse);
-      } else {
-        // Show error and use basic user info
-        this.updateProfileDisplay(authState.user, null);
-        this.showNotification("Impossibile caricare le statistiche", "error");
-      }
-
-      // Update match history
-      if (matchHistoryResponse) {
-        this.updateMatchHistoryDisplay(matchHistoryResponse);
+      if (response) {
+        this.closeTournamentRegistrationModal();
+        this.showNotification(
+          "Registrato con successo",
+          "success"
+        );
+        this.loadTournaments(); // Reload tournaments list
       } else {
         this.showNotification(
-          "Impossibile caricare la cronologia dei match",
+          (response as any).message || "Errore nell'iscrizione al torneo",
           "error"
         );
       }
-
-      // Hide loading, show content
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
     } catch (error) {
-      console.error("Error loading profile data:", error);
-
-      const loadingElement = document.getElementById("profile-loading");
-      const contentElement = document.getElementById("profile-content");
-
-      if (loadingElement) loadingElement.classList.add("hidden");
-      if (contentElement) contentElement.classList.remove("hidden");
-
-      this.showNotification("Errore nel caricamento del profilo", "error");
+      console.error("Join tournament error:", error);
+      
+      // Check if the error is because user is already registered
+      if (error instanceof Error && error.message === "User already registered") {
+        this.showNotification("Sei già registrato a questo torneo", "error");
+      } else {
+        this.showNotification("Errore durante l'iscrizione al torneo", "error");
+      }
     }
   }
 }

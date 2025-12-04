@@ -25,10 +25,10 @@ export class GameControls {
     this.container = document.createElement('div')
     this.container.className = 'game-controls'
     
-    this.render()
+    this.renderContent()
   }
 
-  private render() {
+  private renderContent() {
     this.container.innerHTML = `
       <div class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2">
         ${this.props.showPause ? `
@@ -82,7 +82,7 @@ export class GameControls {
 
   updateProps(newProps: Partial<GameControlsProps>) {
     this.props = { ...this.props, ...newProps }
-    this.render()
+    this.renderContent()
   }
 
   setPaused(isPaused: boolean) {

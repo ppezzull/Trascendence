@@ -1,5 +1,5 @@
 import { ApiService } from '../services/ApiService'
-import { Ball } from '../graphics/ball.ts'
+import { Ball } from '../graphics/Ball'
 
 export interface GameSettings {
   ballSpeed: 'slow' | 'normal' | 'fast'
@@ -262,7 +262,7 @@ export class GameSettingsComponent {
       localStorage.setItem('gameSettings', JSON.stringify(this.settings))
       
       // Save to backend
-      const response = await this.apiService.updateGameSettings(this.settings)
+      const response = await this.apiService.updateGameSettings('pong', this.settings)
       
       if (response.success) {
         this.showNotification('Impostazioni salvate con successo!', 'success')
