@@ -142,7 +142,7 @@ urls:
 	@echo "  https://localhost:8090"
 	@echo ""
 	@echo "DevOps Monitoring UIs:"
-	@echo "  Kibana:     https://localhost:8090/kibana/"
+	@echo "  Kibana:     https://localhost:8090/kibana/   (admin/see .env file)"
 	@echo "  Grafana:    https://localhost:8090/grafana/  (admin/see .env file)"
 	@echo "  Prometheus: https://localhost:8090/prometheus/"
 	@echo ""

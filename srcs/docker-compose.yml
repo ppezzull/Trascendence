@@ -282,6 +282,9 @@ services:
       context: ./requirements/frontend
       dockerfile: Dockerfile
     container_name: frontend
+    environment:
+      # Kibana basic auth password (Module #39 security)
+      - "KIBANA_ADMIN_PASSWORD=${KIBANA_ADMIN_PASSWORD:?KIBANA_ADMIN_PASSWORD not set in .env}"
     ports:
       - "8090:8090"  # HTTPS (main access point)
       - "80:80"      # HTTP (redirects to HTTPS)
@@ -436,7 +439,7 @@ services:
 #
 # Access URLs (Single Entry Point - All via Nginx):
 #   - Frontend:    https://localhost:8090
-#   - Kibana:      https://localhost:8090/kibana/
+#   - Kibana:      https://localhost:8090/kibana/ (admin/see .env file)
 #   - Grafana:     https://localhost:8090/grafana/ (admin/see .env file)
 #   - Prometheus:  https://localhost:8090/prometheus/
 #   - User Docs:   https://localhost:8090/docs/user (Swagger UI)

@@ -48,7 +48,8 @@ RUN ls -la /app/dist && \
 FROM nginx:alpine
 
 # Install OpenSSL for self-signed certificate generation
-RUN apk add --no-cache openssl
+# Install apache2-utils for htpasswd (Kibana basic auth)
+RUN apk add --no-cache openssl apache2-utils
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
