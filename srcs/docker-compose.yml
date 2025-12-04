@@ -305,6 +305,8 @@ services:
       context: ./requirements/backend/user-service
       dockerfile: Dockerfile
     container_name: user-service
+    env_file:
+      - ./requirements/backend/user-service/.env
     environment:
       # Application configuration
       - NODE_ENV=production
@@ -340,6 +342,8 @@ services:
       context: ./requirements/backend/game-service
       dockerfile: Dockerfile
     container_name: game-service
+    env_file:
+      - ./requirements/backend/game-service/.env
     environment:
       # Application configuration
       - NODE_ENV=production
@@ -360,7 +364,6 @@ services:
       - ./requirements/backend/game-service/data:/app/data
     networks:
       - internal
-    # No direct port exposure - access only through Nginx (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3003/health || exit 1"]
       interval: 10s
@@ -375,6 +378,8 @@ services:
       context: ./requirements/backend/chat-service
       dockerfile: Dockerfile
     container_name: chat-service
+    env_file:
+      - ./requirements/backend/chat-service/.env
     environment:
       # Application configuration
       - NODE_ENV=production
@@ -392,7 +397,6 @@ services:
       - ./requirements/backend/chat-service/data:/app/data
     networks:
       - internal
-    # No direct port exposure - access only through Nginx (single entry point)
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3002/health || exit 1"]
       interval: 10s
