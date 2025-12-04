@@ -467,7 +467,7 @@ export class ApiService {
   // Game service methods
   async getGames(): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/games");
+      return await this.gameRequest<ApiResponse>("/api/game/games");
     } catch (error) {
       console.error("Get games error:", error);
       return { success: false, message: "Failed to get games" };
@@ -477,7 +477,7 @@ export class ApiService {
   async getGameSettings(gameId: string): Promise<ApiResponse<GameSettings>> {
     try {
       return await this.gameRequest<GameSettings>(
-        `/api/games/${gameId}/settings`
+        `/api/game/games/${gameId}/settings`
       );
     } catch (error) {
       console.error("Get game settings error:", error);
@@ -491,7 +491,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/games/${gameId}/settings`,
+        `/api/game/games/${gameId}/settings`,
         {
           method: "PUT",
           body: JSON.stringify(settings),
@@ -506,7 +506,7 @@ export class ApiService {
   // Matches
   async createMatch(gameId: string): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/matches", {
+      return await this.gameRequest<ApiResponse>("/api/game/matches", {
         method: "POST",
         body: JSON.stringify({ gameId }),
       });
@@ -521,7 +521,7 @@ export class ApiService {
     playerIds: number[]
   ): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/matches", {
+      return await this.gameRequest<ApiResponse>("/api/game/matches", {
         method: "POST",
         body: JSON.stringify({
           game_id: parseInt(gameId),
@@ -537,7 +537,7 @@ export class ApiService {
 
   async getMatches(): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/matches");
+      return await this.gameRequest<ApiResponse>("/api/game/matches");
     } catch (error) {
       console.error("Get matches error:", error);
       return { success: false, message: "Failed to get matches" };
@@ -546,7 +546,9 @@ export class ApiService {
 
   async getMatch(matchId: string): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}`);
+      return await this.gameRequest<ApiResponse>(
+        `/api/game/matches/${matchId}`
+      );
     } catch (error) {
       console.error("Get match error:", error);
       return { success: false, message: "Failed to get match" };
@@ -556,7 +558,7 @@ export class ApiService {
   async getUserMatches(userId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/users/${userId}/matches`
+        `/api/game/users/${userId}/matches`
       );
     } catch (error) {
       console.error("Get user matches error:", error);
@@ -571,7 +573,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/ready`,
+        `/api/game/matches/${matchId}/ready`,
         {
           method: "POST",
           body: JSON.stringify({ user_id: userId, ready }),
@@ -586,7 +588,7 @@ export class ApiService {
   async updateMatchScore(matchId: string, score: any): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/score`,
+        `/api/game/matches/${matchId}/score`,
         {
           method: "POST",
           body: JSON.stringify(score),
@@ -601,7 +603,7 @@ export class ApiService {
   async finishMatch(matchId: string, result: any): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/finish`,
+        `/api/game/matches/${matchId}/finish`,
         {
           method: "POST",
           body: JSON.stringify(result),
@@ -616,7 +618,7 @@ export class ApiService {
   async cancelMatch(matchId: string): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/cancel`,
+        `/api/game/matches/${matchId}/cancel`,
         {
           method: "POST",
           body: JSON.stringify({}),
@@ -634,7 +636,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/status`,
+        `/api/game/matches/${matchId}/status`,
         {
           method: "PUT",
           body: JSON.stringify({ status }),
@@ -652,7 +654,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/score`,
+        `/api/game/matches/${matchId}/score`,
         {
           method: "POST",
           body: JSON.stringify(scoreData),
@@ -673,7 +675,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matches/${matchId}/finish`,
+        `/api/game/matches/${matchId}/finish`,
         {
           method: "POST",
           body: JSON.stringify(matchData),
@@ -690,14 +692,14 @@ export class ApiService {
     gameId: string,
     eloRange: number = 200
   ): Promise<ApiResponse> {
-    return await this.gameRequest<ApiResponse>("/api/matchmaking/find", {
+    return await this.gameRequest<ApiResponse>("/api/game/matchmaking/find", {
       method: "POST",
       body: JSON.stringify({ game_id: parseInt(gameId), elo_range: eloRange }),
     });
   }
 
   async joinMatchmaking(gameId: string): Promise<any> {
-    return await this.gameRequest<ApiResponse>("/api/matchmaking/join", {
+    return await this.gameRequest<ApiResponse>("/api/game/matchmaking/join", {
       method: "POST",
       body: JSON.stringify({ game_id: parseInt(gameId) }),
     });
@@ -705,10 +707,13 @@ export class ApiService {
 
   async leaveMatchmaking(gameId?: string): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/matchmaking/leave", {
-        method: "POST",
-        body: JSON.stringify(gameId ? { game_id: parseInt(gameId) } : {}), // body JSON richiesto
-      });
+      return await this.gameRequest<ApiResponse>(
+        "/api/game/matchmaking/leave",
+        {
+          method: "POST",
+          body: JSON.stringify(gameId ? { game_id: parseInt(gameId) } : {}), // body JSON richiesto
+        }
+      );
     } catch (error) {
       console.error("Leave matchmaking error:", error);
       return { success: false, message: "Failed to leave matchmaking" };
@@ -718,7 +723,7 @@ export class ApiService {
   async getMatchmakingQueue(gameId: string): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/matchmaking/queue/${gameId}`
+        `/api/game/matchmaking/queue/${gameId}`
       );
     } catch (error) {
       console.error("Get matchmaking queue error:", error);
@@ -729,7 +734,7 @@ export class ApiService {
   // Tournaments
   async getTournaments(): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/tournaments");
+      return await this.gameRequest<ApiResponse>("/api/game/tournaments");
     } catch (error) {
       console.error("Get tournaments error:", error);
       return { success: false, message: "Failed to get tournaments" };
@@ -738,7 +743,7 @@ export class ApiService {
 
   async createTournament(tournament: any): Promise<any> {
     try {
-      return await this.gameRequest<any>("/api/tournaments", {
+      return await this.gameRequest<any>("/api/game/tournaments", {
         method: "POST",
         body: JSON.stringify(tournament),
       });
@@ -751,7 +756,7 @@ export class ApiService {
   async getTournament(tournamentId: string): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}`
+        `/api/game/tournaments/${tournamentId}`
       );
     } catch (error) {
       console.error("Get tournament error:", error);
@@ -765,7 +770,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}/register`,
+        `/api/game/tournaments/${tournamentId}/register`,
         {
           method: "POST",
           body: alias,
@@ -780,7 +785,7 @@ export class ApiService {
   async startTournament(tournamentId: string): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}/start`,
+        `/api/game/tournaments/${tournamentId}/start`,
         {
           method: "POST",
           body: JSON.stringify({}), // Includi un corpo JSON vuoto per evitare l'errore
@@ -795,7 +800,7 @@ export class ApiService {
   async getTournamentBracket(tournamentId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}/bracket`
+        `/api/game/tournaments/${tournamentId}/bracket`
       );
     } catch (error) {
       console.error("Get tournament bracket error:", error);
@@ -806,7 +811,7 @@ export class ApiService {
   async getNextTournamentMatches(tournamentId: string): Promise<any> {
     try {
       return await this.gameRequest<any>(
-        `/api/tournaments/${tournamentId}/next-matches`
+        `/api/game/tournaments/${tournamentId}/next-matches`
       );
     } catch (error) {
       console.error("Get next tournament matches error:", error);
@@ -824,7 +829,7 @@ export class ApiService {
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}/matches/${matchId}/complete`,
+        `/api/game/tournaments/${tournamentId}/matches/${matchId}/complete`,
         {
           method: "POST",
           body: JSON.stringify(result),
@@ -839,7 +844,7 @@ export class ApiService {
   async getTournamentRegistrations(tournamentId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(
-        `/api/tournaments/${tournamentId}/registrations`
+        `/api/game/tournaments/${tournamentId}/registrations`
       );
     } catch (error) {
       console.error("Get tournament registrations error:", error);
@@ -853,8 +858,8 @@ export class ApiService {
   async getUserMatchHistory(userId?: string): Promise<any> {
     try {
       const endpoint = userId
-        ? `/api/users/${userId}/matches`
-        : "/api/users/me/matches";
+        ? `/api/game/users/${userId}/matches`
+        : "/api/game/users/me/matches";
       return await this.gameRequest<ApiResponse>(endpoint);
     } catch (error) {
       console.error("Get match history error:", error);
@@ -864,7 +869,9 @@ export class ApiService {
 
   async getMatchDetails(matchId: string): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}`);
+      return await this.gameRequest<ApiResponse>(
+        `/api/game/matches/${matchId}`
+      );
     } catch (error) {
       console.error("Get match details error:", error);
       return { success: false, message: "Failed to get match details" };
@@ -873,7 +880,9 @@ export class ApiService {
 
   async getLeaderboard(gameId: string): Promise<ApiResponse> {
     try {
-      return await this.gameRequest<ApiResponse>(`/api/leaderboard/${gameId}`);
+      return await this.gameRequest<ApiResponse>(
+        `/api/game/leaderboard/${gameId}`
+      );
     } catch (error) {
       console.error("Get leaderboard error:", error);
       return { success: false, message: "Failed to get leaderboard" };

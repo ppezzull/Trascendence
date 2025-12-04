@@ -147,7 +147,7 @@ function registerRoutes() {
   });
 
   // Registra le rotte dei giochi
-  fastify.register(gameRoutes, { prefix: "/api" });
+  fastify.register(gameRoutes, { prefix: "/api/game" });
 }
 
 // ==================== STARTUP ====================
