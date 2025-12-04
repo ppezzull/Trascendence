@@ -1802,12 +1802,8 @@ export class App {
         const authState = authService.getState();
         const currentUserId = authState.user?.id;
 
-        await this.apiService.finishMatchWithWinner(this.currentMatchId, {
+        await this.apiService.finishMatch(this.currentMatchId, {
           winner_id: winnerId,
-          final_scores: {
-            player1: player1Score,
-            player2: player2Score,
-          },
         });
       } catch (error) {
         console.error("Error finishing match:", error);
