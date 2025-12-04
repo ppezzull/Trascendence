@@ -15,6 +15,14 @@ export interface LoginResponse {
     username: string;
     email: string;
   };
+  data?: {
+    token?: string;
+    user?: {
+      id: string;
+      username: string;
+      email: string;
+    };
+  };
 }
 
 export interface User {
@@ -40,6 +48,37 @@ export interface GameSettings {
   ballSpeed: "slow" | "normal" | "fast";
   powerUps: boolean;
   theme: "classic" | "cyber" | "neon";
+}
+
+export interface Match {
+  id: number;
+  game_id: number;
+  status: "pending" | "in_progress" | "finished" | "cancelled";
+  winner_id: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  settings: any;
+}
+
+export interface MatchDetails {
+  id: number;
+  game_id: number;
+  status: "pending" | "in_progress" | "finished" | "cancelled";
+  winner_id: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  settings: any;
+  players: Array<{
+    match_id: number;
+    user_id: number;
+    score: number;
+    position: number;
+    is_ready: number;
+    joined_at: string;
+  }>;
+  tournament_players: any[];
 }
 
 export class ApiService {
@@ -74,6 +113,21 @@ export class ApiService {
   clearAuthToken(): void {
     this.authToken = null;
     localStorage.removeItem("authToken");
+  }
+
+  // Save avatar to localStorage
+  saveAvatarToLocalStorage(avatarData: string): void {
+    localStorage.setItem("userAvatar", avatarData);
+  }
+
+  // Get avatar from localStorage
+  getAvatarFromLocalStorage(): string | null {
+    return localStorage.getItem("userAvatar");
+  }
+
+  // Remove avatar from localStorage
+  removeAvatarFromLocalStorage(): void {
+    localStorage.removeItem("userAvatar");
   }
 
   // Generic request method
@@ -244,7 +298,7 @@ export class ApiService {
     }
   }
 
-  async searchUsers(query: string): Promise<ApiResponse<User[]>> {
+  async searchUsers(query: string): Promise<any> {
     try {
       return await this.userRequest<User[]>(
         `/api/users/search?q=${encodeURIComponent(query)}`
@@ -271,6 +325,42 @@ export class ApiService {
     }
   }
 
+  async updateProfile(
+    userId: string,
+    username?: string,
+    email?: string,
+    displayName?: string,
+    avatarUrl?: string
+  ): Promise<ApiResponse> {
+    try {
+      const data: any = {};
+      if (username) data.username = username;
+      if (email) data.email = email;
+      if (displayName) data.display_name = displayName;
+      if (avatarUrl) data.avatar_url = avatarUrl;
+
+      return await this.userRequest<ApiResponse>(`/api/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      console.error("Update profile error:", error);
+      return { success: false, message: "Failed to update profile" };
+    }
+  }
+
+  async updateAvatar(avatarData: string): Promise<ApiResponse> {
+    try {
+      return await this.userRequest<ApiResponse>("/api/users/me/avatar", {
+        method: "PUT",
+        body: JSON.stringify({ avatar: avatarData }),
+      });
+    } catch (error) {
+      console.error("Update avatar error:", error);
+      return { success: false, message: "Failed to update avatar" };
+    }
+  }
+
   async getUserStats(userId?: string): Promise<ApiResponse> {
     try {
       const endpoint = userId
@@ -284,15 +374,40 @@ export class ApiService {
   }
 
   // Friends management
-  async sendFriendRequest(userId: string): Promise<ApiResponse> {
+  async sendFriendRequest(addresseeId: number): Promise<ApiResponse> {
     try {
       return await this.userRequest<ApiResponse>("/api/users/friends/request", {
         method: "POST",
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ addressee_id: addresseeId }),
       });
     } catch (error) {
       console.error("Send friend request error:", error);
       return { success: false, message: "Failed to send friend request" };
+    }
+  }
+
+  async getFriends(userId?: string): Promise<ApiResponse> {
+    try {
+      let endpoint;
+
+      if (userId) {
+        // Get friends for a specific user
+        endpoint = `/api/users/${userId}/friends`;
+      } else {
+        // Get friends for the current user
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          endpoint = `/api/users/${user.id}/friends`;
+        } else {
+          return { success: false, message: "User not authenticated" };
+        }
+      }
+
+      return await this.userRequest<ApiResponse>(endpoint);
+    } catch (error) {
+      console.error("Get friends error:", error);
+      return { success: false, message: "Failed to get friends" };
     }
   }
 
@@ -309,15 +424,15 @@ export class ApiService {
   }
 
   async respondToFriendRequest(
-    userId: string,
-    accept: boolean
+    requestId: number,
+    action: "accept" | "reject"
   ): Promise<ApiResponse> {
     try {
       return await this.userRequest<ApiResponse>(
-        `/api/users/friends/${userId}/respond`,
+        `/api/users/friends/${requestId}/respond`,
         {
-          method: "PUT",
-          body: JSON.stringify({ accept }),
+          method: "POST",
+          body: JSON.stringify({ action }),
         }
       );
     } catch (error) {
@@ -328,10 +443,19 @@ export class ApiService {
 
   async removeFriend(userId: string): Promise<ApiResponse> {
     try {
+      // Get current user ID
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        return { success: false, message: "User not authenticated" };
+      }
+
+      const user = JSON.parse(userStr);
+
       return await this.userRequest<ApiResponse>(
-        `/api/users/${userId}/friends`,
+        `/api/users/${user.id}/friends`,
         {
           method: "DELETE",
+          body: JSON.stringify({ friend_id: parseInt(userId) }),
         }
       );
     } catch (error) {
@@ -392,6 +516,25 @@ export class ApiService {
     }
   }
 
+  async createMatchWithPlayers(
+    gameId: string,
+    playerIds: number[]
+  ): Promise<ApiResponse> {
+    try {
+      return await this.gameRequest<ApiResponse>("/api/matches", {
+        method: "POST",
+        body: JSON.stringify({
+          game_id: parseInt(gameId),
+          player_ids: playerIds,
+          settings: {},
+        }),
+      });
+    } catch (error) {
+      console.error("Create match with players error:", error);
+      return { success: false, message: "Failed to create match with players" };
+    }
+  }
+
   async getMatches(): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>("/api/matches");
@@ -407,6 +550,17 @@ export class ApiService {
     } catch (error) {
       console.error("Get match error:", error);
       return { success: false, message: "Failed to get match" };
+    }
+  }
+
+  async getUserMatches(userId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/users/${userId}/matches`
+      );
+    } catch (error) {
+      console.error("Get user matches error:", error);
+      return { success: false, message: "Failed to get user matches" };
     }
   }
 
@@ -542,7 +696,7 @@ export class ApiService {
     });
   }
 
-  async joinMatchmaking(gameId: string): Promise<ApiResponse> {
+  async joinMatchmaking(gameId: string): Promise<any> {
     return await this.gameRequest<ApiResponse>("/api/matchmaking/join", {
       method: "POST",
       body: JSON.stringify({ game_id: parseInt(gameId) }),
@@ -582,9 +736,9 @@ export class ApiService {
     }
   }
 
-  async createTournament(tournament: any): Promise<ApiResponse> {
+  async createTournament(tournament: any): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>("/api/tournaments", {
+      return await this.gameRequest<any>("/api/tournaments", {
         method: "POST",
         body: JSON.stringify(tournament),
       });
@@ -607,14 +761,14 @@ export class ApiService {
 
   async registerForTournament(
     tournamentId: string,
-    alias?: string
+    alias?: any
   ): Promise<ApiResponse> {
     try {
       return await this.gameRequest<ApiResponse>(
         `/api/tournaments/${tournamentId}/register`,
         {
           method: "POST",
-          body: JSON.stringify({ alias }),
+          body: alias,
         }
       );
     } catch (error) {
@@ -629,6 +783,7 @@ export class ApiService {
         `/api/tournaments/${tournamentId}/start`,
         {
           method: "POST",
+          body: JSON.stringify({}), // Includi un corpo JSON vuoto per evitare l'errore
         }
       );
     } catch (error) {
@@ -637,7 +792,7 @@ export class ApiService {
     }
   }
 
-  async getTournamentBracket(tournamentId: string): Promise<ApiResponse> {
+  async getTournamentBracket(tournamentId: string): Promise<any> {
     try {
       return await this.gameRequest<ApiResponse>(
         `/api/tournaments/${tournamentId}/bracket`
@@ -648,9 +803,9 @@ export class ApiService {
     }
   }
 
-  async getNextTournamentMatches(tournamentId: string): Promise<ApiResponse> {
+  async getNextTournamentMatches(tournamentId: string): Promise<any> {
     try {
-      return await this.gameRequest<ApiResponse>(
+      return await this.gameRequest<any>(
         `/api/tournaments/${tournamentId}/next-matches`
       );
     } catch (error) {
@@ -681,7 +836,21 @@ export class ApiService {
     }
   }
 
-  async getUserMatchHistory(userId?: string): Promise<ApiResponse> {
+  async getTournamentRegistrations(tournamentId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(
+        `/api/tournaments/${tournamentId}/registrations`
+      );
+    } catch (error) {
+      console.error("Get tournament registrations error:", error);
+      return {
+        success: false,
+        message: "Failed to get tournament registrations",
+      };
+    }
+  }
+
+  async getUserMatchHistory(userId?: string): Promise<any> {
     try {
       const endpoint = userId
         ? `/api/users/${userId}/matches`
@@ -690,6 +859,15 @@ export class ApiService {
     } catch (error) {
       console.error("Get match history error:", error);
       return { success: false, message: "Failed to get match history" };
+    }
+  }
+
+  async getMatchDetails(matchId: string): Promise<any> {
+    try {
+      return await this.gameRequest<ApiResponse>(`/api/matches/${matchId}`);
+    } catch (error) {
+      console.error("Get match details error:", error);
+      return { success: false, message: "Failed to get match details" };
     }
   }
 
@@ -712,11 +890,11 @@ export class ApiService {
     }
   }
 
-  async createDirectMessageThread(userId: string): Promise<ApiResponse> {
+  async createDirectMessageThread(userId: number): Promise<ApiResponse> {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/threads/dm", {
         method: "POST",
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ otherUserId: userId }),
       });
     } catch (error) {
       console.error("Create DM thread error:", error);
@@ -771,7 +949,7 @@ export class ApiService {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/blocks", {
         method: "POST",
-        body: JSON.stringify({ targetUserId }),
+        body: JSON.stringify({ blockedUserId: parseInt(targetUserId) }),
       });
     } catch (error) {
       console.error("Block user error:", error);
@@ -781,12 +959,12 @@ export class ApiService {
 
   async unblockUser(targetUserId: string): Promise<ApiResponse> {
     try {
-      return await this.chatRequest<ApiResponse>(
-        `/api/chat/blocks/${targetUserId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      return await this.chatRequest<ApiResponse>(`/api/chat/blocks`, {
+        method: "DELETE",
+        body: JSON.stringify({
+          blockedUserId: parseInt(targetUserId),
+        }),
+      });
     } catch (error) {
       console.error("Unblock user error:", error);
       return { success: false, message: "Failed to unblock user" };

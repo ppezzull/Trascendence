@@ -16,22 +16,39 @@ export class ChatController {
     reply: FastifyReply
   ) {
     try {
-      const userId = request.user!.id;
-      const { otherUserId } = request.body;
+      const payload = request.user as any;
+      let userId: number;
 
-      // Verifica che non stia cercando di creare un DM con se stesso
-      if (userId === otherUserId) {
-        return reply.status(400).send({
-          error: "Cannot create DM with yourself",
-        });
+      // Verifica se è un token di sistema
+      if (payload && payload.system && payload.service) {
+        // Per i token di sistema, usiamo l'ID del primo giocatore come mittente
+        // Questo è necessario perché il sistema non ha un proprio ID utente
+        userId = 0; // ID 0 per il sistema
+      } else {
+        userId = payload.id;
       }
 
-      // Verifica che non ci siano blocchi tra gli utenti
-      const isBlocked = BlockModel.isBlockedBidirectional(userId, otherUserId);
-      if (isBlocked) {
-        return reply.status(403).send({
-          error: "Cannot create DM with blocked user",
-        });
+      const { otherUserId } = request.body;
+
+      // Per i token di sistema, saltiamo la verifica di auto-DM e blocchi
+      if (!payload?.system) {
+        // Verifica che non stia cercando di creare un DM con se stesso
+        if (userId === otherUserId) {
+          return reply.status(400).send({
+            error: "Cannot create DM with yourself",
+          });
+        }
+
+        // Verifica che non ci siano blocchi tra gli utenti
+        const isBlocked = BlockModel.isBlockedBidirectional(
+          userId,
+          otherUserId
+        );
+        if (isBlocked) {
+          return reply.status(403).send({
+            error: "Cannot create DM with blocked user",
+          });
+        }
       }
 
       // Trova o crea il thread DM
@@ -115,34 +132,96 @@ export class ChatController {
     reply: FastifyReply
   ) {
     try {
-      const userId = request.user!.id;
-      const { threadId, content } = request.body;
+      const payload = request.user as any;
+      let userId: number;
+      let isSystem = false;
 
-      // Verifica che l'utente sia membro del thread
-      const isMember = ChatModel.isUserInThread(threadId, userId);
-      if (!isMember) {
-        return reply.status(403).send({
-          error: "Not a member of this thread",
-        });
+      // Verifica se è un token di sistema
+      if (payload && payload.system && payload.service) {
+        // Per i token di sistema, usiamo l'ID 0 per identificare il sistema
+        userId = 0;
+        isSystem = true;
+      } else {
+        userId = payload.id;
       }
 
-      // Ottieni gli altri membri del thread
-      const members = ChatModel.getThreadMembers(threadId);
-      const otherMembers = members.filter((id) => id !== userId);
+      const { threadId, content } = request.body;
 
-      // Verifica che nessuno degli altri membri abbia bloccato l'utente
-      for (const otherUserId of otherMembers) {
-        if (BlockModel.isBlocked(otherUserId, userId)) {
+      // Per i token di sistema, saltiamo alcune verifiche
+      if (!isSystem) {
+        // Verifica che l'utente sia membro del thread
+        const isMember = ChatModel.isUserInThread(threadId, userId);
+        if (!isMember) {
           return reply.status(403).send({
-            error: "You are blocked by one of the thread members",
+            error: "Not a member of this thread",
           });
+        }
+
+        // Ottieni gli altri membri del thread
+        const members = ChatModel.getThreadMembers(threadId);
+        const otherMembers = members.filter((id) => id !== userId);
+
+        // Verifica che nessuno degli altri membri abbia bloccato l'utente
+        for (const otherUserId of otherMembers) {
+          if (BlockModel.isBlocked(otherUserId, userId)) {
+            return reply.status(403).send({
+              error: "You are blocked by one of the thread members",
+            });
+          }
         }
       }
 
-      // Crea il messaggio
-      const message = ChatModel.createMessage(threadId, userId, content);
+      // Crea il messaggio (marcato come messaggio di sistema se necessario)
+      const message = ChatModel.createMessage(
+        threadId,
+        userId,
+        content,
+        isSystem
+      );
 
-      // TODO: Invia notifica WebSocket agli altri membri
+      // Invia notifica WebSocket agli altri membri del thread
+      const { wsController } = await import("./WebSocketController");
+
+      // Usa il nome utente dalla richiesta o un valore predefinito
+      const senderName = isSystem
+        ? "System"
+        : request.user?.username || "Unknown";
+
+      console.log("request", request);
+
+      // Prepara il messaggio per WebSocket
+      const wsMessage = {
+        type: "message:new",
+        payload: {
+          message: {
+            id: message.id,
+            senderId: userId,
+            senderName: senderName,
+            content: message.content,
+            timestamp: message.created_at,
+            threadId: threadId,
+            isSystem: isSystem,
+          },
+        },
+      };
+
+      // Log per debug
+      console.log(
+        `Invio messaggio WebSocket a tutti i membri del thread ${threadId}:`,
+        JSON.stringify(wsMessage, null, 2)
+      );
+
+      // Invia a tutti i membri del thread
+      const members = ChatModel.getThreadMembers(threadId);
+      console.log(`Membri del thread ${threadId}:`, members);
+
+      for (const memberId of members) {
+        // Non inviare al mittente originale (a meno che non sia un messaggio di sistema)
+        if (memberId !== userId || isSystem) {
+          console.log(`Invio messaggio WebSocket all'utente ${memberId}`);
+          wsController.sendToUser(memberId, wsMessage);
+        }
+      }
 
       return reply.status(201).send(message);
     } catch (error) {

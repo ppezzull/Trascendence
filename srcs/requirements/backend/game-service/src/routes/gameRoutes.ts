@@ -373,6 +373,7 @@ async function gameRoutes(fastify: FastifyInstance) {
       min_players?: number;
       tournament_type?: "single_elimination" | "double_elimination";
       settings?: Record<string, any>;
+      players?: Array<{ alias: string; user_id?: number }>;
     };
   }>(
     "/tournaments",
@@ -395,6 +396,17 @@ async function gameRoutes(fastify: FastifyInstance) {
               default: "single_elimination",
             },
             settings: { type: "object" },
+            players: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  alias: { type: "string" },
+                  user_id: { type: "number" },
+                },
+                required: ["alias"],
+              },
+            },
           },
         },
         response: {

@@ -398,6 +398,21 @@ export class UserModel {
     return stmt.all(userId, userId) as User[];
   }
 
+  // Rimuovi un amico
+  static async removeFriend(userId: number, friendId: number): Promise<boolean> {
+    const stmt = db.prepare(`
+      UPDATE friendships 
+      SET status = 'rejected', updated_at = CURRENT_TIMESTAMP
+      WHERE (
+        (requester_id = ? AND addressee_id = ?) OR
+        (requester_id = ? AND addressee_id = ?)
+      ) AND status = 'accepted'
+    `);
+
+    const result = stmt.run(userId, friendId, friendId, userId);
+    return result.changes > 0;
+  }
+
   // Ottieni le richieste di amicizia in sospeso per un utente
   static async getPendingFriendRequests(userId: number): Promise<Friendship[]> {
     const stmt = db.prepare(`

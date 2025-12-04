@@ -4,7 +4,7 @@ export class Paddle {
   private mesh: BABYLON.Mesh
   private scene: BABYLON.Scene
   private direction: 'up' | 'down' | null = null
-  private speed = 0.2
+  private speed = 0.1
 
   private lastZ = 0
   private velocityZ = 0
@@ -26,9 +26,13 @@ export class Paddle {
     )
     
     const material = new BABYLON.StandardMaterial(`${name}Material`, this.scene)
-    material.diffuseColor = new BABYLON.Color3(0.1, 0.8, 1.0)
-    material.emissiveColor = new BABYLON.Color3(0.1, 0.4, 0.8)
+    material.diffuseColor = new BABYLON.Color3(0.0, 0.8, 0.0)
+    material.emissiveColor = new BABYLON.Color3(0.1, 0.4, 0.0)
     this.mesh.material = material
+
+    const luce = new BABYLON.PointLight("luce", this.mesh.position, this.scene);
+    luce.diffuse = new BABYLON.Color3(0.1, 0.4, 0.8); // Stesso colore
+    luce.intensity = 1.5;
 
     // Centra il pivot (evita disallineamenti della hitbox)
     this.mesh.setPivotPoint(BABYLON.Vector3.Zero())

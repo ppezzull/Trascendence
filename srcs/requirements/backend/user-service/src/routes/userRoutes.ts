@@ -945,6 +945,84 @@ async function userRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Rotta per rimuovere un amico
+  fastify.delete(
+    "/:id/friends",
+    {
+      schema: {
+        description: "Rimuovi un amico",
+        tags: ["Users", "Friends"],
+        params: {
+          type: "object",
+          properties: {
+            id: {
+              type: "number",
+              minimum: 1,
+            },
+          },
+          required: ["id"],
+        },
+        body: {
+          type: "object",
+          properties: {
+            friend_id: {
+              type: "number",
+              minimum: 1,
+            },
+          },
+          required: ["friend_id"],
+        },
+        headers: {
+          type: "object",
+          properties: {
+            Authorization: { type: "string" },
+          },
+          required: ["Authorization"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              message: { type: "string" },
+            },
+            required: ["success", "message"],
+          },
+          401: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              message: { type: "string" },
+            },
+            required: ["success", "message"],
+          },
+          403: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              message: { type: "string" },
+            },
+            required: ["success", "message"],
+          },
+          404: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              message: { type: "string" },
+            },
+            required: ["success", "message"],
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{
+      Params: typeof userIdSchema._type;
+      Body: { friend_id: number };
+    }>, reply: FastifyReply) => {
+      return userController.removeFriend(request, reply);
+    }
+  );
+
   // Rotta per ottenere le richieste di amicizia in sospeso
   fastify.get(
     "/friends/pending",

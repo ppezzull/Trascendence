@@ -54,7 +54,6 @@ export class PongCanvas {
           <button id="pause-game-btn" class="cyber-button hidden">Pausa</button>
           <button id="resume-game-btn" class="cyber-button hidden">Riprendi</button>
           <button id="reset-game-btn" class="cyber-button hidden">Reset</button>
-          <button id="change-mode-btn" class="cyber-button hidden">Cambia Modalità</button>
         </div>
         
         <!-- Game Over Screen -->
@@ -63,8 +62,7 @@ export class PongCanvas {
             <h2 class="cyber-title text-2xl mb-4">PARTITA TERMINATA</h2>
             <p class="terminal-text mb-6">Vincitore: <span id="winner-text" class="text-cyber-cyan font-bold"></span></p>
             <div class="flex justify-center space-x-4">
-              <button id="play-again-btn" class="cyber-button">Gioca Ancora</button>
-              <button id="change-mode-after-game" class="cyber-button">Cambia Modalità</button>
+              <button id="exit-game-btn" class="cyber-button">Esci</button>
             </div>
           </div>
         </div>
@@ -534,6 +532,7 @@ export class PongCanvas {
     // Update UI
     document.getElementById("pause-game-btn")?.classList.add("hidden");
     document.getElementById("resume-game-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.remove("hidden");
   }
 
   public resumeGame() {
@@ -545,6 +544,7 @@ export class PongCanvas {
     // Update UI
     document.getElementById("resume-game-btn")?.classList.add("hidden");
     document.getElementById("pause-game-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.add("hidden");
   }
 
   public resetGame() {
@@ -558,6 +558,7 @@ export class PongCanvas {
     document.getElementById("pause-game-btn")?.classList.add("hidden");
     document.getElementById("resume-game-btn")?.classList.add("hidden");
     document.getElementById("change-mode-btn")?.classList.remove("hidden");
+    document.getElementById("reset-game-btn")?.classList.add("hidden");
 
     // Reset scores
     const player1Score = document.getElementById("player1-score");
@@ -574,10 +575,8 @@ export class PongCanvas {
     if (gameOverScreen) gameOverScreen.classList.remove("hidden");
     if (winnerText) winnerText.textContent = winner;
 
-    // Update UI
-    document.getElementById("pause-game-btn")?.classList.add("hidden");
-    document.getElementById("resume-game-btn")?.classList.add("hidden");
-    document.getElementById("change-mode-btn")?.classList.add("hidden");
+    // Pause the game when showing game over
+    this.pauseGame();
   }
 
   private hideGameOver() {
@@ -595,10 +594,16 @@ export class PongCanvas {
     const player1ScoreElement = document.getElementById("player1-score");
     const player2ScoreElement = document.getElementById("player2-score");
 
-    if (player1ScoreElement)
+    if (player1ScoreElement) {
       player1ScoreElement.textContent = player1Score.toString();
-    if (player2ScoreElement)
+
+      this.updateScorePlayer1(player1Score);
+    }
+    if (player2ScoreElement) {
       player2ScoreElement.textContent = player2Score.toString();
+
+      this.updateScorePlayer2(player2Score);
+    }
 
     // Check for game over
     if (player1Score >= 5 || player2Score >= 5) {
@@ -608,8 +613,25 @@ export class PongCanvas {
           : this.gameMode === "pve"
           ? "BOT"
           : "PLAYER 2";
+
+      // Get winner ID based on game mode and winner
+    const winnerId = player1Score >= 5 
+    ? (this.gameMode === "pve" ? 1 : this.getPlayerIdFromName("PLAYER 1"))
+    : (this.gameMode === "pve" ? 2 : this.getPlayerIdFromName("PLAYER 2"));
+  
       this.showGameOver(winner);
       this.isRunning = false;
+
+      // this.finishMatch(winnerId);
     }
   }
+  
+  private getPlayerIdFromName(playerName: string): number {
+    // This is a simplified approach - in a real implementation, 
+    // you'd need to track the actual player IDs
+    if (playerName === "PLAYER 1") return 1;
+    if (playerName === "PLAYER 2") return 2;
+    return 0; // Default fallback
+  }
 }
+  

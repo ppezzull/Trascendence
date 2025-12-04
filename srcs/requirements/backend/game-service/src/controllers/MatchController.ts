@@ -2,6 +2,8 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { MatchModel } from "../models/MatchModel";
 import { GameModel } from "../models/GameModel";
 import { StatsModel } from "../models/StatsModel";
+import { TournamentModel } from "../models/TournamentModel";
+import db from "../database/connection";
 
 export class MatchController {
   /**
@@ -169,11 +171,44 @@ export class MatchController {
         return reply.status(404).send({ error: "Match not found" });
       }
 
+      console.log("matchensommamammamamammama", matchId);
+      console.log("winner_idensommamammamamammama", winner_id);
+
       // Termina la partita
       const success = MatchModel.finishMatch(matchId, winner_id);
 
       if (!success) {
         return reply.status(400).send({ error: "Cannot finish match" });
+      }
+
+      // Verifica se la partita fa parte di un torneo
+      const tournamentMatchStmt = db.prepare(`
+        SELECT tm.tournament_id
+        FROM tournament_matches tm
+        WHERE tm.match_id = ?
+      `);
+      const tournamentMatch = tournamentMatchStmt.get(matchId) as
+        | { tournament_id: number }
+        | undefined;
+
+      console.log(
+        `finishMatch: Checking if match ${matchId} is part of a tournament. Result:`,
+        tournamentMatch
+      );
+
+      // Se la partita fa parte di un torneo, aggiorna lo stato del torneo
+      if (tournamentMatch) {
+        console.log(
+          `finishMatch: Match ${matchId} is part of tournament ${tournamentMatch.tournament_id}. Updating tournament progress.`
+        );
+        TournamentModel.updateTournamentProgress(
+          tournamentMatch.tournament_id,
+          matchId
+        );
+      } else {
+        console.log(
+          `finishMatch: Match ${matchId} is not part of any tournament.`
+        );
       }
 
       // Aggiorna le statistiche dei giocatori
@@ -238,9 +273,9 @@ export class MatchController {
 
       // Verifica che la partita sia in stato pending (prima che i giocatori siano pronti)
       if (match.status !== "pending") {
-        return reply.status(400).send({ 
+        return reply.status(400).send({
           error: "Cannot cancel match",
-          details: `Match is already ${match.status}. Only pending matches can be cancelled.`
+          details: `Match is already ${match.status}. Only pending matches can be cancelled.`,
         });
       }
 
@@ -254,7 +289,7 @@ export class MatchController {
       const updatedMatch = MatchModel.getMatchWithPlayers(matchId);
       return reply.send({
         ...updatedMatch,
-        message: "Match successfully cancelled"
+        message: "Match successfully cancelled",
       });
     } catch (error) {
       request.log.error(error);
