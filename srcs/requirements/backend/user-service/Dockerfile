@@ -4,6 +4,9 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
+# Install su-exec for privilege drop
+RUN apk add --no-cache su-exec
+
 # Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
@@ -33,7 +36,6 @@ RUN adduser -S nodejs -u 1001
 
 # Change ownership of the app directory to nodejs user
 RUN chown -R nodejs:nodejs /app
-USER nodejs
 
 # Expose port 3001 (user-service listens on 3001)
 EXPOSE 3001
