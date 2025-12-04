@@ -944,7 +944,6 @@ export class ChatBox {
     }
 
     invitationNotificationsElement.innerHTML = `
-      <h3 class="text-cyber-green font-bold mb-3 mt-4">Inviti a Pong ricevuti</h3>
       ${pendingMatches
         .map(
           (match) => `

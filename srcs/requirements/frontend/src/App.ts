@@ -2406,13 +2406,13 @@ export class App {
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T4</h2>
             <p class="terminal-text mb-4">Torneo a eliminazione diretta con 4 partecipanti</p>
-            <button id="create-t4-tournament" class="cyber-button inline-block">Crea Torneo T4</button>
+            <button id="create-t4-tournament" class="cyber-button inline-block" onclick="app.showCreateTournamentDialog(4)">Crea Torneo T4</button>
           </div>
           
           <div class="cyber-card text-center">
             <h2 class="text-xl font-bold text-cyber-green mb-4">TORNEO T8</h2>
             <p class="terminal-text mb-4">Torneo a eliminazione diretta con 8 partecipanti</p>
-            <button id="create-t8-tournament" class="cyber-button inline-block">Crea Torneo T8</button>
+            <button id="create-t8-tournament" class="cyber-button inline-block" onclick="app.showCreateTournamentDialog(8)">Crea Torneo T8</button>
           </div>
         </div>
 
@@ -3668,56 +3668,8 @@ export class App {
   }
 
   private initializeTournamentsPage() {
-    // Add event listeners for tournament creation
-    const createT4Button = document.getElementById("create-t4-tournament");
-    if (createT4Button) {
-      createT4Button.addEventListener("click", () => {
-        this.createTournament(4);
-      });
-    }
-
-    const createT8Button = document.getElementById("create-t8-tournament");
-    if (createT8Button) {
-      createT8Button.addEventListener("click", () => {
-        this.createTournament(8);
-      });
-    }
-
     // Load tournaments
     this.loadTournaments();
-  }
-
-  private async createTournament(maxParticipants: number) {
-    try {
-      const tournamentType = maxParticipants === 4 ? "T4" : "T8";
-      const tournamentData = {
-        name: `Torneo ${tournamentType} - ${new Date().toLocaleDateString()}`,
-        gameType: "pong", // Default to pong, could be extended
-        max_players: maxParticipants,
-        min_players: maxParticipants - 1,
-
-        game_id: 1,
-        type: tournamentType.toLowerCase(),
-      };
-
-      const response = await this.apiService.createTournament(tournamentData);
-
-      if (response) {
-        this.showNotification(
-          `Torneo ${tournamentType} creato con successo!`,
-          "success"
-        );
-        this.loadTournaments(); // Reload tournaments list
-      } else {
-        this.showNotification(
-          response.message || "Errore nella creazione del torneo",
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Create tournament error:", error);
-      this.showNotification("Errore durante la creazione del torneo", "error");
-    }
   }
 
   private async loadTournaments() {
@@ -3796,7 +3748,8 @@ export class App {
       container.innerHTML = `
         <div class="text-center text-gray-400 py-4">
           <p>Nessun torneo ${
-            containerId === "active-tournaments" ? "attivo" : "passato"
+            // se non è attivo o passato è partito
+            containerId === "active-tournaments" ? "attivo" : containerId === "past-tournaments" ? "passato" : "partito"
           } disponibile</p>
         </div>
       `;
@@ -3905,6 +3858,24 @@ export class App {
       if (!alias || alias.trim() === "") {
         this.showNotification("Devi inserire un alias per iscriverti al torneo", "error");
         return;
+      }
+
+      // Check if alias is already in use for this tournament
+      try {
+        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        if (registrations && Array.isArray(registrations)) {
+          const aliasExists = registrations.some((reg: any) => 
+            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          );
+          
+          if (aliasExists) {
+            this.showNotification("Alias già in uso per questo torneo", "warning");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking alias availability:", error);
+        // Continue with registration attempt if we can't check aliases
       }
 
       const response = await this.apiService.registerForTournament(
@@ -5662,6 +5633,24 @@ export class App {
         return;
       }
 
+      // Check if alias is already in use for this tournament
+      try {
+        const registrations = await this.apiService.getTournamentRegistrations(tournamentId);
+        if (registrations && Array.isArray(registrations)) {
+          const aliasExists = registrations.some((reg: any) => 
+            reg.alias && reg.alias.toLowerCase() === alias.trim().toLowerCase()
+          );
+          
+          if (aliasExists) {
+            this.showNotification("Alias già in uso per questo torneo", "warning");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking alias availability:", error);
+        // Continue with registration attempt if we can't check aliases
+      }
+
       const response = await this.apiService.registerForTournament(
         tournamentId,
         JSON.stringify({ alias: alias.trim(), user_id: authState.user?.id })
@@ -5689,6 +5678,99 @@ export class App {
       } else {
         this.showNotification("Errore durante l'iscrizione al torneo", "error");
       }
+    }
+  }
+
+  showCreateTournamentDialog(maxParticipants: number) {
+    // Create modal HTML
+    const modalHTML = `
+      <div id="create-tournament-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="cyber-panel max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="cyber-title text-2xl">Crea Torneo T${maxParticipants}</h2>
+            <button onclick="app.closeCreateTournamentModal()" class="cyber-button-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <form id="create-tournament-form">
+            <div class="mb-4">
+              <label for="tournament-name" class="block text-cyber-green mb-2">Nome del torneo</label>
+              <input type="text" id="tournament-name" name="name" class="cyber-input w-full" required maxlength="50" value="Torneo T${maxParticipants} - ${new Date().toLocaleDateString()}">
+              <p class="text-xs text-gray-400 mt-1">Inserisci un nome per il torneo</p>
+            </div>
+            <div class="flex space-x-2">
+              <button type="submit" class="cyber-button flex-1">Crea</button>
+              <button type="button" onclick="app.cancelCreateTournament()" class="cyber-button bg-cyber-magenta flex-1">Annulla</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Add form submission handler
+    const form = document.getElementById("create-tournament-form") as HTMLFormElement;
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const name = formData.get("name") as string;
+        this.createTournamentWithName(maxParticipants, name);
+      });
+    }
+  }
+
+  private closeCreateTournamentModal() {
+    const modal = document.getElementById("create-tournament-modal");
+    if (modal) {
+      modal.remove();
+    }
+  }
+
+  cancelCreateTournament() {
+    this.closeCreateTournamentModal();
+    this.showNotification("Creazione torneo annullata", "info");
+  }
+
+  private async createTournamentWithName(maxParticipants: number, name: string) {
+    try {
+      // Check if name is provided
+      if (!name || name.trim() === "") {
+        this.showNotification("Devi inserire un nome per il torneo", "error");
+        return;
+      }
+
+      const tournamentType = maxParticipants === 4 ? "T4" : "T8";
+      const tournamentData = {
+        name: name.trim(),
+        gameType: "pong", // Default to pong, could be extended
+        max_players: maxParticipants,
+        min_players: maxParticipants - 1,
+        game_id: 1,
+        type: tournamentType.toLowerCase(),
+      };
+
+      const response = await this.apiService.createTournament(tournamentData);
+
+      if (response) {
+        this.closeCreateTournamentModal();
+        this.showNotification(
+          `Torneo ${tournamentType} creato con successo!`,
+          "success"
+        );
+        this.loadTournaments(); // Reload tournaments list
+      } else {
+        this.showNotification(
+          response.message || "Errore nella creazione del torneo",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Create tournament error:", error);
+      this.showNotification("Errore durante la creazione del torneo", "error");
     }
   }
 }
