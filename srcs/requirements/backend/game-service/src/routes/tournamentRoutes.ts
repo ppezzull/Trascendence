@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { RouteHandlerMethod } from "fastify";
 import { TournamentController } from "../controllers/TournamentController";
 
 export default async function tournamentRoutes(fastify: FastifyInstance) {
@@ -28,7 +29,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.authenticate],
     },
-    tournamentController.registerPlayer.bind(tournamentController)
+    tournamentController.registerPlayer.bind(tournamentController) as RouteHandlerMethod
   );
 
   // DELETE /tournaments/:id/register/:registrationId - Rimuove una registrazione
@@ -37,7 +38,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.authenticate],
     },
-    tournamentController.unregisterPlayer.bind(tournamentController)
+    tournamentController.unregisterPlayer.bind(tournamentController) as RouteHandlerMethod
   );
 
   // GET /tournaments/:id/registrations - Lista le registrazioni di un torneo
@@ -52,7 +53,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.authenticate],
     },
-    tournamentController.startTournament.bind(tournamentController)
+    tournamentController.startTournament.bind(tournamentController) as RouteHandlerMethod
   );
 
   // GET /tournaments/:id/bracket - Ottiene il bracket di un torneo
@@ -70,7 +71,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
   // GET /tournaments/:id/stats - Ottiene le statistiche di un torneo
   fastify.get(
     "/tournaments/:id/stats",
-    tournamentController.getStats.bind(tournamentController)
+    tournamentController.getTournamentStats.bind(tournamentController)
   );
 
   // POST /tournaments/:id/cancel - Cancella un torneo
@@ -79,7 +80,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.authenticate],
     },
-    tournamentController.cancelTournament.bind(tournamentController)
+    tournamentController.cancelTournament.bind(tournamentController) as RouteHandlerMethod
   );
 
   // POST /tournaments/:id/matches/:matchId/complete - Callback quando un match viene completato
@@ -88,6 +89,39 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     {
       preHandler: [fastify.authenticate],
     },
-    tournamentController.onMatchCompleted.bind(tournamentController)
+    tournamentController.onMatchCompleted.bind(tournamentController) as RouteHandlerMethod
+  );
+
+  // POST /tournaments/:id/submit-score - Invia un punteggio alla blockchain (storage primario)
+  fastify.post(
+    "/tournaments/:id/submit-score",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    tournamentController.submitScore.bind(tournamentController) as RouteHandlerMethod
+  );
+
+  // GET /tournaments/:id/leaderboard - Ottiene la classifica dalla blockchain
+  fastify.get(
+    "/tournaments/:id/leaderboard",
+    tournamentController.getLeaderboard.bind(tournamentController)
+  );
+
+  // GET /tournaments/:id/verify - Verifica l'integrità del torneo
+  fastify.get(
+    "/tournaments/:id/verify",
+    tournamentController.verifyTournament.bind(tournamentController)
+  );
+
+  // GET /tournaments/:id/blockchain-stats - Ottiene le statistiche del torneo dalla blockchain
+  fastify.get(
+    "/tournaments/:id/blockchain-stats",
+    tournamentController.getBlockchainStats.bind(tournamentController)
+  );
+
+  // GET /blockchain/health - Verifica la salute del servizio blockchain
+  fastify.get(
+    "/blockchain/health",
+    tournamentController.getBlockchainHealth.bind(tournamentController)
   );
 }

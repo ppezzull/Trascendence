@@ -14,12 +14,15 @@ Microservizio game per il progetto Trascendence (42 School). Gestisce **Pong**, 
 - ✅ **API REST**: CRUD completo per tutte le entità
 - ✅ **Autenticazione JWT**: Condivisa con user-service
 - ✅ **Swagger UI**: Documentazione API interattiva
+- ✅ **Blockchain Tournament System**: Scores immutabili su Avalanche (TournamentScores.sol)
 
 ## 🛠️ Tech Stack
 
 - **Framework**: Fastify 4.x
 - **Language**: TypeScript
-- **Database**: SQLite (better-sqlite3)
+- **Database**: SQLite (better-sqlite3) - Solo metadati tornei
+- **Blockchain**: Avalanche + Solidity (Smart contract per punteggi)
+- **Web3 Library**: Viem per interazioni blockchain
 - **Validation**: Zod
 - **Documentation**: Swagger/OpenAPI
 
@@ -351,11 +354,16 @@ game-service/
 │   │   ├── StatsModel.ts
 │   │   ├── MatchmakingModel.ts
 │   │   └── TournamentModel.ts
+│   ├── providers/              # Blockchain providers
+│   │   └── TournamentProvider.ts # Viem blockchain integration
 │   ├── routes/                 # Route definitions
-│   │   └── gameRoutes.ts
+│   │   ├── gameRoutes.ts
+│   │   └── tournamentRoutes.ts
 │   ├── database/               # Database connection & migrations
 │   │   ├── connection.ts
 │   │   └── migrate.ts
+│   ├── abi/                    # Smart contract ABIs
+│   │   └── TournamentScores.json
 │   └── types/                  # TypeScript type definitions
 │       └── fastify.d.ts
 ├── migrations/                 # SQL migrations
@@ -379,9 +387,39 @@ game-service/
 
 - In futuro: notifiche inviti partita dalla chat
 
+### ⛓️ Blockchain Tournament System
+
+Il sistema implementa un'architettura **Blockchain-First** per i tornei:
+
+#### 🎯 Come Funziona
+- **Punteggi su Blockchain**: Tutti i punteggi dei tornei sono salvati in modo immutabile su Avalanche
+- **Database per Metadati**: Il database locale contiene solo metadati (registrazioni, bracket, impostazioni)
+- **Trasparenza Totale**: Chiunque può verificare i punteggi sulla blockchain
+- **Anti-truffa**: I punteggi non possono essere modificati una volta inviati
+
+#### 🔗 Smart Contract
+- **Contract**: `TournamentScores.sol`
+- **Network**: Avalanche Fuji Testnet
+- **Address**: [0x202Fa7479d6fcBa37148009D256Ac2936729e577](https://testnet.snowscan.xyz/address/0x202Fa7479d6fcBa37148009D256Ac2936729e577)
+- **Code Source**: `../blockchain-service/src/TournamentScores.sol`
+
+#### 🚀 Setup Rapido
+Vedi **[BLOCKCHAIN_SETUP.md](./BLOCKCHAIN_SETUP.md)** per istruzioni complete:
+- Setup locale (5 minuti) con Anvil
+- Setup Avalanche Fuji testnet (10 minuti)
+- Guide per non sviluppatori Web3
+
+#### 🎮 Nuovi Endpoints Blockchain
+- `POST /api/tournaments/:id/submit-score` - Invia punteggio alla blockchain
+- `GET /api/tournaments/:id/leaderboard` - Classifica dalla blockchain
+- `GET /api/tournaments/:id/verify` - Verifica integrità torneo
+- `GET /api/tournaments/:id/blockchain-stats` - Statistiche dalla blockchain
+- `GET /api/blockchain/health` - Stato connessione blockchain
+
 ### Blockchain Service
 
-- In futuro: salvataggio punteggi torneo su blockchain
+- Smart contract development e deployment
+- Script di deployment per diverse reti (local, Fuji, Mainnet)
 
 ## 🏆 Sistema Tornei
 
@@ -437,7 +475,9 @@ Player8 ─┘
 - [ ] WebSocket per aggiornamenti real-time durante partite
 - [ ] Completare implementazione double elimination
 - [ ] Integrazione eventi tornei con chat-service
-- [ ] Salvataggio punteggi su blockchain
+- [x] ✅ Salvataggio punteggi su blockchain (implementato!)
+- [ ] Tournament live streaming su blockchain
+- [ ] NFT rewards per vincitori tornei
 - [ ] Replay partite
 - [ ] Achievement system
 - [ ] Seasonal rankings

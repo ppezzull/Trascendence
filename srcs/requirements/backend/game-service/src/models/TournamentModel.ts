@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import db from "../database/connection";
 import jwt from "jsonwebtoken";
+import { getTournamentProvider, TournamentWithLeaderboard } from "../providers/TournamentProvider";
 
 // Funzione di utilità per inviare messaggi al chat-service
 async function sendTournamentMatchMessage(
@@ -119,11 +120,16 @@ export interface Tournament {
   tournament_type: "single_elimination" | "double_elimination";
   status: "registration" | "in_progress" | "completed" | "cancelled";
   winner_id: number | null;
+  winner_alias: string | null; // Blockchain winner alias
   created_by: number | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
   settings: string | null;
+  // Blockchain integration fields
+  blockchain_tournament_id: string | null; // Tournament ID on blockchain
+  blockchain_transaction_hash: string | null; // Tournament creation transaction hash
+  blockchain_enabled: boolean; // All tournaments should be blockchain-enabled
 }
 
 export interface TournamentRegistration {
@@ -163,9 +169,9 @@ export class TournamentModel {
   private static db: Database.Database = db;
 
   /**
-   * Crea un nuovo torneo
+   * Crea un nuovo torneo (obbligatoriamente su blockchain)
    */
-  static create(data: {
+  static async create(data: {
     name: string;
     game_id: number;
     max_players?: number;
@@ -174,10 +180,10 @@ export class TournamentModel {
     created_by?: number;
     settings?: Record<string, any>;
     players?: Array<{ alias: string; user_id?: number }>;
-  }): Tournament {
+  }): Promise<Tournament> {
     const stmt = this.db.prepare(`
-      INSERT INTO tournaments (name, game_id, max_players, min_players, tournament_type, created_by, settings)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tournaments (name, game_id, max_players, min_players, tournament_type, created_by, settings, blockchain_enabled)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     `);
 
     const result = stmt.run(
@@ -191,6 +197,30 @@ export class TournamentModel {
     );
 
     const tournamentId = result.lastInsertRowid as number;
+
+    // Crea il torneo sulla blockchain
+    try {
+      const tournamentProvider = getTournamentProvider();
+      const blockchainResult = await tournamentProvider.createTournament(data.name);
+
+      if (!blockchainResult.success) {
+        throw new Error(`Blockchain creation failed: ${blockchainResult.error}`);
+      }
+
+      // Aggiorna il database con i dati blockchain
+      const updateStmt = this.db.prepare(`
+        UPDATE tournaments
+        SET blockchain_tournament_id = ?, blockchain_transaction_hash = ?
+        WHERE id = ?
+      `);
+
+      updateStmt.run(blockchainResult.tournamentId, blockchainResult.transactionHash, tournamentId);
+
+    } catch (error) {
+      // Se fallisce la creazione su blockchain, elimina il torneo e propaga l'errore
+      this.deleteTournament(tournamentId);
+      throw error;
+    }
 
     // Se sono forniti i giocatori, registrali e crea il bracket
     if (data.players && data.players.length > 0) {
@@ -210,6 +240,14 @@ export class TournamentModel {
     }
 
     return this.getById(tournamentId) as Tournament;
+  }
+
+  /**
+   * Helper per eliminare un torneo
+   */
+  private static deleteTournament(tournamentId: number): void {
+    const stmt = this.db.prepare("DELETE FROM tournaments WHERE id = ?");
+    stmt.run(tournamentId);
   }
 
   /**
@@ -1075,7 +1113,7 @@ export class TournamentModel {
     const totalRounds = Math.ceil(Math.log2(totalPlayers));
 
     const matchStatsStmt = this.db.prepare(`
-      SELECT 
+      SELECT
         COUNT(*) as total_matches,
         SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) as completed_matches,
         MAX(tm.round) as max_round
@@ -1093,5 +1131,175 @@ export class TournamentModel {
       current_round: this.getCurrentRound(tournamentId),
       total_rounds: totalRounds,
     };
+  }
+
+  /**
+   * Invia un punteggio alla blockchain (storage primario)
+   */
+  static async submitScore(
+    tournamentId: number,
+    playerAlias: string,
+    score: number
+  ): Promise<{ success: boolean; error?: string; transactionHash?: string }> {
+    const tournament = this.getById(tournamentId);
+    if (!tournament) {
+      return { success: false, error: "Tournament not found" };
+    }
+
+    if (!tournament.blockchain_enabled) {
+      return { success: false, error: "Tournament is not blockchain enabled" };
+    }
+
+    try {
+      const tournamentProvider = getTournamentProvider();
+
+      // Invia il punteggio alla blockchain (questo è lo storage primario)
+      const result = await tournamentProvider.submitScore(
+        tournament.name,
+        playerAlias,
+        score
+      );
+
+      if (result.success) {
+        console.log(`Score submitted to blockchain for ${playerAlias} in tournament ${tournament.name}: ${score} (tx: ${result.transactionHash})`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error submitting score to blockchain:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Ottiene la classifica completa dalla blockchain
+   */
+  static async getLeaderboard(tournamentId: number): Promise<Array<{ alias: string; score: number; rank?: number }>> {
+    const tournament = this.getById(tournamentId);
+    if (!tournament) {
+      throw new Error("Tournament not found");
+    }
+
+    try {
+      const tournamentProvider = getTournamentProvider();
+
+      // Get all registrations for hash-to-alias mapping
+      const registrations = this.getRegistrations(tournamentId);
+
+      // Get complete leaderboard with alias resolution
+      const tournamentWithLeaderboard = await tournamentProvider.getLeaderboard(
+        tournament,
+        registrations
+      );
+
+      return tournamentWithLeaderboard.leaderboard;
+
+    } catch (error) {
+      console.error('Error getting leaderboard from blockchain:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Ottiene le statistiche del torneo dalla blockchain
+   */
+  static async getBlockchainStats(tournamentId: number): Promise<{
+    exists: boolean;
+    entryCount: number;
+    entries: Array<{ nicknameHash: string; score: number }>;
+  }> {
+    const tournament = this.getById(tournamentId);
+    if (!tournament) {
+      return { exists: false, entryCount: 0, entries: [] };
+    }
+
+    try {
+      const tournamentProvider = getTournamentProvider();
+
+      const stats = await tournamentProvider.getBlockchainStats(tournament.name);
+
+      return {
+        exists: stats.exists,
+        entryCount: stats.entryCount,
+        entries: stats.entries.map(entry => ({
+          nicknameHash: entry.nicknameHash,
+          score: entry.score
+        }))
+      };
+    } catch (error) {
+      console.error('Error getting blockchain stats:', error);
+      return { exists: false, entryCount: 0, entries: [] };
+    }
+  }
+
+  /**
+   * Verifica la salute del servizio blockchain
+   */
+  static async checkBlockchainHealth(): Promise<{ healthy: boolean; contractAddress?: string; owner?: string; blockNumber?: bigint; error?: string }> {
+    try {
+      const tournamentProvider = getTournamentProvider();
+      return await tournamentProvider.checkHealth();
+    } catch (error) {
+      console.error('Error checking blockchain health:', error);
+      return { healthy: false };
+    }
+  }
+
+  /**
+   * Verifica l'integrità di un torneo tra dati locali e blockchain
+   */
+  static async verifyTournamentIntegrity(tournamentId: number): Promise<{
+    verified: boolean;
+    issues: string[];
+    blockchainEntries: number;
+    localPlayers: number;
+  }> {
+    try {
+      const tournament = this.getById(tournamentId);
+      if (!tournament) {
+        return {
+          verified: false,
+          issues: ['Tournament not found'],
+          blockchainEntries: 0,
+          localPlayers: 0,
+        };
+      }
+
+      const registrations = this.getRegistrations(tournamentId);
+      const tournamentProvider = getTournamentProvider();
+
+      return await tournamentProvider.verifyTournamentIntegrity(tournament, registrations);
+    } catch (error) {
+      console.error('Error verifying tournament integrity:', error);
+      return {
+        verified: false,
+        issues: [`Error during verification: ${error instanceof Error ? error.message : String(error)}`],
+        blockchainEntries: 0,
+        localPlayers: 0,
+      };
+    }
+  }
+
+  /**
+   * Ottiene torneo con leaderboard completa dalla blockchain
+   */
+  static async getTournamentWithLeaderboard(tournamentId: number): Promise<TournamentWithLeaderboard | null> {
+    try {
+      const tournament = this.getById(tournamentId);
+      if (!tournament) {
+        return null;
+      }
+
+      const registrations = this.getRegistrations(tournamentId);
+      const tournamentProvider = getTournamentProvider();
+
+      return await tournamentProvider.getLeaderboard(tournament, registrations);
+    } catch (error) {
+      console.error('Error getting tournament with leaderboard:', error);
+      return null;
+    }
   }
 }

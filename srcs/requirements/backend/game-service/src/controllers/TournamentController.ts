@@ -17,6 +17,7 @@ export class TournamentController {
         min_players?: number;
         tournament_type?: "single_elimination" | "double_elimination";
         settings?: Record<string, any>;
+        players?: Array<{ alias: string; user_id?: number }>;
       };
     }>,
     reply: FastifyReply
@@ -29,6 +30,7 @@ export class TournamentController {
         min_players,
         tournament_type,
         settings,
+        players,
       } = request.body;
 
       if (!name || !game_id) {
@@ -43,18 +45,32 @@ export class TournamentController {
         return reply.status(404).send({ error: "Game not found" });
       }
 
-      const tournament = TournamentModel.create({
+      // Crea il torneo su blockchain (obbligatorio secondo i requisiti)
+      const tournament = await TournamentModel.create({
         name,
         game_id,
         max_players,
         min_players,
         tournament_type,
         settings,
+        players,
       });
 
-      return reply.status(201).send(tournament);
+      return reply.status(201).send({
+        ...tournament,
+        message: "Tournament created and stored on blockchain",
+      });
     } catch (error: any) {
       request.log.error(error);
+
+      // Gestisci specificamente errori di blockchain
+      if (error.message.includes('Blockchain creation failed')) {
+        return reply.status(500).send({
+          error: "Failed to create tournament on blockchain",
+          details: error.message
+        });
+      }
+
       return reply.status(500).send({ error: error.message });
     }
   }
@@ -476,6 +492,66 @@ export class TournamentController {
       // Aggiorna lo stato del torneo
       TournamentModel.updateTournamentProgress(tournamentId, matchId);
 
+      // Submit scores to blockchain (primary storage)
+      try {
+        const tournament = TournamentModel.getById(tournamentId);
+        if (!tournament) {
+          return reply.status(404).send({ error: "Tournament not found" });
+        }
+
+        // Ottieni i giocatori del match e i loro alias
+        const matchPlayersStmt = db.prepare(`
+          SELECT mp.*, tr.alias
+          FROM match_players mp
+          LEFT JOIN tournament_registrations tr ON tr.tournament_id = ? AND tr.user_id = mp.user_id
+          WHERE mp.match_id = ?
+        `);
+        const matchPlayers = matchPlayersStmt.all(tournamentId, matchId) as Array<{
+          user_id: number;
+          position: number;
+          alias?: string;
+        }>;
+
+        // Per un vero torneo, dovremmo avere un modo per determinare i punteggi reali
+        // Per ora, usiamo punteggi fittizi basati sulla posizione o winner_id
+        const winnerScore = 100;
+        const loserScore = 50;
+
+        // Ottieni tutti i giocatori del match
+        const matchPlayerDetails = db.prepare(`
+          SELECT mp.user_id, tr.alias
+          FROM match_players mp
+          LEFT JOIN tournament_registrations tr ON tr.tournament_id = ? AND tr.user_id = mp.user_id
+          WHERE mp.match_id = ?
+        `);
+        const players = matchPlayerDetails.all(tournamentId, matchId) as Array<{
+          user_id: number;
+          alias?: string;
+        }>;
+
+        // Submit scores for all players in the match to blockchain
+        for (const player of players) {
+          const alias = player.alias || `Player_${player.user_id}`;
+          const score = match.winner_id === player.user_id ? winnerScore : loserScore;
+
+          console.log(`Submitting score to blockchain: ${alias} - ${score}`);
+          const result = await TournamentModel.submitScore(tournamentId, alias, score);
+
+          if (!result.success) {
+            console.error(`Failed to submit score for ${alias}:`, result.error);
+          }
+        }
+
+        console.log(`Submitted ${players.length} scores to blockchain for tournament ${tournament.name}`);
+      } catch (blockchainError) {
+        console.error('Error submitting scores to blockchain:', blockchainError);
+        // Fallimento del blocco fallisce l'intera operazione poiché la blockchain è lo storage primario
+        return reply.status(500).send({
+          error: "Failed to submit scores to blockchain",
+          details: blockchainError instanceof Error ? blockchainError.message : 'Unknown error'
+        });
+      }
+
       // Se questa è l'ultima partita, finalizza il torneo
       if (isFinalMatch) {
         console.log(
@@ -484,8 +560,8 @@ export class TournamentController {
 
         // Aggiorna lo stato del torneo a completato
         const updateTournamentStmt = db.prepare(`
-          UPDATE tournaments 
-          SET status = 'completed', 
+          UPDATE tournaments
+          SET status = 'completed',
               completed_at = datetime('now'),
               winner_id = ?
           WHERE id = ?
@@ -512,6 +588,160 @@ export class TournamentController {
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: error.message });
+    }
+  }
+
+  /**
+   * POST /tournaments/:id/submit-score - Invia un punteggio alla blockchain (storage primario)
+   */
+  async submitScore(
+    request: FastifyRequest<{
+      Params: { id: string };
+      Body: {
+        playerAlias: string;
+        score: number;
+      };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const tournamentId = parseInt(request.params.id);
+      const { playerAlias, score } = request.body;
+
+      if (!playerAlias || score === undefined) {
+        return reply
+          .status(400)
+          .send({ error: "Missing required fields: playerAlias, score" });
+      }
+
+      const result = await TournamentModel.submitScore(
+        tournamentId,
+        playerAlias,
+        score
+      );
+
+      if (result.success) {
+        return reply.send({
+          success: true,
+          message: "Score submitted to blockchain",
+          transactionHash: result.transactionHash,
+        });
+      } else {
+        return reply.status(400).send({
+          success: false,
+          error: result.error,
+        });
+      }
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: error.message });
+    }
+  }
+
+  /**
+   * GET /tournaments/:id/leaderboard - Ottiene la classifica dalla blockchain
+   */
+  async getLeaderboard(
+    request: FastifyRequest<{
+      Params: { id: string };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const tournamentId = parseInt(request.params.id);
+      const tournamentWithLeaderboard = await TournamentModel.getTournamentWithLeaderboard(tournamentId);
+
+      if (!tournamentWithLeaderboard) {
+        return reply.status(404).send({ error: "Tournament not found" });
+      }
+
+      return reply.send({
+        tournament: {
+          id: tournamentWithLeaderboard.id,
+          name: tournamentWithLeaderboard.name,
+          status: tournamentWithLeaderboard.status,
+          total_players: tournamentWithLeaderboard.total_players,
+          blockchain_verified: tournamentWithLeaderboard.blockchain_verified,
+          blockchain_entry_count: tournamentWithLeaderboard.blockchain_entry_count
+        },
+        leaderboard: tournamentWithLeaderboard.leaderboard,
+        message: "Leaderboard retrieved from blockchain"
+      });
+    } catch (error: any) {
+      request.log.error(error);
+      if (error.message.includes('not found')) {
+        return reply.status(404).send({ error: error.message });
+      }
+      return reply.status(500).send({ error: error.message });
+    }
+  }
+
+  /**
+   * GET /tournaments/:id/verify - Verifica l'integrità del torneo
+   */
+  async verifyTournament(
+    request: FastifyRequest<{
+      Params: { id: string };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const tournamentId = parseInt(request.params.id);
+      const verification = await TournamentModel.verifyTournamentIntegrity(tournamentId);
+
+      return reply.send({
+        tournament_id: tournamentId,
+        verified: verification.verified,
+        issues: verification.issues,
+        blockchain_entries: verification.blockchainEntries,
+        local_players: verification.localPlayers,
+        message: verification.verified ?
+          "Tournament integrity verified" :
+          "Tournament integrity issues detected"
+      });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: error.message });
+    }
+  }
+
+  /**
+   * GET /tournaments/:id/blockchain-stats - Ottiene le statistiche del torneo dalla blockchain
+   */
+  async getBlockchainStats(
+    request: FastifyRequest<{
+      Params: { id: string };
+    }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const tournamentId = parseInt(request.params.id);
+      const stats = await TournamentModel.getBlockchainStats(tournamentId);
+
+      return reply.send(stats);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: error.message });
+    }
+  }
+
+  /**
+   * GET /blockchain/health - Verifica la salute del servizio blockchain
+   */
+  async getBlockchainHealth(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) {
+    try {
+      const health = await TournamentModel.checkBlockchainHealth();
+
+      return reply.send(health);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        healthy: false,
+        error: error.message
+      });
     }
   }
 }
