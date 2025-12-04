@@ -1,5 +1,114 @@
 import Database from "better-sqlite3";
 import db from "../database/connection";
+import jwt from "jsonwebtoken";
+
+// Funzione di utilità per inviare messaggi al chat-service
+async function sendTournamentMatchMessage(
+  player1Id: number,
+  player2Id: number,
+  tournamentName: string,
+  matchId: number
+): Promise<void> {
+  try {
+    // Prepara il messaggio per il chat-service
+    const messageContent = `Sei stato associato con un altro giocatore per il torneo "${tournamentName}". Partita ID: ${matchId}. Buona fortuna!`;
+
+    console.log("messageContent", messageContent);
+
+    // URL del chat-service dalle variabili d'ambiente
+    const chatServiceUrl =
+      process.env.CHAT_SERVICE_URL || "http://localhost:3002";
+
+    // Crea un token JWT per la comunicazione server-to-server
+    // Usiamo un payload speciale che identifica questa come una comunicazione di sistema
+    const systemToken = jwt.sign(
+      {
+        userId: 0, // ID 0 per identificare il sistema
+        system: true, // Flag per identificare che è una comunicazione di sistema
+        service: "game-service", // Identifica il servizio mittente
+      },
+      process.env.JWT_SECRET || "supersecret",
+      { expiresIn: "5m" } // Token di breve durata per sicurezza
+    );
+
+    // Funzione helper per inviare un messaggio a un giocatore specifico
+    const sendMessageToPlayer = async (
+      playerId: number,
+      otherPlayerId: number
+    ) => {
+      // Crea un thread DM tra il sistema e il giocatore
+      const threadResponse = await fetch(
+        `${chatServiceUrl}/api/chat/threads/dm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${systemToken}`,
+          },
+          body: JSON.stringify({
+            otherUserId: playerId,
+          }),
+        }
+      );
+
+      console.log(`threadResponse per giocatore ${playerId}:`, threadResponse);
+
+      if (!threadResponse.ok) {
+        console.error(
+          `Errore nella creazione del thread DM per il giocatore ${playerId}:`,
+          threadResponse.statusText
+        );
+        return;
+      }
+
+      const threadData = await threadResponse.json();
+      const threadId = threadData.id;
+
+      // Personalizza il messaggio per il giocatore
+      const personalizedMessage = `Sei stato associato con il giocatore ${otherPlayerId} per il torneo "${tournamentName}". Partita ID: ${matchId}. Buona fortuna!`;
+
+      // Invia il messaggio nel thread
+      const messageResponse = await fetch(
+        `${chatServiceUrl}/api/chat/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${systemToken}`,
+          },
+          body: JSON.stringify({
+            threadId: threadId,
+            content: personalizedMessage,
+          }),
+        }
+      );
+
+      if (!messageResponse.ok) {
+        console.error(
+          `Errore nell'invio del messaggio al giocatore ${playerId}:`,
+          messageResponse.statusText
+        );
+        return;
+      }
+
+      console.log(
+        `Messaggio di torneo inviato con successo al giocatore ${playerId}`
+      );
+    };
+
+    // Invia il messaggio a entrambi i giocatori in parallelo
+    await Promise.all([
+      sendMessageToPlayer(player1Id, player2Id),
+      sendMessageToPlayer(player2Id, player1Id),
+    ]);
+
+    console.log(
+      `Messaggi di torneo inviati con successo ai giocatori ${player1Id} e ${player2Id}`
+    );
+  } catch (error) {
+    console.error("Errore nell'invio dei messaggi di torneo:", error);
+  }
+}
 
 export interface Tournament {
   id: number;
@@ -553,11 +662,54 @@ export class TournamentModel {
     userId: number,
     position: number
   ): void {
-    const playerStmt = this.db.prepare(`
+    const playerStmt = db.prepare(`
       INSERT INTO match_players (match_id, user_id, position)
       VALUES (?, ?, ?)
     `);
     playerStmt.run(matchId, userId, position);
+
+    // Verifica se ora ci sono due giocatori nel match
+    const playersCountStmt = db.prepare(`
+      SELECT COUNT(*) as count, GROUP_CONCAT(user_id) as player_ids
+      FROM match_players 
+      WHERE match_id = ?
+    `);
+    const playersResult = playersCountStmt.get(matchId) as {
+      count: number;
+      player_ids: string;
+    };
+
+    // Se ci sono esattamente due giocatori, invia un messaggio di notifica
+    if (playersResult.count === 2) {
+      const playerIds = playersResult.player_ids
+        .split(",")
+        .map((id) => parseInt(id));
+      const [player1Id, player2Id] = playerIds;
+
+      // Ottieni informazioni sul torneo e sul match
+      const tournamentMatchStmt = db.prepare(`
+        SELECT tm.tournament_id, t.name as tournament_name
+        FROM tournament_matches tm
+        JOIN tournaments t ON tm.tournament_id = t.id
+        WHERE tm.match_id = ?
+      `);
+      const tournamentInfo = tournamentMatchStmt.get(matchId) as {
+        tournament_id: number;
+        tournament_name: string;
+      };
+
+      if (tournamentInfo) {
+        // Invia il messaggio in modo asincrono senza bloccare il flusso principale
+        sendTournamentMatchMessage(
+          player1Id,
+          player2Id,
+          tournamentInfo.tournament_name,
+          matchId
+        ).catch((error) => {
+          console.error("Errore nell'invio del messaggio di torneo:", error);
+        });
+      }
+    }
   }
 
   /**

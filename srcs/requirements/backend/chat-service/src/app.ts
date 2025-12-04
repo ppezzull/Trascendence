@@ -33,8 +33,8 @@ const fastify: FastifyInstance = Fastify({
     },
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
     base: {
-      service: process.env.SERVICE_NAME || 'chat-service',
-      environment: process.env.NODE_ENV || 'development',
+      service: process.env.SERVICE_NAME || "chat-service",
+      environment: process.env.NODE_ENV || "development",
     },
   },
 });
@@ -44,14 +44,14 @@ const fastify: FastifyInstance = Fastify({
 async function registerPlugins() {
   // Abilita CORS
   const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+    : ["http://localhost:3000", "http://127.0.0.1:3000"];
 
   await fastify.register(cors, {
     origin: corsOrigins,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Abilita Helmet per la sicurezza (con eccezione per WebSocket)
@@ -138,7 +138,7 @@ async function registerPlugins() {
 
   // Registra Prometheus metrics endpoint
   await fastify.register(metricsPlugin, {
-    endpoint: '/metrics',
+    endpoint: "/metrics",
     defaultMetrics: { enabled: true },
     routeMetrics: { enabled: true },
   });
@@ -151,6 +151,17 @@ fastify.decorate(
   async function (request: FastifyRequest, reply: FastifyReply) {
     try {
       await request.jwtVerify();
+
+      // Verifica se è un token di sistema (comunicazione server-to-server)
+      const payload = request.user as any;
+      if (payload && payload.system && payload.service) {
+        // È un token di sistema, accettalo senza ulteriori verifiche
+        request.log.info(`Token di sistema ricevuto da: ${payload.service}`);
+        return;
+      }
+
+      // Per i token utente normali, potremmo aggiungere verifiche aggiuntive qui
+      // come verificare che l'utente esista nel database, ecc.
     } catch (err) {
       reply.status(401).send({ error: "Unauthorized" });
     }
