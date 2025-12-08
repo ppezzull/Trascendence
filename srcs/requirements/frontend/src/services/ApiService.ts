@@ -899,7 +899,7 @@ export class ApiService {
     }
   }
 
-  async createDirectMessageThread(userId: number): Promise<ApiResponse> {
+  async createDirectMessageThread(userId: number): Promise<any> {
     try {
       return await this.chatRequest<ApiResponse>("/api/chat/threads/dm", {
         method: "POST",

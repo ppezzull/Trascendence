@@ -859,8 +859,8 @@ export class ChatBox {
 
       const response = await this.apiService.createDirectMessageThread(userId);
 
-      if (response && response.data) {
-        this.currentThreadId = response.data.id;
+      if (response) {
+        this.currentThreadId = response.id;
         this.updateThreadInfo(username);
         this.enableMessageInput();
         await this.loadMessages(this.currentThreadId || undefined);
