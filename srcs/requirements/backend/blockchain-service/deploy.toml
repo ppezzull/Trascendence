@@ -1,0 +1,2 @@
+[script]
+TournamentScores = "src/TournamentScores.sol:TournamentScores"
